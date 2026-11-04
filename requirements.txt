@@ -1,4 +1,6 @@
 duckdb
+fastapi
 httpx
 python-dotenv
 pyyaml
+uvicorn

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Home</title>
+  <style>
+    :root {
+      --bg: #f7f7f5;
+      --card: #ffffff;
+      --text: #1f2933;
+      --muted: #52606d;
+      --accent: #0b6e69;
+      --warn: #8a5a00;
+      --border: #d9dde1;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+    h1 { margin: 0 0 0.25rem; font-size: 1.75rem; }
+    .intro { margin: 0 0 1.5rem; color: var(--muted); }
+    label { display: block; font-weight: 600; margin-bottom: 0.35rem; }
+    select {
+      font: inherit;
+      padding: 0.55rem 0.75rem;
+      min-width: 260px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--card);
+    }
+    select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    h2 { margin: 2rem 0 1rem; font-size: 1.35rem; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.1rem;
+    }
+    .card h3 { margin: 0 0 0.5rem; font-size: 0.95rem; font-weight: 600; color: var(--muted); }
+    .value { font-size: 1.6rem; font-weight: 700; margin: 0; }
+    .unavailable { font-size: 1rem; font-weight: 600; color: var(--warn); }
+    .moe { margin: 0.15rem 0 0.6rem; color: var(--muted); font-size: 0.9rem; }
+    .source { margin: 0; font-size: 0.82rem; color: var(--muted); }
+    .source a { color: var(--accent); }
+    .message { color: var(--muted); }
+    .error { color: #a61b1b; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Home</h1>
+    <p class="intro">Who lives in each of Hawaiʻi's 51 House and 25 Senate districts. Every figure shows its source and year.</p>
+
+    <label for="district">Choose a district</label>
+    <select id="district" disabled>
+      <option>Loading districts...</option>
+    </select>
+
+    <section id="profile" aria-live="polite"></section>
+  </main>
+
+  <script>
+    const select = document.getElementById("district");
+    const profile = document.getElementById("profile");
+
+    function formatValue(value, unit) {
+      if (unit === "dollars") return "$" + Math.round(value).toLocaleString("en-US");
+      return Math.round(value).toLocaleString("en-US");
+    }
+
+    function uncertaintyText(fact) {
+      switch (fact.moe_status) {
+        case "ok":
+        case "derived":
+          return "plus or minus " + formatValue(fact.moe, fact.unit);
+        case "controlled":
+          return "fixed to official population totals";
+        case "not_computable":
+          return "margin of error not available, treat as uncertain";
+        default:
+          return "";
+      }
+    }
+
+    function unavailableText(status) {
+      if (status === "not_applicable") return "Not applicable here";
+      return "Not available: too few cases for the source to publish";
+    }
+
+    function renderFact(fact) {
+      const card = document.createElement("article");
+      card.className = "card";
+
+      const title = document.createElement("h3");
+      title.textContent = fact.label;
+      card.append(title);
+
+      if (fact.value_status === "ok") {
+        const value = document.createElement("p");
+        value.className = "value";
+        value.textContent = formatValue(fact.value, fact.unit);
+        card.append(value);
+
+        const moe = document.createElement("p");
+        moe.className = "moe";
+        moe.textContent = uncertaintyText(fact);
+        card.append(moe);
+      } else {
+        const value = document.createElement("p");
+        value.className = "value unavailable";
+        value.textContent = unavailableText(fact.value_status);
+        card.append(value);
+      }
+
+      const source = document.createElement("p");
+      source.className = "source";
+      const link = document.createElement("a");
+      link.href = fact.source.url;
+      link.textContent = fact.source.publisher + ", " + fact.source.dataset;
+      link.target = "_blank";
+      link.rel = "noopener";
+      source.append("Source: ", link, ", " + fact.source.year);
+      card.append(source);
+
+      return card;
+    }
+
+    async function loadDistrict(geoId) {
+      profile.innerHTML = '<p class="message">Loading...</p>';
+      try {
+        const res = await fetch("/api/districts/" + encodeURIComponent(geoId));
+        if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+        const data = await res.json();
+
+        const heading = document.createElement("h2");
+        heading.textContent = data.name;
+        const grid = document.createElement("div");
+        grid.className = "grid";
+        data.facts.forEach(f => grid.append(renderFact(f)));
+        profile.replaceChildren(heading, grid);
+      } catch (err) {
+        profile.innerHTML = "";
+        const p = document.createElement("p");
+        p.className = "error";
+        p.textContent = "Could not load this district. " + err.message;
+        profile.append(p);
+      }
+    }
+
+    async function init() {
+      try {
+        const res = await fetch("/api/districts");
+        if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+        const districts = await res.json();
+
+        select.replaceChildren();
+        for (const [type, label] of [["house", "House districts"], ["senate", "Senate districts"]]) {
+          const group = document.createElement("optgroup");
+          group.label = label;
+          districts.filter(d => d.geo_type === type).forEach(d => {
+            group.append(new Option(d.name, d.geo_id));
+          });
+          select.append(group);
+        }
+        select.disabled = false;
+        select.addEventListener("change", () => loadDistrict(select.value));
+        loadDistrict(select.value);
+      } catch (err) {
+        select.replaceChildren(new Option("Unavailable"));
+        profile.innerHTML = "";
+        const p = document.createElement("p");
+        p.className = "error";
+        p.textContent = "Could not load districts. " + err.message;
+        profile.append(p);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
