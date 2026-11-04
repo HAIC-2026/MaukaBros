@@ -1,0 +1,58 @@
+# Indicators pulled from the ACS for every House and Senate district.
+#
+# type:
+#   single  one ACS variable, published margin of error
+#   sum     several ACS variables added together; margin of error = sqrt(sum of squares)
+#
+# Variable codes: https://api.census.gov/data/2024/acs/acs5/variables.html
+
+indicators:
+  - id: pop_total
+    label: Total population
+    unit: people
+    type: single
+    variables: [B01001_001E]
+
+  - id: pop_65_plus
+    label: Residents age 65 and older (kūpuna)
+    unit: people
+    type: sum
+    variables:
+      [
+        B01001_020E,
+        B01001_021E,
+        B01001_022E,
+        B01001_023E,
+        B01001_024E,
+        B01001_025E,
+        B01001_044E,
+        B01001_045E,
+        B01001_046E,
+        B01001_047E,
+        B01001_048E,
+        B01001_049E,
+      ]
+
+  - id: households_total
+    label: Total households
+    unit: households
+    type: single
+    variables: [B11001_001E]
+
+  - id: median_household_income
+    label: Median household income
+    unit: dollars
+    type: single
+    variables: [B19013_001E]
+
+  - id: pop_below_poverty
+    label: Residents below the poverty level
+    unit: people
+    type: single
+    variables: [B17001_002E]
+
+  - id: snap_households
+    label: Households receiving SNAP
+    unit: households
+    type: single
+    variables: [B22003_002E]
