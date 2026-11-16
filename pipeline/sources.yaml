@@ -1,0 +1,233 @@
+# Terms of use for every third-party source this project uses.
+#
+# Why: the HAIC brief (Special Requirements) says to "confirm terms of use for third-party data
+# before use".
+#
+# RULES (same as programs.yaml and boundaries.yaml)
+#   - Every quote was read from the page listed in `terms_url` on `checked_on`. Quotes are
+#     verbatim and short; they are not legal advice and not the full terms.
+#   - A field the page did not state is null (or "not stated"). Nothing is filled in from memory.
+#   - `open_questions` are things we could NOT settle from the pages. Ask the challenge team
+#     (Slack #c_dbedt_agent) or the publisher, then record the answer here.
+
+sources:
+  - id: census_data_api
+    publisher: U.S. Census Bureau
+    used_for: "ACS 5-year estimates for legislative districts, counties and the state (downloaded once by pipeline/fetch_acs.py, saved in pipeline/raw/acs/, read by pipeline/build.py); live cross-check against ACS subject tables (validation/validate.py)"
+    terms_url: https://www.census.gov/data/developers/about/terms-of-service.html
+    page_last_revised: "2026-04-14"
+    checked_on: 2026-11-13
+    attribution_required: true
+    required_notice: "This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau."
+    quotes:
+      who_may_use: "You may use the Census Bureau API to develop a service"
+      notice: "All services, which utilize or access the API, should display the following notice prominently within the application:"
+      endorsement: "You may not use the Census Bureau name, or the like to imply endorsement"
+      modification: "You may not modify or falsely represent content accessed through the API and still claim the source is the Census Bureau."
+      disclaimer: "The API is provided \"as is\" and on an \"as-available\" basis."
+      re_identification: "users will not use these data, alone or in combination with any other Census or non-Census data, to identify any individual person."
+    not_stated: [free_of_charge, commercial_use_restriction, redistribution_or_caching, api_key_requirement_on_this_page]
+    related:
+      - url: https://www.census.gov/about/policies/citation.html
+        note: "Citing our Data. Its Public-Use Statement says users \"should cite the Census Bureau as the source of the original data only.\" (a citation instruction, not a licence)"
+    how_we_comply:
+      - "The notice is shown in the page footer (web/index.html)."
+      - "Percentages and margins of error we calculate are labeled as calculated (\"Percentages are calculated from published counts\", \"about plus or minus\"), so we do not present derived figures as Census-published."
+      - "Every figure cites the Census Bureau, the ACS table and the year."
+      - "The app only shows aggregated district figures and does not try to identify any individual."
+    open_questions: []
+
+  - id: census_tiger
+    publisher: U.S. Census Bureau
+    used_for: "Reference only. ACS is tabulated on these state legislative districts; the map uses the OPSD layer instead."
+    terms_url: https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html
+    page_last_revised: "2026-10-14"
+    checked_on: 2026-11-13
+    attribution_required: null # not stated
+    quotes: {}
+    not_stated: [terms, licence, public_domain, attribution, redistribution]
+    open_questions: []
+
+  - id: opsd_legislative_districts
+    publisher: Hawaiʻi Statewide GIS Program, Office of Planning and Sustainable Development (OPSD)
+    used_for: "District boundaries drawn on the map (pipeline/boundaries.py downloads and converts them)"
+    terms_url: https://planning.hawaii.gov/gis/download-gis-data-expanded/
+    checked_on: 2026-11-13
+    attribution_required: null # not stated
+    quotes:
+      public_domain: "The contents of this web page are public domain"
+      exception: "to the extent indicated otherwise in the Terms of Use, are exempt from Terms of Use policy restrictions."
+      warranty: "There are no expressed warranties associated with the release of this data or product."
+    related:
+      - url: https://portal.ehawaii.gov/page/terms-of-use/
+        note: "Terms of Use | Hawaii.gov. Not confirmed to be the document the OPSD page's \"Terms of Use\" refers to (that link's address was not read directly from the page)."
+        quotes:
+          commercial: "You agree not to use for commercial purposes, or resell"
+          automated_access: "through any automated means (including, but not limited to, use of scripts, web crawlers or screen scrapers),"
+          provided_as_is: "This web site is provided \"AS IS\" and without warranties of any kind."
+    open_questions:
+      - "RESOLVED BY DESIGN: the Hawaii.gov Terms of Use prohibit access \"through any automated means (including… scripts…)\", while the OPSD page says its contents are public domain \"to the extent indicated otherwise in the Terms of Use\". So pipeline/boundaries.py makes no request to hawaii.gov. It reads a copy that a person downloads by hand in a browser (pipeline/raw/README.md). Still worth confirming with the challenge team that this use is fine."
+      - "The terms prohibit commercial use or resale of data derived from the Services. Confirm a state-run challenge entry is non-commercial."
+      - "Metadata does not name the redistricting plan or adoption date (see boundaries.yaml)."
+
+  - id: esri_arcgis_maps_sdk_js
+    publisher: Esri
+    used_for: "Map display (web/index.html loads the ArcGIS Maps SDK for JavaScript 4.31 from the Esri CDN). No basemap or Esri hosted data service is used."
+    terms_url: https://developers.arcgis.com/javascript/latest/licensing/
+    related:
+      - url: https://developers.arcgis.com/javascript/latest/attribution/
+    checked_on: 2026-11-13
+    attribution_required: true
+    quotes:
+      attribution: "When you use Esri technology, you must include Esri attribution and data attribution."
+      scope: "Attribution is required for applications that either contain a map or do not contain a map."
+      placement: "will be displayed by default at the bottom of the map, scene, or link chart."
+      governing: "is subject to the terms outlined in the product-specific terms of use"
+      account: "An ArcGIS Location Platform or ArcGIS Online account is required to use the services."
+    not_stated: [use_of_js_arcgis_com_cdn_without_api_key_or_account, public_website_or_demo_licensing, commercial_use, redistribution]
+    how_we_comply:
+      - "The default Esri attribution is left on the map (not hidden)."
+    open_questions:
+      - "PARTLY ANSWERED (challenge team in Slack, seen 2026-11-15, replying to another team's MapLibre question): Esri and the State give HAIC participants free ArcGIS access. Request a complimentary $25 ArcGIS Location Platform voucher (SDKs, APIs, MCP) and a free ArcGIS Hub Community identity at https://esri-haic-histategis.hub.arcgis.com/ ; free tier: https://location.arcgis.com/pricing/ . ACTION: request the voucher/account and load the SDK with our own API key. Not yet stated: whether keyless loading is acceptable."
+      - "The licensing page does not say whether the SDK may be loaded from js.arcgis.com without an account or API key. We load it with none and use no Esri services. Confirm with Esri or the challenge team (the brief says ESRI is a challenge co-sponsor and 'may be used'), and read the product-specific terms at https://developers.arcgis.com/documentation/terms-of-use/ (not read yet)."
+      - "The Esri docs now list a newer SDK version (5.2) than the 4.31 we load."
+
+  - id: bea_cainc1
+    publisher: U.S. Bureau of Economic Analysis (BEA)
+    used_for: "County and state personal income and per capita personal income, 2024 (CAINC1). Saved file: pipeline/raw/bea/CAINC1.zip (manifest.yaml). Shown as county/state context only."
+    terms_url: https://www.bea.gov/help/guidelines-for-citing-bea
+    page_last_revised: "2024-09-24"
+    checked_on: 2026-11-15
+    attribution_required: null # "appreciated", not required
+    quotes:
+      citation: "Citations are appreciated and appropriate."
+      citation_format_tables: "U.S. Bureau of Economic Analysis, “Table name,” [the URL] (accessed [date])."
+      vintage: "If applicable, identify the date of the estimates and the \"vintage\" of the estimate."
+      endorsement: "Any reference or link to the BEA Web site must not contain information that suggests an endorsement or recommendation by BEA."
+      logo: "use of the logo for any other purpose is prohibited."
+    not_stated: [public_domain, copyright, automated_access, redistribution]
+    related:
+      - url: https://www.bea.gov/news/2026/gross-domestic-product-county-and-personal-income-county-2024
+        note: "Release of February 5, 2026. \"Next release: December 2, 2026\" (2025 estimates); \"the 2024 data will be superseded.\""
+    how_we_comply:
+      - "Every BEA figure cites BEA, the table (CAINC1), the year, the vintage line from the file (\"Last updated: February 5, 2026...\") and the download date."
+      - "No BEA logo; no wording that suggests BEA endorsement."
+      - "Downloaded once (one request), stored, and read locally."
+    open_questions:
+      - "Refresh after BEA's December 2, 2026 release (2025 estimates)."
+
+  - id: bls_laus
+    publisher: U.S. Bureau of Labor Statistics (BLS), Local Area Unemployment Statistics
+    used_for: "County labor force, unemployed and unemployment rate, 2025 (laucnty25.xlsx, downloaded by hand 2026-11-15; pipeline/context.py). Shown as county context with BLS's 11-month-average footnote."
+    terms_url: https://www.bls.gov/bls/linksite.htm
+    page_last_revised: "2016-08-05"
+    checked_on: 2026-11-15
+    attribution_required: null # "we do ask", not required
+    quotes:
+      public_domain: "is in the public domain, except for previously copyrighted photographs and illustrations."
+      permission: "You are free to use our public domain material without specific permission"
+      attribution: "we do ask that you cite the Bureau of Labor Statistics as the source."
+      emblem: "Unauthorized use of the emblem is prohibited."
+    related:
+      - url: https://www.bls.gov/opub/copyright-information.htm
+        note: "BLS Copyright Information; same public-domain wording."
+      - url: https://www.bls.gov/bls/pss.htm
+        note: "Robot policy (last modified 2023-05-05): \"excessive robot activity on BLS websites is prohibited.\" BLS \"reserves the right to block robots that do not contain information that can be used to contact the owner.\" Our one automated request got HTTP 403, so the file is downloaded by hand."
+    how_we_comply:
+      - "Every figure cites BLS, LAUS, the file and year, and BLS's footnote that 2025 is an 11-month average (October 2025 not collected); no emblem."
+    open_questions: []
+
+  # --- hawaii.gov sources -------------------------------------------------------------------
+  # DBEDT (dbedt.hawaii.gov) and DOTAX (tax.hawaii.gov) footers both link to the Hawaii.gov
+  # Terms of Use below (DBEDT via https://portal.ehawaii.gov/terms-of-use.html, which links on to
+  # the same page). A second State page, ets.hawaii.gov/?p=8794, has different wording.
+  - id: hawaii_gov_terms
+    publisher: State of Hawaiʻi (eHawaii.gov portal)
+    used_for: "Terms that apply to DBEDT, DOTAX, OPSD and other hawaii.gov downloads"
+    terms_url: https://portal.ehawaii.gov/page/terms-of-use/
+    checked_on: 2026-11-15
+    quotes:
+      scope: "(including but not necessarily limited to pages with web addresses that contain “hawaii.gov” or “eHawaii.gov”)"
+      commercial: "Duplication or use of any content from this web site for commercial purposes"
+      official_approval: "or in any manner likely to give the impression of official approval by the State of Hawaiʻi is prohibited."
+      automated_access: "any automated means (including, but not limited to, use of scripts, web crawlers or screen scrapers)"
+      robots: "comply with the instructions set out in any robots.txt file present on the site."
+      provided_as_is: "This web site is provided “AS IS” and without warranties of any kind."
+    not_stated: [public_domain, attribution, noncommercial_reuse, redistribution]
+    related:
+      - url: https://ets.hawaii.gov/?p=8794
+        note: "\"State of Hawaii Government Web Site Terms of Use\" (Office of Enterprise Technology Services). Says: \"Anyone may view, copy, or distribute information and documents found on these Web pages\" \"for personal or informational use without owing an obligation to the state\" \"unless otherwise stated on the materials\". Not linked from the DBEDT or DOTAX pages."
+      - url: https://opendata.hawaii.gov/pages/terms-of-use
+        note: "Could not be read (HTTP 403)."
+    how_we_comply:
+      - "No script downloads anything from hawaii.gov. Files are downloaded by a person in a browser and stored (pipeline/raw/manifest.yaml)."
+      - "Non-commercial, informational use; the app does not suggest State approval."
+    open_questions:
+      - "Ask the challenge team (Slack #c_dbedt_agent) to confirm that a challenge entry storing and redistributing figures from DBEDT/DOTAX files is fine under these terms. Contact on the terms page: terms@ehawaii.gov."
+      - "On 2026-11-15 an automated reader read these pages once each to record terms and file links, and while doing so fetched two files once (DB2025_section01.xlsx and DOTAX 2023indinc.pdf). Those copies were used only to read table titles and are not stored in the project. The stored copies must be downloaded by hand. Flag this if the team wants zero automated reads."
+
+  - id: dbedt_databook
+    publisher: Hawaiʻi Department of Business, Economic Development and Tourism (DBEDT), Research and Economic Analysis Division (READ)
+    used_for: "The 2025 State of Hawaii Data Book (58th edition). All 24 section files downloaded by hand 2026-11-15. Used: Table 1.06 (resident population by county, July 1, 2025) and Tables 11.03-11.05 (SNAP cases, people served and benefits by island, FY2025; original data Hawaii DHS). Catalogue of all 833 tables: docs/data_book_2025_tables.csv."
+    terms_url: https://portal.ehawaii.gov/page/terms-of-use/ # see hawaii_gov_terms
+    checked_on: 2026-11-15
+    quotes:
+      format: "the data tables are now provided exclusively as Excel files (PDF formats are no longer available)."
+      coverage: "places primary emphasis on statewide data, with more limited coverage of counties, and other smaller geographic areas."
+    not_stated: [data_specific_terms, citation_format, release_date]
+    related:
+      - url: https://dbedt.hawaii.gov/economic/databook/db2025/
+        note: "Lists DB2025_section01.xlsx ... DB2025_section24.xlsx with section titles."
+    how_we_comply:
+      - "Each figure names the Data Book table, its printed title, and the original source line from the table (e.g. Hawaii DHS for SNAP)."
+      - "Tables that republish ACS or BEA data are not used; we take those from the original publisher (Seth: primary sources, no duplicates)."
+    open_questions:
+      - "Ask READ (the champion) which Data Book tables they want shown (candidates in docs/DATA_SOURCES.md), and the citation they prefer."
+
+  - id: dotax_individual_income
+    publisher: Hawaiʻi Department of Taxation (DOTAX)
+    used_for: "IN USE: Hawaiʻi Individual Income Tax Statistics, tax year 2023. XLSX downloaded by hand 2026-11-15, report PDF 2026-11-16. Table A-13 county/state median income shown as county context; A-13 areas and A-14 ZIP list stored for the district overlap (docs/GEOGRAPHY_METHOD.md). A-15/A-16 not used."
+    terms_url: https://portal.ehawaii.gov/page/terms-of-use/ # see hawaii_gov_terms
+    checked_on: 2026-11-15
+    quotes: {}
+    related:
+      - url: https://tax.hawaii.gov/stats/a5_1annual/a5_5ind_inc/
+        note: "Page updated October 7, 2026. Current: 2023 (PDF and XLSX). Archived with XLSX: 2015-2022."
+    open_questions:
+      - "Tables are by ZIP code and area, not legislative district. Needs a ZIP-to-district crosswalk with a written method before any figure is shown for a district."
+      - "The XLSX says \"s\" denotes cells \"suppressed to prevent potential disclosure of confidential taxpayer information\". Read the PDF's notes on how ZIP/area is assigned, and how PO-box ZIP codes and the 20,666 \"Other/Unidentified\" returns are treated."
+
+  - id: dhs_snap_and_medquest
+    publisher: Hawaiʻi Department of Human Services (DHS), including Med-QUEST Division
+    used_for: "PLANNED: program uptake (SNAP and Medicaid/QUEST enrollment by county or island) for the outreach-gap estimate. Nothing downloaded yet."
+    terms_url: https://portal.ehawaii.gov/page/terms-of-use/ # assumed hawaii.gov; footer link not checked
+    checked_on: null
+    quotes: {}
+    related:
+      - url: https://humanservices.hawaii.gov/wp-content/uploads/2026/03/DHS-Databook-2025.pdf
+        note: "DHS Databook 2025 (found by web search, not opened). Check whether it gives SNAP by county."
+      - url: https://medquest.hawaii.gov/content/dam/formsanddocuments/med-quest/staywellstaycovered/MQD%20010526%20Updated%20Stats.pdf
+        note: "Med-QUEST stats deck dated January 5, 2026, reported to include enrollment by county (found by web search, not opened). A June 8, 2026 deck also exists."
+    open_questions:
+      - "Open both by hand, confirm which tables give county/island counts, and the footer terms link, then add them to manifest.yaml."
+
+  - id: uhero
+    publisher: University of Hawaiʻi Economic Research Organization (UHERO)
+    used_for: "NOT USED."
+    terms_url: null # none found
+    checked_on: 2026-11-15
+    quotes:
+      copyright: "Copyright © 2026 UHERO"
+    not_stated: [terms_of_use, license, citation_policy, reuse, redistribution]
+    open_questions:
+      - "No terms page found on uhero.hawaii.edu; the data portal (data.uhero.hawaii.edu) is a JavaScript app that could not be read. Do not use until terms are confirmed. Seth: most UHERO data repackages READ data, so prefer the READ original."
+
+  - id: datatrove_ai
+    publisher: "not stated on its site. The HAIC 2026 Know Your District slide deck lists it as \"Event sponsor\" and says \"Tap our sponsor / datatrove.ai: an invaluable data resource for participants\"."
+    used_for: "NOT USED."
+    terms_url: null # none found
+    checked_on: 2026-11-15
+    quotes: {}
+    not_stated: [operator, terms_of_use, license, data_offered]
+    open_questions:
+      - "datatrove.ai returned an almost empty page (JavaScript app); no terms, operator or data description could be read. It is the event sponsor, so ask the sponsor/challenge team how participants get access, what Hawaiʻi data it holds (by district, ZIP, tract?), and its terms of use. The brief requires the terms to be confirmed before use."

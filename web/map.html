@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>District map</title>
+  <!-- ArcGIS Maps SDK for JavaScript 4.31 (Esri CDN). Starting point for the front end. -->
+  <link rel="stylesheet" href="https://js.arcgis.com/4.31/esri/themes/light/main.css">
+  <script src="https://js.arcgis.com/4.31/"></script>
+  <style>
+    :root {
+      --bg: #f7f7f5; --card: #ffffff; --text: #1f2933; --muted: #52606d;
+      --accent: #0b6e69; --warn: #8a5a00; --border: #d9dde1;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.5;
+      display: flex; flex-direction: column;
+    }
+    header { padding: 0.75rem 1.25rem; background: var(--card); border-bottom: 1px solid var(--border); }
+    h1 { margin: 0; font-size: 1.25rem; }
+    .controls { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 0.5rem; align-items: end; }
+    label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 0.2rem; }
+    select {
+      font: inherit; padding: 0.45rem 0.6rem; min-width: 220px;
+      border: 1px solid var(--border); border-radius: 6px; background: var(--card);
+    }
+    select:focus-visible, a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .layout { flex: 1; display: grid; grid-template-columns: 1fr 380px; min-height: 0; }
+    #viewDiv { min-height: 420px; }
+    aside { overflow-y: auto; padding: 1rem 1.25rem; border-left: 1px solid var(--border); background: var(--card); }
+    aside h2 { margin: 0 0 0.25rem; font-size: 1.15rem; }
+    .note { color: var(--muted); font-size: 0.85rem; margin: 0.25rem 0 0.75rem; }
+    .warn { color: var(--warn); }
+    .fact { border-top: 1px solid var(--border); padding: 0.5rem 0; }
+    .fact h3 { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+    .fact .v { margin: 0; font-size: 1.15rem; font-weight: 700; }
+    .fact .m { margin: 0; font-size: 0.8rem; color: var(--muted); }
+    .error { color: #a61b1b; }
+    /* TEMPORARY page nav */
+    .tempnav { display: flex; gap: 0.5rem; padding: 0.6rem 1.25rem; background: var(--card); border-bottom: 1px solid var(--border); }
+    .tempnav a { padding: 0.4rem 0.9rem; border: 1px solid var(--border); border-radius: 6px; color: var(--text); text-decoration: none; font-weight: 600; }
+    .tempnav a[aria-current="page"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .tempnav a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    @media (max-width: 800px) {
+      .layout { grid-template-columns: 1fr; grid-template-rows: 55vh auto; }
+      aside { border-left: 0; border-top: 1px solid var(--border); }
+    }
+  </style>
+</head>
+<body>
+  <nav class="tempnav" aria-label="Pages (temporary)">
+    <a href="/">Profile</a>
+    <a href="/map.html" aria-current="page">Map</a>
+  </nav>
+  <header>
+    <h1>Hawaiʻi legislative districts</h1>
+    <div class="controls">
+      <div>
+        <label for="chamber">Chamber</label>
+        <select id="chamber">
+          <option value="house">House (51 districts)</option>
+          <option value="senate">Senate (25 districts)</option>
+        </select>
+      </div>
+      <div>
+        <label for="metric">Color districts by</label>
+        <select id="metric"><option>Loading...</option></select>
+      </div>
+      <div>
+        <label for="district">Or choose a district</label>
+        <select id="district"></select>
+      </div>
+    </div>
+    <p class="note" id="mapnote" aria-live="polite"></p>
+  </header>
+
+  <div class="layout">
+    <div id="viewDiv" role="application" aria-label="Map of Hawaiʻi legislative districts. Use the district list above for a keyboard-accessible alternative."></div>
+    <aside id="panel" aria-live="polite">
+      <h2>Select a district</h2>
+      <p class="note">Click a district on the map, or choose one from the list.</p>
+    </aside>
+  </div>
+
+  <script>
+    const COLORS = ["#e6f2f1", "#a8d5d1", "#5fb3ac", "#1f8a83", "#0b4f4b"];
+    const el = id => document.getElementById(id);
+    let view, layer, current = null; // current = {meta, features}
+
+    function fmt(value, format) {
+      if (value === null || value === undefined) return "Not available";
+      if (format === "dollars") return "$" + Math.round(value).toLocaleString("en-US");
+      if (format === "percent") return (value * 100).toFixed(1) + "%";
+      return Math.round(value).toLocaleString("en-US");
+    }
+    function fmtUnit(value, unit) {
+      if (unit === "dollars") return "$" + Math.round(value).toLocaleString("en-US");
+      return Math.round(value).toLocaleString("en-US");
+    }
+
+    function fmtMoe(m, format) {
+      if (m === null || m === undefined) return "margin of error not available";
+      if (format === "dollars") return "plus or minus $" + Math.round(m).toLocaleString("en-US");
+      return "plus or minus " + (m * 100).toFixed(1) + " points";
+    }
+    function diffSentence(diff, format, refName) {
+      if (!diff) return `not available to compare with ${refName}`;
+      let t;
+      if (format === "dollars") {
+        const rel = (diff.relative || 0) * 100;
+        t = Math.abs(rel) < 0.5 ? "about the same as" : `${Math.abs(rel).toFixed(0)}% ${rel > 0 ? "higher" : "lower"} than`;
+      } else {
+        const pts = diff.absolute * 100;
+        t = Math.abs(pts) < 0.05 ? "about the same as" : `${Math.abs(pts).toFixed(1)} points ${pts > 0 ? "higher" : "lower"} than`;
+      }
+      const flag = diff.within_margin_of_error === true ? " (within the margin of error, so it may not be a real difference)"
+        : diff.within_margin_of_error === null ? " (margin of error not available)" : "";
+      return `${t} ${refName}${flag}`;
+    }
+    function renderCompare(c) {
+      const box = document.createElement("div");
+      box.className = "fact";
+      const t = document.createElement("h3"); t.textContent = "Compared with county and state: " + c.label;
+      const v = document.createElement("p"); v.className = "v"; v.textContent = fmt(c.district.value, c.format);
+      const m = document.createElement("p"); m.className = "m"; m.textContent = fmtMoe(c.district.moe, c.format);
+      box.append(t, v, m);
+      const countyName = c.county ? c.county.name.replace(/, Hawaii$/, "") : null;
+      const lines = [];
+      if (c.county) lines.push(`${countyName}: ${fmt(c.county.value, c.format)}. District is ${diffSentence(c.county.difference, c.format, countyName)}.`);
+      lines.push(`State of Hawaiʻi: ${fmt(c.state.value, c.format)}. District is ${diffSentence(c.state.difference, c.format, "the state")}.`);
+      lines.forEach(s => { const p = document.createElement("p"); p.className = "m"; p.textContent = s; box.append(p); });
+      return box;
+    }
+
+    function quantileBreaks(values, n) {
+      const v = values.filter(x => x !== null).sort((a, b) => a - b);
+      const out = [];
+      for (let i = 0; i <= n; i++) out.push(v[Math.min(v.length - 1, Math.floor(i * (v.length - 1) / n))]);
+      return out; // n+1 edges
+    }
+
+    require([
+      "esri/Map", "esri/views/MapView", "esri/layers/GeoJSONLayer", "esri/renderers/ClassBreaksRenderer",
+      "esri/symbols/SimpleFillSymbol", "esri/widgets/Legend", "esri/widgets/Expand"
+    ], function (Map, MapView, GeoJSONLayer, ClassBreaksRenderer, SimpleFillSymbol, Legend, Expand) {
+
+      // No basemap (it added clutter, e.g. purple boundary lines): districts on a plain ocean-blue background.
+      const map = new Map();
+      view = new MapView({
+        container: "viewDiv", map,
+        center: [-157.5, 20.6], zoom: 6,
+        background: { color: "#bcd9ea" },
+      });
+      view.ui.add(new Expand({ view, content: new Legend({ view }), expanded: true }), "bottom-left");
+
+      function symbol(color) {
+        return new SimpleFillSymbol({ color, outline: { color: "#ffffff", width: 0.6 } });
+      }
+
+      async function drawLayer() {
+        const chamber = el("chamber").value, metric = el("metric").value;
+        el("mapnote").textContent = "Loading map...";
+        try {
+          const res = await fetch(`/api/map/${metric}/${chamber}`);
+          if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+          const data = await res.json();
+          current = { meta: data.meta, features: data.features };
+
+          const vals = data.features.map(f => f.properties.value);
+          const edges = quantileBreaks(vals, COLORS.length);
+          const breakInfos = COLORS.map((c, i) => ({
+            minValue: edges[i], maxValue: i === COLORS.length - 1 ? edges[i + 1] : edges[i + 1] - 1e-9,
+            symbol: symbol(c), label: `${fmt(edges[i], data.meta.format)} to ${fmt(edges[i + 1], data.meta.format)}`,
+          }));
+          const renderer = new ClassBreaksRenderer({
+            field: "value", classBreakInfos: breakInfos,
+            defaultSymbol: symbol("#c8c8c8"), defaultLabel: "Not available",
+          });
+
+          const blobUrl = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/json" }));
+          const next = new GeoJSONLayer({
+            url: blobUrl, renderer, title: data.meta.label, copyright: data.meta.source.publisher,
+            outFields: ["*"], popupEnabled: false,
+          });
+          if (layer) map.remove(layer);
+          layer = next;
+          map.add(layer);
+
+          const s = data.meta.source;
+          el("mapnote").innerHTML = "";
+          const span = document.createElement("span");
+          span.append(`${data.meta.label}. State: ${fmt(data.meta.state_value, data.meta.format)}. Source: `);
+          const a = document.createElement("a");
+          a.href = s.url; a.target = "_blank"; a.rel = "noopener";
+          a.textContent = `${s.publisher}, ${s.dataset}`;
+          span.append(a, `, ${s.year}. `);
+          (s.tables || []).forEach((t, i) => {
+            const tl = document.createElement("a");
+            tl.href = t.url; tl.target = "_blank"; tl.rel = "noopener"; tl.textContent = "Table " + t.table_id;
+            span.append(i === 0 ? "" : ", ", tl);
+          });
+          span.append(`. Geography: ${data.meta.geography}. ${data.meta.uncertainty} Boundaries: Hawaiʻi OPSD 2022.`);
+          el("mapnote").append(span);
+
+          fillDistrictList(data.features);
+        } catch (err) {
+          el("mapnote").textContent = "";
+          const p = document.createElement("span");
+          p.className = "error"; p.textContent = "Could not load the map. " + err.message;
+          el("mapnote").append(p);
+        }
+      }
+
+      function fillDistrictList(features) {
+        const sel = el("district");
+        sel.replaceChildren(new Option("(none)", ""));
+        [...features].sort((a, b) => a.properties.district_number - b.properties.district_number)
+          .forEach(f => sel.append(new Option(
+            `${f.properties.name}: ${fmt(f.properties.value, current.meta.format)}`, f.properties.geo_id)));
+      }
+
+      async function showDistrict(geoId) {
+        if (!geoId) return;
+        const panel = el("panel");
+        panel.replaceChildren(Object.assign(document.createElement("p"), { className: "note", textContent: "Loading..." }));
+        try {
+          const res = await fetch("/api/districts/" + encodeURIComponent(geoId));
+          if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+          const d = await res.json();
+          const h = document.createElement("h2"); h.textContent = d.name;
+          const note = document.createElement("p"); note.className = "note";
+          const feat = current.features.find(f => f.properties.geo_id === geoId);
+          note.textContent = `${current.meta.label} (map value): ${fmt(feat && feat.properties.value, current.meta.format)}`;
+          const parts = [h, note];
+          const cmp = (d.comparisons || []).find(c => c.metric_id === el("metric").value);
+          if (cmp) parts.push(renderCompare(cmp));
+          d.facts.forEach(f => {
+            const box = document.createElement("div"); box.className = "fact";
+            const t = document.createElement("h3"); t.textContent = f.label;
+            const v = document.createElement("p"); v.className = "v";
+            const m = document.createElement("p"); m.className = "m";
+            const src = document.createElement("p"); src.className = "m";
+            src.append(`${f.source.publisher}, ${f.source.year}. `);
+            f.source.tables.forEach((t, i) => {
+              const a = document.createElement("a");
+              a.href = t.url; a.target = "_blank"; a.rel = "noopener"; a.textContent = "Table " + t.table_id;
+              src.append(i === 0 ? "" : ", ", a);
+            });
+            src.append(`. ${f.source.geography}`);
+            if (f.value_status === "ok") {
+              v.textContent = fmtUnit(f.value, f.unit);
+              m.textContent = (f.moe !== null
+                  ? `${f.moe_status === "derived" ? "about " : ""}plus or minus ${fmtUnit(f.moe, f.unit)}; `
+                  : "margin of error not available.").replace(/; $/, ".");
+            } else {
+              v.className = "v warn"; v.textContent = "Not available";
+              m.textContent = "Too few cases for the source to publish.";
+            }
+            box.append(t, v, m, src); parts.push(box);
+          });
+          panel.replaceChildren(...parts);
+        } catch (err) {
+          panel.replaceChildren(Object.assign(document.createElement("p"), { className: "error", textContent: "Could not load this district. " + err.message }));
+        }
+      }
+
+      view.on("click", async (event) => {
+        if (!layer) return;
+        const hit = await view.hitTest(event, { include: [layer] });
+        const g = hit.results.find(r => r.graphic && r.graphic.attributes && r.graphic.attributes.geo_id);
+        if (g) { const id = g.graphic.attributes.geo_id; el("district").value = id; showDistrict(id); }
+      });
+
+      el("chamber").addEventListener("change", drawLayer);
+      el("metric").addEventListener("change", drawLayer);
+      el("district").addEventListener("change", () => showDistrict(el("district").value));
+
+      (async function init() {
+        try {
+          const res = await fetch("/api/map/metrics");
+          if (!res.ok) throw new Error(res.statusText);
+          const metrics = await res.json();
+          el("metric").replaceChildren(...metrics.map(m => new Option(m.label, m.metric_id)));
+          drawLayer();
+        } catch (err) {
+          el("mapnote").textContent = "Could not load metrics. " + err.message;
+        }
+      })();
+    });
+  </script>
+</body>
+</html>

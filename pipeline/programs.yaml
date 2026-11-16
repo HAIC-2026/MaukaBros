@@ -1,0 +1,106 @@
+# Program inventory: existing state, county, and federal programs the agent can point to.
+#
+# RULES
+#   - Every value comes from the official page listed in `sources`, fetched on `checked_on`.
+#   - Nothing is filled in from memory. A field the page did not state is null.
+#   - Eligibility is informational only; the administering agency decides (brief, Business Rules).
+#   - Thresholds change every year. `valid_for` records the period the page said they apply to.
+#   - `related_indicators` is OUR mapping to ids in indicators.yaml, not a claim from the source.
+#
+# Fields
+#   id, name, level (federal | state | county), administering_agency
+#   eligibility:      rules quoted from the page (short quotes)
+#   income_standards: tables copied from the page, with valid_for
+#   how_to_apply:     steps/URLs/phone numbers the page lists
+#   documents_needed: what the page says to bring, or null if it does not say
+#   sources:          official URLs used, each with checked_on
+
+programs:
+  - id: snap_hi
+    name: Supplemental Nutrition Assistance Program (SNAP)
+    level: state
+    administering_agency: Hawaiʻi Department of Human Services (DHS), Benefit, Employment & Support Services Division
+    related_indicators:
+      [snap_households, pop_below_poverty, households_income_under_50k]
+    eligibility:
+      - "U.S. citizens and some aliens who are admitted for permanent residency may qualify."
+      - "Net monthly income must be 100 percent or less of the Federal poverty guidelines."
+      - "Most able-bodied adult applicants must meet certain work requirements."
+      - "All household members must provide a Social Security number or apply for one."
+    income_standards:
+      valid_for: "Effective 10/1/2026 (as titled on the DHS page)"
+      gross_monthly_by_household_size:
+        # household size: [130% FPL, 200% FPL (BBCE, label as shown on the page)]
+        1: [1989, 3060]
+        2: [2697, 4150]
+        3: [3404, 5238]
+        4: [4112, 6326]
+        5: [4819, 7414]
+        6: [5527, 8502]
+        7: [6234, 9590]
+        8: [6941, 10680]
+        each_additional: [708, 1090]
+      net_monthly_100pct_fpl_by_household_size:
+        1: 1530
+        2: 2075
+        3: 2619
+        4: 3163
+        5: 3707
+        6: 4251
+        7: 4795
+        8: 5340
+        each_additional: 545
+    how_to_apply:
+      - "Apply online: https://pais.dhs.hawaii.gov/PAIS/#!/"
+      - "Paper application (DHS 1240, PDF): https://humanservices.hawaii.gov/bessd/files/2025/03/DHS-1240-App-for-Financial-SNAP-Assistance-REV-12-2024-031325.pdf"
+      - "Mail or drop off a paper form at a processing center: https://humanservices.hawaii.gov/processing-centers-and-first-to-work-units/"
+      - "Public Assistance Information Line (toll free): 1-855-643-1643"
+      - "Interpreter request: 1-888-764-7586"
+    documents_needed: null # The page says to gather "all required paperwork" but does not list it.
+    sources:
+      - url: https://humanservices.hawaii.gov/bessd/snap/
+        checked_on: 2026-11-07
+
+  - id: eitc_federal
+    name: Earned Income Tax Credit (EITC)
+    level: federal
+    administering_agency: Internal Revenue Service (IRS)
+    related_indicators:
+      [median_household_income, households_income_under_50k, pop_below_poverty]
+    eligibility:
+      - "Investment income limit: $11,950 or less"
+    income_standards:
+      valid_for: "Tax year 2025 (as stated on the IRS page)"
+      # AGI limit and maximum credit by number of qualifying children
+      by_children:
+        0:
+          {
+            limit_single_hoh_mfs_qss: 19104,
+            limit_married_joint: 26214,
+            max_credit: 649,
+          }
+        1:
+          {
+            limit_single_hoh_mfs_qss: 50434,
+            limit_married_joint: 57554,
+            max_credit: 4328,
+          }
+        2:
+          {
+            limit_single_hoh_mfs_qss: 57310,
+            limit_married_joint: 64430,
+            max_credit: 7152,
+          }
+        3_or_more:
+          {
+            limit_single_hoh_mfs_qss: 61555,
+            limit_married_joint: 68675,
+            max_credit: 8046,
+          }
+    how_to_apply: null # Not stated on the table page; to be filled from a fetched IRS page.
+    documents_needed: null
+    notes: "Age, residency, SSN, and relationship tests were not on the table page and are not recorded here yet."
+    sources:
+      - url: https://www.irs.gov/credits-deductions/individuals/earned-income-tax-credit/earned-income-and-earned-income-tax-credit-eitc-tables
+        checked_on: 2026-11-07
+wait my

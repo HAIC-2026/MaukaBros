@@ -1,0 +1,54 @@
+# District boundary source used for map display.
+#
+# RULES (same as programs.yaml)
+#   - Every value comes from a page or file fetched on `checked_on`.
+#   - Anything the source did not state is null.
+#
+# Boundaries are for DRAWING districts only. Indicator values are tabulated by district number
+# (ACS state legislative district), so they do not depend on boundary geometry. The district
+# number in the boundary file is the join key to geo_id in the database.
+
+boundaries:
+  - id: opsd_legislative_districts_2022
+    role: primary # chosen as the official state source
+    publisher: Hawaiʻi Statewide GIS Program, Office of Planning and Sustainable Development (OPSD)
+    dataset: "Legislative Districts – 2022 (State House & Senate, U.S. Congress)"
+    vintage: "2022 (layer title). Metadata PDF create/modify date 2022-04-16."
+    plan_name: null # not stated in the metadata PDF
+    adopting_body: null # not stated
+    adoption_date: null # not stated
+    terms: 'Page states: "The contents of this web page are public domain"; no express warranties; boundaries "do not represent or confer any legal rights, privileges, benefits, boundaries or claims of any kind."'
+    coordinate_system: "NAD_1983_HARN_UTM_Zone_4N (from the .prj files; one projection for all islands, so areas in the files are not comparable across islands)"
+    files:
+      download_zip: https://files.hawaii.gov/dbedt/op/gis/data/legislative_districts_2022.shp.zip
+      metadata_pdf: https://files.hawaii.gov/dbedt/op/gis/data/legislative_districts_2022.pdf
+    # The pipeline reads a local copy that a person downloads in a browser (no scripted download).
+    local_file: pipeline/raw/opsd/legislative_districts_2022.shp.zip
+    downloaded_on: 2026-11-13 # when the local file was downloaded
+    downloaded_by: Harry
+    # The zip contains nested zips: house22.shp.zip, senate22.shp.zip, congress22.shp.zip
+    district_id_field:
+      house: House_ID # 51 districts, values 1-51; maps to geo_id HD-<n>
+      senate: Sen_ID # 25 districts, values 1-25; maps to geo_id SD-<n>
+    checked: "House file has 51 rows and Senate file has 25 rows; ids are 1..51 and 1..25."
+    sources:
+      - url: https://planning.hawaii.gov/gis/download-gis-data-expanded/
+        checked_on: 2026-11-13
+      - url: https://files.hawaii.gov/dbedt/op/gis/data/legislative_districts_2022.shp.zip
+        checked_on: 2026-11-13
+
+  - id: census_tiger_2024_sld
+    role: reference_only # not used for the map; noted because ACS is tabulated on Census SLDs
+    publisher: U.S. Census Bureau
+    dataset: TIGER/Line Shapefiles 2024, State Legislative Districts (lower and upper chamber), Hawaiʻi
+    vintage: '2024. The 2024 page states: "All legal boundaries and names are as of January 1, 2024." The file metadata states SLD boundaries reflect information provided to the Census Bureau by the states by May 31, 2024.'
+    plan_name: null # not stated
+    terms: null # not stated on the page as read
+    files:
+      house: https://www2.census.gov/geo/tiger/TIGER2024/SLDL/tl_2024_15_sldl.zip
+      senate: https://www2.census.gov/geo/tiger/TIGER2024/SLDU/tl_2024_15_sldu.zip
+    checked: "51 House and 25 Senate districts; district numbers match the OPSD layer."
+    notes: "Believed to describe the same districts as the OPSD 2022 layer. NOT verified by a geometry overlap check."
+    sources:
+      - url: https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.2024.html
+        checked_on: 2026-11-13

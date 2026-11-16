@@ -1,6 +1,9 @@
 duckdb
 fastapi
 httpx
+openpyxl
 python-dotenv
+pyproj
+pyshp
 pyyaml
 uvicorn
