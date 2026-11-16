@@ -246,6 +246,46 @@ def check_mapping(con) -> None:
         record("D mapping", f"{chamber}: every district has a county that exists in the database "
                "(used for the county comparison)", not bad, f"{bad[:5]}")
 
+    # Neighborhood lookup (pipeline/named_places.py): USGS GNIS points in the OPSD shapes.
+    n_all, n_out = con.execute("SELECT count(*), count(*) FILTER (WHERE house_id IS NULL OR "
+                               "senate_id IS NULL) FROM named_place").fetchone()
+    record("D mapping", f"neighborhood names: all {n_all} USGS GNIS populated places fall inside a "
+           "House and a Senate district", n_all > 0 and n_out == 0, f"{n_out} outside")
+    # Independent check: the GNIS point + OPSD shape method against the Census block assignment
+    # (a separate product). Where a GNIS name is also a Census place in the same county, the
+    # point's districts must be districts where that place has 2020 residents. Names repeated on
+    # other islands (Waimea, Kailua) are told apart by county.
+    gnis_county = {"Hawaii": "COUNTY-001", "Honolulu": "COUNTY-003", "Kalawao": "COUNTY-005",
+                   "Kauai": "COUNTY-007", "Maui": "COUNTY-009"}
+    place_rows = con.execute("""
+        SELECT p.name, any_value(b.county_geo_id), list(DISTINCT b.house_id),
+               list(DISTINCT b.senate_id)
+        FROM place p JOIN block b USING (place_fp) WHERE b.pop20 > 0 GROUP BY p.place_fp, p.name
+        """).fetchall()
+    census_places = {(plain(n), c): set(h) | set(s) for n, c, h, s in place_rows}
+    compared, bad = 0, []
+    for name, county, house, senate in con.execute(
+            "SELECT name, county, house_id, senate_id FROM named_place").fetchall():
+        districts = census_places.get((plain(name), gnis_county.get(county)))
+        if districts is None:
+            continue
+        compared += 1
+        if house not in districts or senate not in districts:
+            bad.append(f"{name}: {house}/{senate}")
+    record("D mapping", f"neighborhood names: the {compared} that are also Census places land in "
+           "districts where that place has residents (GNIS points in OPSD shapes vs Census blocks)",
+           compared > 100 and not bad, "; ".join(bad[:8]))
+    kahala = con.execute("SELECT house_id FROM named_place WHERE name = 'Kāhala'").fetchone()
+    record("D mapping", "Kāhala (Seth's high-income example) is found in House District 20",
+           kahala == ("HD-20",), str(kahala))
+
+
+def plain(s: str) -> str:
+    """Lowercase, without ʻokina, apostrophes or kahakō (same rule as api/agent.py)."""
+    import unicodedata
+    s = unicodedata.normalize("NFD", s.lower().replace("ʻ", "").replace("'", "").replace("‘", ""))
+    return "".join(c for c in s if not unicodedata.combining(c))
+
 
 def check_context(con) -> None:
     n = con.execute("""SELECT count(*) FROM context_fact c JOIN geography g USING (geo_id)

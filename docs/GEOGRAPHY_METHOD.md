@@ -75,8 +75,26 @@ would create estimates DOTAX never published. Listing whole areas keeps every nu
 The same blocks give the share of each Census place's and each ZIP area's 2020 residents in each
 district. The assistant uses these to answer "which district is Kāneʻohe in?" with every district
 the place spans, e.g. Kāneʻohe: House 49 (67%), 50 (18%), 48 (14%). Census place names are
-published without ʻokina or kahakō (e.g. "Kaneohe"); matching ignores them. Neighborhoods inside
-Urban Honolulu (e.g. Kahala) are not Census places and are not found yet.
+published without ʻokina or kahakō (e.g. "Kaneohe"); matching ignores them.
+
+## Neighborhood lookup (`named_place`, `pipeline/named_places.py`)
+
+Neighborhoods inside Urban Honolulu (e.g. Kāhala, Kaimukī) and many villages are not Census places.
+For these, the lookup uses the U.S. Geological Survey's Geographic Names Information System (GNIS),
+the federal register of official place names. It gives each of Hawaiʻi's 465 current populated
+places one reference point, with the official spelling (ʻokina and kahakō included). Each point is
+placed in a House and Senate district with the OPSD 2022 district shapes, e.g. Kāhala: House 20,
+Senate 9.
+
+A point is not a boundary, so the assistant says the district holds the neighborhood's reference
+point and that parts near a district line may be in a neighboring district. Names that are also
+Census places in the same county are answered from the Census place shares above, so Waimea on
+Oʻahu (a GNIS village) is kept apart from the Waimea Census places on Kauaʻi and Hawaiʻi Island.
+
+Checked (`validate.py`, group D): all 465 points fall inside a district, and the 134 GNIS names that
+are also Census places land in districts where that place has 2020 residents. That second check
+compares two independent products: GNIS points in the state's OPSD shapes, and the Census Bureau's
+block-to-district assignment.
 
 ## Validation (`validation/validate.py`, groups F and G)
 

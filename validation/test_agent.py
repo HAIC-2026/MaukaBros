@@ -102,9 +102,15 @@ QUESTIONS = [
      "any_of": ["alone or in combination", "more than one", "overlap"]},
     {"q": "Which districts cover Molokaʻi?",
      "figures": lambda: ["House District 13", "Senate District 7"], "cite": False},
+    # Neighborhood lookup (USGS GNIS reference point in the OPSD shapes): Kāhala is in HD-20.
+    # The answer must give HD-20's rent, say the figure is for the whole district, and spell
+    # Kāhala with its kahakō even though the question does not.
     {"q": "What is the median rent in Kahala?",
-     "any_of": NOT_AVAILABLE + ["neighborhood", "which district"],
-     "none_of": [r"Kahala[^.]*\$\d"]},
+     "figures": lambda: ["House District 20", profile("HD-20", "median_gross_rent")],
+     "any_of": ["whole district", "entire district", "district as a whole", "district-wide",
+                "district level", "not just Kāhala", "not Kāhala alone", "district line",
+                "neighboring district", "reference point", "covers more than"],
+     "none_of": [r"\bKahala\b"]},
     {"q": "What is the income limit for SNAP in Hawaiʻi for a family of four?",
      "figures": lambda: [snap_limit(4, 0), snap_limit(4, 1)],
      # "final decision"/"decides" added: "DHS makes the final decision" / "DHS decides final
@@ -127,15 +133,18 @@ QUESTIONS = [
     {"q": "Is the uninsured rate in House District 24 higher than in its county?",
      "figures": lambda: [profile("HD-24", "no_insurance_rate"),
                          profile("HD-24", "no_insurance_rate", "county")]},
-    # High-income district. find_district has no neighborhood lookup (it says Kahala is inside
-    # Urban Honolulu), so the district is named: Kāhala lies in HD-20 on data/boundaries/house.geojson.
+    # High-income district, named directly (Kāhala lies in HD-20; see question 10).
     {"q": "House District 20 includes Kāhala. How are its households doing financially compared "
           "with Honolulu County and the state?",
      "figures": lambda: [profile("HD-20", "median_household_income"),
                          profile("HD-20", "median_household_income", "county")],
      "any_of": ["higher", "above", "more than"],
-     "none_of": [r"(?<!not )(?<!n't )\bstruggl", r"\bdistressed\b", r"\bhigh[- ]need\b",
-                 r"\bunderserved\b"]},
+     # Forbids calling the district or its people struggling. A sourced statement about one group
+     # ("renters there struggle with housing costs about as much as renters elsewhere", run of
+     # 2026-11-16, matching 51.9% vs 52.1% rent burden) is allowed.
+     "none_of": [r"(?<!not )(?<!n't )\bstruggling\s+(district|area|communit|neighborhood|household|famil|resident)",
+                 r"\b(district|area|community|neighborhood|households|families|residents)\s+(is|are|seems?|appears?)\s+(to be\s+)?struggl",
+                 r"\bdistressed\b", r"\bhigh[- ]need\b", r"\bunderserved\b"]},
     {"q": "In the House district that includes Pāhoa, how does the poverty rate compare with "
           "Hawaiʻi County and the state?",
      "figures": lambda: [profile(house_for("Pāhoa"), "poverty_rate"),

@@ -128,6 +128,18 @@ CREATE OR REPLACE TABLE place (
     name_published TEXT NOT NULL      -- 'Kaneohe CDP'
 );
 
+-- USGS GNIS populated places (neighborhoods and villages) and the districts their official
+-- reference point lies in (pipeline/named_places.py). A point, not a boundary.
+CREATE OR REPLACE TABLE named_place (
+    feature_id TEXT PRIMARY KEY,      -- GNIS feature id
+    name       TEXT NOT NULL,         -- official spelling, with ʻokina and kahakō ('Kāhala')
+    county     TEXT,
+    lat        DOUBLE NOT NULL,
+    lon        DOUBLE NOT NULL,
+    house_id   TEXT,                  -- NULL when the point is offshore or outside every district
+    senate_id  TEXT
+);
+
 -- Share of each place's / ZIP area's 2020 residents in each district.
 CREATE OR REPLACE TABLE place_district (
     place_fp    TEXT NOT NULL,

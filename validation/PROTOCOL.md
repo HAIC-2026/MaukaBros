@@ -117,6 +117,15 @@ change to the assistant's instructions or tools. Each run costs about 15 model c
 4. Include at least one district in a rural area and one high-income district, as Seth Colby's
    kickoff asked for coverage beyond struggling districts.
 
+The six sampled indicators are already compared by machine in all 76 districts against a second
+publication: population, 65 and older, median household income, median gross rent and no health
+insurance against DBEDT's published ACS district profiles (group H), and residents below poverty
+against Census subject table S1701 (group A). The expert check adds what a script cannot: a person
+at DBEDT/READ confirming the figures and their citations, as the brief's Success Scenario asks.
+
+Status (2026-11-16): not done yet; to be requested from DBEDT/READ in Slack #c_dbedt_agent.
+`verified_by_expert` stays empty until an expert fills it. Do not fill it in on their behalf.
+
 ## When to re-run
 
 After every `pipeline/build.py`, after any change to `indicators.yaml`, and before each demo or

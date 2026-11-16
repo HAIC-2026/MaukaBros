@@ -6,7 +6,7 @@ districts, built for legislators, their staff and State agencies.
 District Insight is the MaukaBros entry to the 2026 Hawaiʻi Annual Innovation Challenge (HAIC),
 use case "Know Your District", championed by DBEDT's Research and Economic Analysis Division.
 
-**Live site:** [https://YOUR-DOMAIN-HERE](https://YOUR-DOMAIN-HERE)
+**Live site:** [https://maukabros.onrender.com](https://maukabros.onrender.com)
 
 ## What it does
 
@@ -107,6 +107,7 @@ All data is public and aggregated; there are no individual records.
 | 2021 Reapportionment Commission Final Report                    | Official permanent-resident population each district was drawn on                                               | Districts                  |
 | Hawaiʻi Statewide GIS Program (OPSD)                            | 2022 legislative district boundaries                                                                            | Districts                  |
 | U.S. Census Bureau, 2020 Census blocks                          | Matching districts to towns, ZIP codes and tax areas, weighted by residents                                     | Blocks                     |
+| U.S. Geological Survey, GNIS (published 2026-11-02)             | Official names and reference points of neighborhoods and villages (e.g. Kāhala), for the place-name lookup      | Points                     |
 | Hawaiʻi Department of Taxation                                  | Income on tax returns and tax-credit claims, tax year 2023                                                      | Tax areas, counties, state |
 | DBEDT Data Book 2025 (from Hawaiʻi DHS)                         | SNAP cases and people served                                                                                    | Counties, state            |
 | Hawaiʻi Med-QUEST Enrollment Report 2026                        | Managed-care members                                                                                            | Counties, state            |
@@ -121,8 +122,8 @@ How districts are linked to smaller areas: [docs/GEOGRAPHY_METHOD.md](docs/GEOGR
 ## Accuracy
 
 ```
-python validation/validate.py        # 67 data checks
-python validation/test_security.py   # 35 security checks, no AI calls
+python validation/validate.py        # 70 data checks
+python validation/test_security.py   # 39 security checks, no AI calls
 python validation/test_agent.py      # 21 assistant questions (uses the Anthropic API)
 ```
 
@@ -151,19 +152,21 @@ committed.
 4. After the first deploy, open the site and put its address in **Live site** above.
 
 Each push to the deployed branch redeploys. The free plan sleeps after 15 minutes without visits and
-takes about a minute to wake; switch `plan` to `starter` for judging so the site answers at once.
+takes about a minute to wake, so `render.yaml` uses `starter` for judging (switch back to `free`
+afterwards).
 
-After the first deploy, check that one visitor cannot pose as another (the per-visitor question
-limit trusts the `X-Forwarded-For` header Render passes on):
+After each deploy that touches `api/security.py`, check that one visitor cannot pose as another by
+faking `X-Forwarded-For`. An empty question is refused after the limit is counted and before the
+AI is called, so this check costs nothing:
 
 ```
-for i in $(seq 1 12); do curl -s -o /dev/null -w "%{http_code} " -X POST https://YOUR-SITE/api/chat \
+for i in $(seq 1 12); do curl -s -o /dev/null -w "%{http_code} " -X POST https://maukabros.onrender.com/api/chat \
   -H "Content-Type: application/json" -H "X-Forwarded-For: 10.0.0.$i" \
-  -d '{"messages":[{"role":"user","content":"Population of House District 1?"}]}'; done
+  -d '{"messages":[{"role":"user","content":""}]}'; done
 ```
 
-If all 12 return `200`, the faked header is trusted: tell whoever owns `api/security.py`.
-Some `429` responses mean the limit holds.
+Ten `400` responses followed by `429` mean the limit holds. Twelve `400` responses mean the faked
+header is trusted: see `visitor_id` in `api/security.py`.
 
 ## Security and privacy
 

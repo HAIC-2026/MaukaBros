@@ -60,8 +60,10 @@ Set in `.env` (see `.env.example`). The defaults are below.
 | Conversation sent back                      | 12 messages, 64 KB | fixed                              |
 
 Spending is estimated from Claude Opus 5.5 list prices (`CHAT_PRICE_*`); update them if the model
-or prices change. Limits are kept in memory and reset when the server restarts. A forwarded-address
-header is trusted only when `TRUST_PROXY=1`, so it can't be used to dodge the limits.
+or prices change. Limits are kept in memory and reset when the server restarts. Forwarded-address
+headers are trusted only when `TRUST_PROXY=1`. Behind Render, the visitor is identified by the
+`True-Client-IP` or `CF-Connecting-IP` header, which Cloudflare overwrites with the real address,
+because Render passes a visitor's own `X-Forwarded-For` value through.
 
 ## Where to find each control
 
@@ -81,7 +83,7 @@ header is trusted only when `TRUST_PROXY=1`, so it can't be used to dodge the li
 | Pinned dependencies                     | `requirements.txt`                                                       |
 | Source file checksums                   | `pipeline/raw/manifest.yaml`, checked in `pipeline/context.py`           |
 
-Test the controls offline, with no paid AI calls (35 checks):
+Test the controls offline, with no paid AI calls (39 checks):
 
 ```
 python validation/test_security.py

@@ -717,6 +717,47 @@ def map_layer(metric_id: str, chamber: str) -> dict:
     return collection
 
 
+@app.get("/api/outreach")
+def outreach() -> dict:
+    """The headline outreach example (HAIC brief, Success Scenario): households below the poverty
+    level that did not receive SNAP, statewide and in the districts with the most of them.
+    Below poverty is well under SNAP's gross income limit (200% of poverty under broad-based
+    categorical eligibility; pipeline/programs.yaml), so most of these households likely qualify on
+    income. Read-only; every figure carries its margin of error and source."""
+    count_id, metric_id = "households_below_poverty_no_snap", "poor_households_without_snap_share"
+    metric = MAP_METRICS[metric_id]
+    src = query("SELECT publisher, dataset, year, url FROM source WHERE source_id = 'acs5'")[0]
+    tables = {t["table_id"]: t for i in (metric["numerator"], metric["denominator"])
+              for t in table_links(query("SELECT table_ids FROM indicator WHERE indicator_id = ?",
+                                         [i])[0]["table_ids"], src["year"])}
+    geos = [r["geo_id"] for r in query(
+        "SELECT geo_id FROM geography WHERE geo_type IN ('house', 'senate', 'state')")]
+    vals = fetch_values(geos)
+    names = {r["geo_id"]: r["name"] for r in query("SELECT geo_id, name FROM geography")}
+
+    def entry(geo_id: str) -> dict:
+        count, count_moe = vals.get(geo_id, {}).get(count_id, (None, None))
+        share, share_moe = metric_estimate(metric, vals.get(geo_id, {}))
+        return {"geo_id": geo_id, "name": names[geo_id], "count": count, "count_moe": count_moe,
+                "share": share, "share_moe": share_moe, **reliability(count, count_moe)}
+
+    def top(prefix: str, n: int = 3) -> list[dict]:
+        rows = [entry(g) for g in geos if g.startswith(prefix)]
+        return sorted((r for r in rows if r["count"] is not None),
+                      key=lambda r: -r["count"])[:n]
+
+    snap = next(p for p in program_data()["programs"] if p["id"] == "snap")
+    return {
+        "label": MAP_METRICS[metric_id]["label"], "metric_id": metric_id,
+        "state": entry("STATE-15"), "house": top("HD-"), "senate": top("SD-"),
+        "program": {"id": snap["id"], "name": snap["name"], "url": snap["url"],
+                    "agency": snap["agency"]},
+        "income_rule": next(f["text"] for f in snap["facts"] if "200%" in f["text"]),
+        "caveat": METRIC_GROUPS["Program need and uptake"],
+        "source": {**src, "tables": list(tables.values())},
+    }
+
+
 # --- Research assistant (api/agent.py). Abuse and integrity controls: api/security.py, SECURITY.md.
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
@@ -759,7 +800,9 @@ def chat(req: ChatRequest, request: Request) -> dict:
         selected = None
 
     visitor = security.visitor_id(request.client.host if request.client else None,
-                                  request.headers.get("x-forwarded-for"))
+                                  request.headers.get("x-forwarded-for"),
+                                  request.headers.get("true-client-ip")
+                                  or request.headers.get("cf-connecting-ip"))
     try:
         _budget.check_day()
         _limiter.acquire(visitor)

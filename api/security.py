@@ -116,15 +116,23 @@ class ChatLimiter:
         self._slots.release()
 
 
-def visitor_id(client_host: str | None, forwarded_for: str | None) -> str:
+def visitor_id(client_host: str | None, forwarded_for: str | None,
+               edge_client_ip: str | None = None) -> str:
     """Who is asking, for the per-visitor limits.
 
-    X-Forwarded-For is trusted only when TRUST_PROXY=1, because any browser can set it. IPv6
-    addresses are grouped by /64 network, since one connection usually controls a whole /64 and
-    could otherwise rotate addresses to dodge the limits."""
+    Proxy headers are trusted only when TRUST_PROXY=1, because any browser can set them.
+    edge_client_ip is the True-Client-IP or CF-Connecting-IP header: Render sits behind Cloudflare,
+    which overwrites those with the real address, while it passes a visitor's own X-Forwarded-For
+    through at the front of the list (checked on the live site 2026-11-16). So the edge header wins
+    and X-Forwarded-For is the fallback for other proxies. IPv6 addresses are grouped by /64
+    network, since one connection usually controls a whole /64 and could otherwise rotate
+    addresses to dodge the limits."""
     host = client_host or "unknown"
-    if os.getenv("TRUST_PROXY") == "1" and forwarded_for:
-        host = forwarded_for.split(",")[0].strip()
+    if os.getenv("TRUST_PROXY") == "1":
+        if edge_client_ip and edge_client_ip.strip():
+            host = edge_client_ip.strip()
+        elif forwarded_for:
+            host = forwarded_for.split(",")[0].strip()
     try:
         ip = ipaddress.ip_address(host)
     except ValueError:

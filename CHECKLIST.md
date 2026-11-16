@@ -1,6 +1,6 @@
 # District Insight: build checklist
 
-Status as of 2026-11-15. Source for each item: the HAIC use case brief (section named in brackets) or
+Status as of 2026-11-16. Source for each item: the HAIC use case brief (section named in brackets) or
 Seth Colby's kickoff video ("Seth").
 
 - `[x]` done   `[~]` partly done or not yet verified   `[ ]` not started
@@ -12,14 +12,14 @@ Seth Colby's kickoff video ("Seth").
   - [~] Team to confirm the model/API choice (brief: teams choose; favor components the State could evaluate)
   - [x] Answers use only data from the API: five tools read only `data/kyd.duckdb` (find_district, list_measures, get_district_profile, get_local_context, rank_districts); the instructions forbid figures from memory [Responsible AI]
   - [x] Every figure cites a numbered source (publisher, dataset, period, geography, table links), shown under the answer; margins of error and "may not be a real difference" come from the tools [Business Rules]
-  - [x] Says "unavailable" instead of guessing: instructed; tested by questions 10, 11 and 15 in `validation/test_agent.py` [Business Rules]
+  - [x] Says "unavailable" instead of guessing: instructed; tested by questions 11 and 15 in `validation/test_agent.py` [Business Rules]
   - [x] Never identifies or infers anything about individual residents: instructed; tested by questions 14 and 20 [Business Rules]
   - [x] Stays nonpartisan: instructed; tested by questions 13 and 21 [Business Rules]
   - [x] Test set: 21 questions with expected figures looked up from the database (`validation/test_agent.py`, report `validation/agent_report.md`). Every answer is also checked for: citations only to sources a tool returned, a margin of error wherever a Census figure is cited, no tool names, ʻokina and kahakō. **21 of 21 pass (2026-11-16)** [Model Validation]
     - [ ] Run was on `.env`'s `KYD_MODEL=claude-haiku-5-5`, `KYD_EFFORT=low`. Rerun at the model and effort used for the demo (answers varied between runs at low effort)
-    - [ ] "Kahala" finds only ZIP 96816 (53% in HD-21), but Kāhala itself is in HD-20: add a small neighborhood lookup with a cited source
-  - [ ] Questions are sent to Anthropic's API. They contain no resident data, but note it in the privacy statement
-- [~] Find a district by place name: ZIP codes, 163 Census places (towns/CDPs) and DOTAX tax areas, each with the share of residents per district, through the assistant's find_district. No neighborhood (e.g. Kahala) or address lookup yet [Basic Flow 1; Seth]
+    - [x] Kāhala is found in HD-20 (2026-11-16): neighborhood lookup from USGS GNIS reference points in the OPSD shapes, cited in the answer; question 10 now checks HD-20's rent, the whole-district caveat and the kahakō
+  - [x] Questions are sent to Anthropic's API: stated in the page footer's privacy note and under the chat box
+- [x] Find a district by place name: ZIP codes, 163 Census places (towns/CDPs), 465 USGS neighborhood and village names (e.g. Kāhala, Kaimukī, Hawaiʻi Kai) and DOTAX tax areas, through the assistant's find_district. Method in `docs/GEOGRAPHY_METHOD.md`. No street-address lookup [Basic Flow 1; Seth]
 - [x] Choose a district by chamber and number (House 51, Senate 25)
 
 ## 2. District profile (data on screen)
@@ -35,7 +35,7 @@ Seth Colby's kickoff video ("Seth").
 - [ ] Team decision on the headline statistics (`KEY_METRICS` in `web/index.html`). Seth: fewer, well-chosen figures rank higher.
 - [x] Compare two districts side by side [Seth]: "Compare with" picker on the report page (`/report.html?d=HD-47&vs=HD-24`, `pairTable` in `web/js/render.js`); each difference is tested against both margins of error (same rule as the county comparison), works across chambers with an overlap note
 - [ ] Detail finer than the district (e.g. North Shore vs Waialua) [Seth]
-- [~] Check a high-income district (e.g. Kahala) reads sensibly, not only struggling ones [Seth]
+- [x] Check a high-income district reads sensibly, not only struggling ones [Seth]: HD-20 (Kāhala), income above the state but within the margin of error of the county, and the page says so (`docs/DEMO_SCRIPT.md` step 4; test question 17)
 
 ## 3. Programs and outreach (other group)
 
@@ -48,17 +48,17 @@ Seth Colby's kickoff video ("Seth").
   - [ ] Team: keep the Med-QUEST label "likely eligible on income (likely counts too few)" or rename to "under the adult income limit"? Members are about twice the estimate (children qualify up to 313%)
   - [ ] Ask DHS what share of SNAP households are under BBCE, and how much citizenship rules matter, to size the "counts too many" side; ask READ whether a published adjustment for the Hawaiʻi guideline vs the national threshold exists
 - [x] Program uptake counts where published, to show the outreach gap [Calculations]: SNAP by county (DHS), SNAP and Medicaid by district (ACS, self-reported)
-- [~] At least one population + program example where outreach could raise uptake [Success Scenario]: households below poverty not receiving SNAP (statewide 62%, ~31,700; largest HD-24, SD-12). Labeled likely overstated (ACS counts 68% of DHS SNAP cases). Confirm the SNAP income rule before the demo
+- [x] At least one population + program example where outreach could raise uptake [Success Scenario]: households below poverty not receiving SNAP (statewide 31,739 ±1,531, 62.0%; most in HD-24, SD-12). Shown on the landing page (`GET /api/outreach`) with margins of error, the order-may-not-be-real note, the likely-overstated caveat and the agency note. SNAP income rule confirmed from the saved DHS page: 200% of poverty under BBCE, so below-poverty households are well inside it
 
 ## 4. Map
 
 - [x] ArcGIS map of House and Senate districts, colored by a chosen measure
 - [x] Selected district outlined and zoomed to
 - [x] Legend, island zoom buttons, hover label
-- [~] **Click a district, hover, and the island buttons: not tested** (screenshots only). Please try in a browser.
+- [~] Clicking a district in the landing's outreach list (including a chamber switch) tested in Playwright 2026-11-16. Clicking the map itself, hover and the island buttons still to try by hand
 - [x] Official state boundaries (OPSD 2022) recorded with terms in `pipeline/boundaries.yaml`
 - [ ] Geometry overlap check: OPSD 2022 vs Census TIGER 2024 (believed identical, not verified)
-- [ ] Confirm ArcGIS use is allowed without an Esri key/licence for the submission (see section 6)
+- [~] ArcGIS without a key: Esri's pages tie keys/accounts to location services, private items and hosted data, none of which we use; keyless CDN loading is not addressed (`pipeline/sources.yaml`, read 2026-11-16). Esri attribution was hidden by the map's widget setting; now shown. Still: request the HAIC voucher (below) to settle it
 
 ## 5. Export
 
@@ -91,7 +91,7 @@ Seth Colby's kickoff video ("Seth").
 - [x] Every saved file listed in `pipeline/raw/manifest.yaml` with URL, date and SHA-256; the build refuses a changed file
 - [x] Census API required notice shown in the page footer
 - [x] Pipeline no longer downloads anything while building: Census data is saved once (`pipeline/fetch_acs.py` -> `pipeline/raw/acs/`), the state boundary file is read from a local copy
-- [ ] **Download the OPSD boundary file by hand** and save it as `pipeline/raw/opsd/legislative_districts_2022.shp.zip` (steps in `pipeline/raw/README.md`), then fill in `downloaded_on` / `downloaded_by` in `pipeline/boundaries.yaml`
+- [x] OPSD boundary file downloaded by hand (2026-11-13, Harry) and recorded in `pipeline/boundaries.yaml`
 - [ ] Confirm with the challenge team that using the manually downloaded OPSD file is fine (the Hawaii.gov terms restrict automated access)
 - [ ] **Request the free HAIC ArcGIS Location Platform voucher and Hub identity** at https://esri-haic-histategis.hub.arcgis.com/ (challenge team's Slack answer), then load the SDK with our own API key. Read Esri's product-specific terms (not read yet).
 - [ ] Confirm a state-run challenge entry counts as non-commercial under the Hawaii.gov terms
@@ -100,13 +100,13 @@ Seth Colby's kickoff video ("Seth").
 
 ## 7. Accuracy and validation [Model Validation; Seth: accuracy is the main judging axis]
 
-- [x] `validation/validate.py`: 51 checks pass (cross-check against ACS subject tables, internal consistency incl. industries, provenance, mapping, county/state context incl. BEA, BLS, SNAP and DOTAX ZIP/area/county totals, and the tax-area overlap)
+- [x] `validation/validate.py`: 70 checks pass (2026-11-16): cross-check against ACS subject tables and DBEDT's profiles, internal consistency, provenance, mapping (incl. USGS place points vs Census blocks), county/state context, tax-area overlap, programs, likely-eligible estimates
 - [x] Written protocol, `validation/PROTOCOL.md`
-- [ ] Subject-matter expert (DBEDT/READ) fills in `validation/spot_check_sample.csv`
+- [ ] Subject-matter expert (DBEDT/READ) fills in `validation/spot_check_sample.csv`. Ask in #c_dbedt_agent. All six sampled indicators are already machine-checked against a second publication (PROTOCOL.md); the expert's sign-off is what the Success Scenario asks for
 - [ ] Run `validate.py` again after every data rebuild and before each demo
 - [x] Test the agent's answers against the same figures: `validation/test_agent.py`, 21 of 21 pass (2026-11-16). Rerun after any change to `api/agent.py` and before each demo
 - [ ] Test program eligibility results **(other group)**
-- [ ] Confirm what the margin-of-error flag means for small districts in the demo script
+- [x] Margin-of-error flag explained for the demo (`docs/DEMO_SCRIPT.md`, last section)
 
 ## 8. Accessibility and plain language [Business Rules: WCAG 2.1 AA]
 
@@ -127,13 +127,13 @@ Seth Colby's kickoff video ("Seth").
 
 ## 10. Project housekeeping
 
-- [ ] Commit the current work (many uncommitted changes on `api-and-preview`) and open a pull request
+- [x] Work merged to `main` (PR #9)
 - [x] Add `.env.example` (`build.py` points to it)
 - [x] Write the README: what it is, how to run each step, data sources, limits (live-site link still a placeholder)
 - [x] Remove the older `web/map.html` page, now covered by the main page (deleted 2026-11-16)
 - [ ] Agree the interface with Shade if they build the real front end (the API stays the same)
 - [~] Decide how the demo runs (local, or hosted) and test it on a clean machine: hosted on Render via `render.yaml` (data built at deploy time; README "Deploy on Render"). Tested 2026-11-16 as a fresh clone with fresh dependencies, no `.env`: build peaks at 172 MB and the server at 160 MB (free plan allows 512 MB), all 76 districts load
-  - [ ] Create the Render Blueprint, add `ANTHROPIC_API_KEY`, put the URL in README "Live site"
-  - [ ] After the first deploy, run the README's `X-Forwarded-For` check on the per-visitor question limit
-  - [ ] Switch `plan` to `starter` before judging (free plan sleeps after 15 minutes)
-- [ ] Prepare the demo script: one rural, one urban, one high-income district
+  - [x] Live at https://maukabros.onrender.com (README "Live site")
+  - [~] `X-Forwarded-For` check run 2026-11-16: a faked header DID get round the per-visitor limit. Fixed in `api/security.py` (prefers Cloudflare's True-Client-IP / CF-Connecting-IP); rerun the README check after this deploys
+  - [x] `render.yaml` set to `plan: starter` (paid; applies when the Blueprint syncs). Switch back after judging
+- [x] Demo script: `docs/DEMO_SCRIPT.md` (HD-4 Puna, HD-24 Waikīkī, HD-20 Kāhala)

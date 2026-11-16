@@ -1,6 +1,6 @@
 # Validation report
 
-Run on 2026-11-16 against ACS 5-year 2020-2024. 67 of 67 checks passed.
+Run on 2026-11-16 against ACS 5-year 2020-2024. 70 of 70 checks passed.
 
 | Result | Group | Check | Detail |
 |---|---|---|---|
@@ -23,6 +23,9 @@ Run on 2026-11-16 against ACS 5-year 2020-2024. 67 of 67 checks passed.
 | PASS | D mapping | house: every district has a county that exists in the database (used for the county comparison) | [] |
 | PASS | D mapping | senate: boundary district ids match database ids one for one (25 shapes, 25 districts) | only in shapes: []; only in db: [] |
 | PASS | D mapping | senate: every district has a county that exists in the database (used for the county comparison) | [] |
+| PASS | D mapping | neighborhood names: all 465 USGS GNIS populated places fall inside a House and a Senate district | 0 outside |
+| PASS | D mapping | neighborhood names: the 134 that are also Census places land in districts where that place has residents (GNIS points in OPSD shapes vs Census blocks) |  |
+| PASS | D mapping | Kāhala (Seth's high-income example) is found in House District 20 | ('HD-20',) |
 | PASS | E context | county/state-only sources are never attached to a district | 0 found |
 | PASS | E context | every context figure has a source URL and download date | 0 missing |
 | PASS | E context | context figures are a number only when published | 0 found |
@@ -43,7 +46,7 @@ Run on 2026-11-16 against ACS 5-year 2020-2024. 67 of 67 checks passed.
 | PASS | F overlap | Census files cover all 51 House and 25 Senate districts | 76 found |
 | PASS | F overlap | every district overlaps at least one DOTAX tax area |  |
 | PASS | F overlap | each tax area's 2020 residents are fully shared out among House districts, and among Senate districts |  |
-| PASS | F overlap (info) | Seth's examples, share of each area's 2020 residents by district: Molokaʻi: SD-7 100.0%, HD-13 100.0%; Oʻahu North Shore: SD-23 100.0%, HD-47 87.5%, HD-46 7.5%, HD-48 5.0% (check against the district map) |  |
+| PASS | F overlap (info) | Seth's examples, share of each area's 2020 residents by district: Molokaʻi: HD-13 100.0%, SD-7 100.0%; Oʻahu North Shore: SD-23 100.0%, HD-47 87.5%, HD-46 7.5%, HD-48 5.0% (check against the district map) |  |
 | PASS | E context | DOTAX credits A-7: tax areas plus Other/Unknown add up to the state total for returns, food/excise, renters' and EITC claims |  |
 | PASS | E context | DOTAX credits A-4: counties add up to the state for each credit |  |
 | PASS | E context | Reapportionment plan: 76 districts (76); House and Senate each add up to 1,348,054 permanent residents (1,348,054 / 1,348,054) |  |

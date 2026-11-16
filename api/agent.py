@@ -218,6 +218,38 @@ def tool_find_district(args: dict, src: Sources) -> dict:
                                       "the Hawaiian spelling.",
                                "districts": shares(rows, "place_share")})
 
+    # Neighborhoods and villages (USGS GNIS populated places, e.g. Kāhala, Kaimukī) that are not
+    # Census places: one official reference point each, placed in the OPSD district shapes.
+    # Skip a name already answered above as a Census place in the same county; Waimea on Oʻahu
+    # is a GNIS village, while the Waimea Census places are on Kauaʻi and Hawaiʻi Island.
+    census_names = {(plain(r["name"]), r["county"]) for r in kyd.query(
+        """SELECT DISTINCT p.name, g.name AS county FROM place p JOIN block b USING (place_fp)
+           JOIN geography g ON g.geo_id = b.county_geo_id""")}
+    padded = f" {' '.join(re.findall(r'[a-z]+', p))} "
+    named = [n for n in kyd.query("SELECT name, county, house_id, senate_id, feature_id "
+                                  "FROM named_place WHERE house_id IS NOT NULL")
+             if len(plain(n["name"])) > 3
+             and not any(nm == plain(n["name"]) and plain(n["county"]) in plain(c)
+                         for nm, c in census_names)
+             and f" {' '.join(re.findall(r'[a-z]+', plain(n['name'])))} " in padded]
+    if named:
+        cite = src.cite("U.S. Geological Survey", "Geographic Names Information System (GNIS), "
+                        "populated places", "published 2026-11-02",
+                        "Official reference point of each named place, located in the State of "
+                        "Hawaiʻi's 2022 district boundaries (Office of Planning and Sustainable "
+                        "Development)", [],
+                        "https://www.usgs.gov/tools/geographic-names-information-system-gnis")
+    for n in named:
+        out["matches"].append({
+            "neighborhood": n["name"], "county": f"{n['county']} County",
+            "why": "Neighborhood or village with no Census boundary. Its official USGS reference "
+                   "point lies in the districts below. Say that this places the neighborhood's "
+                   "reference point, and that parts near a district line may be in a neighboring "
+                   "district. Write the name as given here (with ʻokina and kahakō).",
+            "districts": [{"district_id": n["house_id"], "name": district_name(n["house_id"])},
+                          {"district_id": n["senate_id"], "name": district_name(n["senate_id"])}],
+            "cite": cite})
+
     # DOTAX tax-area names (e.g. "North Shore", "Molokai", "Waianae Coast")
     areas = kyd.query("SELECT area_id, name FROM tax_area")
     hit = [a for a in areas if plain(a["name"]) in p or any(
@@ -232,9 +264,9 @@ def tool_find_district(args: dict, src: Sources) -> dict:
                                "districts": shares(rows, "area_share")})
     if not out["matches"]:
         out["note"] = ("No match. This tool finds districts by number, ZIP code, Census place name "
-                       "(towns and CDPs such as Kaneohe, Hilo, Waianae) and DOTAX tax-area name "
-                       "(e.g. Oʻahu North Shore, Kona). It has no street-address or neighborhood "
-                       "lookup (Kahala, for example, is a neighborhood inside Urban Honolulu).")
+                       "(towns and CDPs such as Kaneohe, Hilo, Waianae), USGS neighborhood name "
+                       "(e.g. Kāhala, Kaimukī) and DOTAX tax-area name (e.g. Oʻahu North Shore, "
+                       "Kona). It has no street-address lookup.")
     return out
 
 
@@ -499,8 +531,9 @@ TOOLS = [
     {"name": "find_district", "strict": True,
      "description": "Find district ids from a district number (e.g. 'House 13', 'Senate "
                     "District 7'), a ZIP code (e.g. '96744'), a town or Census place (e.g. "
-                    "'Kāneʻohe', 'Hilo', 'Waiʻanae') or a DOTAX tax area (e.g. 'North Shore', "
-                    "'Kona'). Places spanning several districts come back with the share of their "
+                    "'Kāneʻohe', 'Hilo', 'Waiʻanae'), a neighborhood (e.g. 'Kāhala', 'Kaimukī') "
+                    "or a DOTAX tax area (e.g. 'North Shore', 'Kona'). Places spanning several "
+                    "districts come back with the share of their "
                     "2020 residents in each. Use this whenever the user names a place or a "
                     "district you do not have an id for.",
      "input_schema": _schema({"query": {"type": "string",
@@ -596,6 +629,8 @@ def answer(history: list[dict], selected_district: str | None = None, spend=None
                             and m.get("content")]
     if messages and messages[0]["role"] != "user":
         messages = messages[1:]
+    if not messages or messages[-1]["role"] != "user" or not messages[-1]["content"].strip():
+        raise ValueError("The question is empty.")
     note = (f"(District selected on the page: {district_name(selected_district)}, id "
             f"{selected_district}.)" if selected_district else
             "(No district is selected on the page.)")

@@ -76,7 +76,7 @@ sources:
     terms_url: https://developers.arcgis.com/javascript/latest/licensing/
     related:
       - url: https://developers.arcgis.com/javascript/latest/attribution/
-    checked_on: 2026-11-13
+    checked_on: 2026-11-16
     attribution_required: true
     quotes:
       attribution: "When you use Esri technology, you must include Esri attribution and data attribution."
@@ -84,9 +84,15 @@ sources:
       placement: "will be displayed by default at the bottom of the map, scene, or link chart."
       governing: "is subject to the terms outlined in the product-specific terms of use"
       account: "An ArcGIS Location Platform or ArcGIS Online account is required to use the services."
+      # Read 2026-11-16 (licensing, security-and-authentication, api-key-authentication, attribution pages):
+      secure_resource: "A secure resource is any item or service in an ArcGIS that requires an ArcGIS account and authentication to access."
+      api_key_scope: "API key authentication for building public apps with location services"
+      attribution_scope: "This includes applications that use any ArcGIS API, SDK, service, content, or data."
     not_stated: [use_of_js_arcgis_com_cdn_without_api_key_or_account, public_website_or_demo_licensing, commercial_use, redistribution]
+    reading_2026_11_16: "The pages tie API keys and accounts to location services (basemaps, geocoding, routing...), private items and hosted data. Our map uses none of these: no basemap, only our own OPSD shapes in a GraphicsLayer. No page says a key is needed for that, and none mentions loading the SDK from js.arcgis.com. Attribution is required either way."
     how_we_comply:
-      - "The default Esri attribution is left on the map (not hidden)."
+      - "The Esri attribution widget is shown at the bottom of the map. Until 2026-11-16 the map was created with only the zoom widget, which hid it; fixed in web/js/map-page.js."
+      - "No basemap, location service or hosted content is used, so no Esri account resource is accessed."
     open_questions:
       - "PARTLY ANSWERED (challenge team in Slack, seen 2026-11-15): Esri and the State give HAIC participants free ArcGIS access. Request a complimentary $25 ArcGIS Location Platform voucher (SDKs, APIs, MCP) and a free ArcGIS Hub Community identity at https://esri-haic-histategis.hub.arcgis.com/ ; free tier: https://location.arcgis.com/pricing/ . ACTION: request the voucher/account and load the SDK with our own API key. Not yet stated: whether keyless loading is acceptable."
       - "The licensing page does not say whether the SDK may be loaded from js.arcgis.com without an account or API key. We load it with none and use no Esri services. Confirm with Esri or the challenge team (the brief says ESRI is a challenge co-sponsor and 'may be used'), and read the product-specific terms at https://developers.arcgis.com/documentation/terms-of-use/ (not read yet)."
@@ -248,6 +254,20 @@ sources:
     quotes: {}
     open_questions:
       - "No terms page specific to these reference files was read. Confirm the Census Bureau's terms for TIGER/Line and relationship files (see the census_tiger entry)."
+
+  - id: usgs_gnis
+    publisher: U.S. Geological Survey (USGS), Geographic Names Information System (GNIS)
+    used_for: "IN USE: official names and reference points of Hawaiʻi populated places (e.g. Kāhala, Kaimukī), published 2026-11-02. Saved file: pipeline/raw/usgs/DomesticNames_HI_Text.zip (manifest.yaml). Each point is placed in a House and Senate district with the OPSD 2022 boundaries (pipeline/named_places.py), for the assistant's place-name lookup only."
+    terms_url: null # terms read from the metadata file inside the zip (DomesticNames_HI_Text.xml)
+    checked_on: 2026-11-16
+    attribution_required: null # "appreciated", not required
+    quotes:
+      access_constraints: "None"
+      use_constraints: "None. Acknowledgment of the U.S. Geological Survey would be appreciated for products derived from these data."
+    not_stated: [automated_access]
+    how_we_comply:
+      - "Every district found through a GNIS name cites USGS GNIS, the publication date and the feature id."
+      - "Downloaded once (one request), stored, and read locally."
 
   - id: dhs_snap_and_medquest
     publisher: Hawaiʻi Department of Human Services (DHS), including Med-QUEST Division
