@@ -130,5 +130,7 @@ Loaded: county and state medians are shown as context; the 26 areas and 121 ZIP 
 SNAP **uptake** now comes from DHS program records (Data Book 11.03-11.04), by county. The ACS
 also has a SNAP figure (households that say they received SNAP in the past 12 months, 2020-2024),
 by district. They measure different things over different periods, so the app does not subtract
-one from the other. A "likely eligible" estimate needs its own written method (income relative
-to the SNAP limit, household size), labeled as an upper-bound estimate.
+one from the other. Since 2026-11-16 a "likely eligible" estimate (residents under SNAP's 200%
+BBCE income limit, and under Med-QUEST's 138% adult limit) is shown next to those records, with its
+own written method and bias notes in `docs/ELIGIBILITY_METHOD.md`. It is an estimate on income
+only, not an upper bound: the national poverty scale makes it run low on income.

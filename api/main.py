@@ -118,7 +118,7 @@ def get_district(geo_id: str) -> dict:
     context = build_context(district_county(geo_id)) if is_district else []
     tax_areas = build_tax_areas(geo_id) if is_district else None
     plan = district_plan(geo_id) if is_district else None
-    programs = build_programs(comparisons, context) if is_district else []
+    programs = build_programs(comparisons, context, geo_id) if is_district else []
     return {**district[0], "facts": facts, "comparisons": comparisons, "county_context": context,
             "tax_areas": tax_areas, "plan": plan, "programs": programs}
 
@@ -140,9 +140,62 @@ def list_programs() -> dict:
     return program_data()
 
 
-def build_programs(comparisons: list[dict], context: list[dict]) -> list[dict]:
+FINAL_ELIGIBILITY = "Final eligibility is decided by the agency that runs the program."
+
+
+def build_likely_eligible(spec: dict | None, geo_id: str | None) -> dict | None:
+    """Our "residents likely eligible" estimate for one program (programs.yaml `likely_eligible`,
+    docs/ELIGIBILITY_METHOD.md): the method as written, plus the figure for the district, its
+    county and the state when geo_id is given. Each figure carries its margin of error, status,
+    source, year and geography. Programs with no defensible estimate return the written reason."""
+    if not spec:
+        return None
+    if not spec.get("estimated"):
+        return {"estimated": False, "reason": spec["reason"], "final_eligibility": FINAL_ELIGIBILITY}
+    out = {k: v for k, v in spec.items() if k != "limit_column"}
+    out["final_eligibility"] = FINAL_ELIGIBILITY
+    if geo_id is None:
+        return out
+    county_id = district_county(geo_id)
+    geos = [geo_id, "STATE-15"] + ([county_id] if county_id else [])
+    rows = query(f"""
+        SELECT f.geo_id, g.name, g.geo_type, f.value, f.moe, f.value_status, f.moe_status,
+               i.label, i.unit, i.table_ids, s.publisher, s.dataset, s.year, s.url
+        FROM fact f JOIN geography g USING (geo_id) JOIN indicator i USING (indicator_id)
+        JOIN source s USING (source_id)
+        WHERE f.indicator_id = ? AND f.geo_id IN ({",".join("?" * len(geos))})""",
+                 [spec["indicator"], *geos])
+    by_geo = {r["geo_id"]: r for r in rows}
+
+    def entry(g: str | None) -> dict | None:
+        r = by_geo.get(g)
+        if r is None:
+            return None
+        ok = r["value_status"] == "ok"
+        value, moe = (r["value"], r["moe"]) if ok else (None, None)
+        return {"geo_id": g, "name": r["name"], "value": value, "moe": moe,
+                "value_status": r["value_status"], "moe_status": r["moe_status"],
+                "geography": GEOGRAPHY_LABELS.get(r["geo_type"], r["geo_type"]),
+                **reliability(value, moe)}
+
+    d = by_geo.get(geo_id)
+    if d:
+        out.update(label=d["label"], unit=d["unit"], source={
+            "publisher": d["publisher"], "dataset": d["dataset"], "year": d["year"],
+            "url": d["url"], "table_ids": d["table_ids"],
+            "tables": table_links(d["table_ids"], d["year"]),
+            "geography": GEOGRAPHY_LABELS.get(d["geo_type"], d["geo_type"])})
+    out.update(district=entry(geo_id), county=entry(county_id), state=entry("STATE-15"))
+    return out
+
+
+def build_programs(comparisons: list[dict], context: list[dict],
+                   geo_id: str | None = None) -> list[dict]:
     """Each program with the district figures it relates to (our link, not the agency's) and the
-    county program-use figures we hold. Eligibility is always the agency's decision."""
+    county program-use figures we hold. Eligibility is always the agency's decision.
+
+    With geo_id, each program's `likely_eligible` also carries the district, county and state
+    estimates (added 2026-11-16; existing fields unchanged)."""
     data = program_data()
     comp = {c["metric_id"]: c for c in comparisons}
     ctx = {c["indicator_id"]: c for c in context}
@@ -161,9 +214,12 @@ def build_programs(comparisons: list[dict], context: list[dict]) -> list[dict]:
                    "county": ctx[u]["county"]["value"] if ctx[u].get("county") else None,
                    "state": ctx[u]["state"]["value"] if ctx[u].get("state") else None,
                    "unit": ctx[u]["unit"]} for u in p.get("uptake", []) if u in ctx]
-        out.append({**{k: v for k, v in p.items() if k not in ("related_measures", "uptake")},
-                    "district_measures": here[:3], "uptake": uptake,
-                    "checked_on": data["checked_on"], "note": data["note_on_eligibility"]})
+        item = {**{k: v for k, v in p.items() if k not in ("related_measures", "uptake")},
+                "district_measures": here[:3], "uptake": uptake,
+                "checked_on": data["checked_on"], "note": data["note_on_eligibility"]}
+        if p.get("likely_eligible"):
+            item["likely_eligible"] = build_likely_eligible(p["likely_eligible"], geo_id)
+        out.append(item)
     return out
 
 
