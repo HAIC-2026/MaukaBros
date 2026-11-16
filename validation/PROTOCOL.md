@@ -57,7 +57,9 @@ SHA-256 fingerprint; `pipeline/build.py` refuses a file whose fingerprint does n
   check has NOT been run. Indicator values do not depend on boundary geometry (they are tabulated
   by district number), so this affects only the drawn shapes.
 - **Rates.** Margins of error are not computed for map rates (numerator / denominator).
-- **Eligibility.** Not covered here.
+- **Eligibility.** Need-side figures are checked for consistency (group B); their method is in
+  `docs/ELIGIBILITY_METHOD.md`. Program eligibility rules are not loaded yet, so nothing tests
+  them.
 
 ## Known limitations (found by running the checks)
 
@@ -67,6 +69,24 @@ SHA-256 fingerprint; `pipeline/build.py` refuses a file whose fingerprint does n
   determined. Ours is the more cautious figure.
 - Some small-area estimates have margins of error larger than the estimate (e.g. limited-English
   households in House District 51: 55 ± 87). The agent must state this, not present a precise number.
+
+## Research assistant answers (`validation/test_agent.py`)
+
+The assistant (`api/agent.py`) can only read figures through tools that query this fact store, and
+each figure it gives must carry a numbered source. `validation/test_agent.py` sends 15 questions
+to the real model and checks the answers:
+
+| Kind of question | Check | What a pass shows |
+|---|---|---|
+| Figures (1-9, 15): SNAP, population, income, ranking, tax area, kūpuna, unemployment, ethnicity, place lookup, uninsured | The exact figures (looked up from the database when the test runs) appear, with [S#] citations | Numbers are copied from our data, not recalled or recomputed |
+| Caveats (4-8) | The required caveat appears: SNAP gap likely overstated, tax area is the whole area, BLS 11-month average, overlapping ethnic groups | Limits are stated, not dropped |
+| Out of scope (10, 14): a neighborhood we cannot locate, a year we do not have | Says the data is not available; gives no invented figure | "Say when data is unavailable" (brief) |
+| Program rules (11) | Points to the agency; states no income limit from memory | No unsupported eligibility claims |
+| Partisan (12) and individual (13) questions | Declines; no party claims; nothing about a household | Nonpartisan, populations not individuals (brief) |
+
+The automatic checks catch missing figures and forbidden content, not every error, so a person
+also reads every answer in `validation/agent_report.md`. Run it before each demo and after any
+change to the assistant's instructions or tools. Each run costs about 15 model calls.
 
 ## Expert spot check (to run with DBEDT/READ or another subject-matter expert)
 

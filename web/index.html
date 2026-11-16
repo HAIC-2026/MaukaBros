@@ -87,6 +87,33 @@
     .empty h2 { color: var(--text); font-size: 1.6rem; margin: 0 0 0.5rem; }
     .error { color: #a61b1b; }
 
+    /* Research assistant panel */
+    .chat { position: fixed; right: 1rem; bottom: 1rem; z-index: 20; width: min(34rem, calc(100vw - 2rem));
+            max-height: calc(100vh - 2rem); display: flex; flex-direction: column; background: var(--card);
+            border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,0.18); }
+    .chat[hidden] { display: none; }
+    .chat-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+                 padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--border); }
+    .chat-head h2 { margin: 0; font-size: 1rem; color: var(--accent-dark); }
+    .chat-head .ctx { font-size: 0.78rem; color: var(--muted); }
+    .chat-log { overflow-y: auto; padding: 0.8rem 0.9rem; flex: 1; min-height: 8rem; }
+    .msg { margin: 0 0 0.9rem; }
+    .msg.user { background: #eef1f2; border-radius: 8px; padding: 0.5rem 0.7rem; }
+    .msg p, .msg ul, .msg ol { margin: 0.35rem 0; }
+    .msg table { margin: 0.4rem 0; }
+    .msg sup a { text-decoration: none; font-size: 0.72rem; font-weight: 600; }
+    .msg .sources { font-size: 0.76rem; color: var(--muted); margin-top: 0.5rem; border-top: 1px solid var(--border); padding-top: 0.4rem; }
+    .msg .sources ol { padding-left: 1.6rem; margin: 0.2rem 0; }
+    .msg details { margin-top: 0.4rem; font-size: 0.76rem; }
+    .msg details > summary { padding: 0.35rem 0.6rem; font-weight: 600; }
+    .msg details pre { white-space: pre-wrap; margin: 0; padding: 0 0.6rem 0.5rem; font-size: 0.72rem; }
+    .chat-form { display: flex; gap: 0.4rem; padding: 0.6rem 0.9rem; border-top: 1px solid var(--border); }
+    .chat-form textarea { flex: 1; font: inherit; resize: vertical; min-height: 2.6rem; max-height: 10rem;
+                          padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; }
+    .chat-note { margin: 0; padding: 0 0.9rem 0.6rem; font-size: 0.72rem; color: var(--muted); }
+    .thinking { color: var(--muted); font-style: italic; }
+    @media print { .chat { display: none !important; } }
+
     .site-footer { padding: 1rem 1.5rem 2rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.8rem; }
     .site-footer p { margin: 0.2rem 0; }
     @media (max-width: 900px) {
@@ -106,10 +133,10 @@
   <header class="top" id="hdr">
     <div class="toprow">
       <h1>Know Your District</h1>
-      <form class="ask" onsubmit="return false" aria-label="Ask a question (not connected yet)">
+      <form class="ask" id="ask-form" aria-label="Ask the research assistant">
         <label for="ask-input" style="position:absolute;left:-9999px">Ask a question about a district</label>
-        <input id="ask-input" type="text" placeholder='Ask a question, e.g. "How many kūpuna in my district live on fixed incomes?" (coming soon)' disabled>
-        <button class="btn secondary" type="submit" disabled>Ask</button>
+        <input id="ask-input" type="text" autocomplete="off" placeholder='Ask a question, e.g. "How many kūpuna in my district live on fixed incomes?"'>
+        <button class="btn secondary" type="submit">Ask</button>
       </form>
     </div>
     <div class="controls">
@@ -147,6 +174,23 @@
       <p class="mapnote" id="mapnote" aria-live="polite"></p>
     </div>
   </div>
+
+  <aside class="chat" id="chat" aria-label="Research assistant" hidden>
+    <div class="chat-head">
+      <div><h2>Research assistant</h2><div class="ctx" id="chat-ctx"></div></div>
+      <div style="display:flex;gap:0.4rem">
+        <button class="btn secondary" type="button" id="chat-clear" style="padding:0.3rem 0.7rem;font-size:0.8rem">New conversation</button>
+        <button class="btn secondary" type="button" id="chat-close" aria-label="Close the assistant" style="padding:0.3rem 0.7rem;font-size:0.8rem">Close</button>
+      </div>
+    </div>
+    <div class="chat-log" id="chat-log" aria-live="polite"></div>
+    <form class="chat-form" id="chat-form">
+      <label for="chat-input" style="position:absolute;left:-9999px">Your question</label>
+      <textarea id="chat-input" rows="2" placeholder="Ask a follow-up question"></textarea>
+      <button class="btn" type="submit" id="chat-send">Send</button>
+    </form>
+    <p class="chat-note">Answers use only this tool's published data, with sources. Informational only: final program eligibility is always decided by the agency.</p>
+  </aside>
 
   <footer class="site-footer">
     <p>This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.</p>
@@ -391,6 +435,119 @@
         el("p", { className: "sub", textContent: county ? `${county} · ${popLine}` : popLine }),
         ...[facts, details, taxAreas, context, programs, actions].filter(Boolean));
     }
+    // ---------- research assistant ----------
+    const chat = { history: [], busy: false, n: 0 };
+
+    // Minimal, safe Markdown: paragraphs, lists, pipe tables, **bold**, and [S#] citations as
+    // links to the answer's source list. Builds DOM nodes; never inserts HTML from the answer.
+    function inline(text, answerId) {
+      const out = [];
+      text.split(/(\*\*[^*]+\*\*|\[[^\]]*\bS\d+\b[^\]]*\])/g).forEach(part => {
+        if (!part) return;
+        if (part.startsWith("**") && part.endsWith("**")) out.push(el("strong", { textContent: part.slice(2, -2) }));
+        else if (/^\[[^\]]*\bS\d+\b[^\]]*\]$/.test(part)) {
+          const sup = el("sup");
+          (part.match(/S\d+/g) || []).forEach((sid, i) => {
+            if (i) sup.append(",");
+            sup.append(el("a", { href: `#src-${answerId}-${sid}`, textContent: sid.slice(1), title: "Source " + sid.slice(1) }));
+          });
+          out.push(sup);
+        } else out.push(document.createTextNode(part));
+      });
+      return out;
+    }
+    function renderMarkdown(md, answerId) {
+      const frag = document.createDocumentFragment();
+      const lines = md.replace(/\r/g, "").split("\n");
+      let i = 0;
+      while (i < lines.length) {
+        const line = lines[i];
+        if (!line.trim()) { i++; continue; }
+        if (/^\s*\|/.test(line)) {                       // pipe table
+          const rows = [];
+          while (i < lines.length && /^\s*\|/.test(lines[i])) rows.push(lines[i++]);
+          const cells = r => r.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
+          const t = el("table"); const body = el("tbody");
+          rows.filter(r => !/^\s*\|?\s*:?-{2,}/.test(r)).forEach((r, k) => {
+            const tr = document.createElement("tr");
+            cells(r).forEach(c => tr.append(el(k === 0 ? "th" : "td", {}, ...inline(c, answerId))));
+            (k === 0 ? t.createTHead() : body).append(tr);
+          });
+          t.append(body); frag.append(t); continue;
+        }
+        if (/^\s*([-*]|\d+\.)\s+/.test(line)) {          // list
+          const ordered = /^\s*\d+\./.test(line);
+          const list = el(ordered ? "ol" : "ul");
+          while (i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i]))
+            list.append(el("li", {}, ...inline(lines[i++].replace(/^\s*([-*]|\d+\.)\s+/, ""), answerId)));
+          frag.append(list); continue;
+        }
+        const para = [];
+        while (i < lines.length && lines[i].trim() && !/^\s*(\||[-*]\s|\d+\.\s)/.test(lines[i]))
+          para.push(lines[i++].replace(/^#+\s*/, ""));
+        const p = el("p", {}, ...inline(para.join(" "), answerId));
+        if (/^#+\s/.test(line)) p.style.fontWeight = "600";
+        frag.append(p);
+      }
+      return frag;
+    }
+
+    function chatContext() {
+      $("chat-ctx").textContent = state.districtId
+        ? `Selected: ${state.districtId.startsWith("HD") ? "House" : "Senate"} District ${state.districtId.split("-")[1]}`
+        : "No district selected";
+    }
+    function openChat() { $("chat").hidden = false; chatContext(); }
+
+    async function ask(question) {
+      question = (question || "").trim();
+      if (!question || chat.busy) return;
+      openChat();
+      chat.busy = true; $("chat-send").disabled = true;
+      chat.history.push({ role: "user", content: question });
+      const log = $("chat-log");
+      log.append(el("div", { className: "msg user", textContent: question }));
+      const pending = el("div", { className: "msg thinking", textContent: "Looking up the figures…" });
+      log.append(pending); log.scrollTop = log.scrollHeight;
+      try {
+        const r = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ messages: chat.history, district_id: state.districtId }) });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.detail || `The assistant returned an error (${r.status}).`);
+        const id = ++chat.n;
+        const box = el("div", { className: "msg" }, renderMarkdown(data.answer || "(No answer.)", id));
+        if (data.sources && data.sources.length) {
+          const ol = el("ol");
+          data.sources.forEach(s => {
+            const li = el("li", { id: `src-${id}-${s.id}`, value: s.id.slice(1) },
+              `${s.publisher}, ${s.dataset}, ${s.period}. ${s.geography}. `);
+            (s.tables || []).forEach((t, k) => { if (k) li.append(", "); li.append(el("a", { href: t.url, target: "_blank", rel: "noopener", textContent: t.table_id })); });
+            if (s.note) li.append(el("span", { textContent: ` ${s.note.replace(/^Source:\s*/, "")}` }));
+            ol.append(li);
+          });
+          box.append(el("div", { className: "sources" }, el("strong", { textContent: "Sources" }), ol));
+        }
+        if (data.trace && data.trace.length) {
+          box.append(el("details", {}, el("summary", { textContent: `What the assistant looked up (${data.trace.length})` }),
+            el("pre", { textContent: data.trace.map(t => `${t.tool}(${JSON.stringify(t.input)})${t.error ? "  → error" : ""}`).join("\n") })));
+        }
+        pending.replaceWith(box);
+        chat.history.push({ role: "assistant", content: data.answer || "" });
+      } catch (e) {
+        pending.replaceWith(el("div", { className: "msg error", textContent: e.message }));
+        chat.history.pop();
+      } finally {
+        chat.busy = false; $("chat-send").disabled = false;
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+
+    $("ask-form").addEventListener("submit", e => { e.preventDefault(); const q = $("ask-input").value; $("ask-input").value = ""; ask(q); });
+    $("chat-form").addEventListener("submit", e => { e.preventDefault(); const q = $("chat-input").value; $("chat-input").value = ""; ask(q); });
+    $("chat-input").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("chat-form").requestSubmit(); } });
+    $("chat-close").addEventListener("click", () => { $("chat").hidden = true; $("ask-input").focus(); });
+    $("chat-clear").addEventListener("click", () => { chat.history = []; $("chat-log").replaceChildren(); $("chat-input").focus(); });
+
     // Open every section when printing so the page prints as a complete one-pager.
     window.addEventListener("beforeprint", () => document.querySelectorAll("details").forEach(d => d.open = true));
 
@@ -421,6 +578,7 @@
     async function selectDistrict(id, zoom = true) {
       state.districtId = id || null;
       $("district").value = id || "";
+      chatContext();
       const url = new URL(location.href);
       id ? url.searchParams.set("d", id) : url.searchParams.delete("d");
       history.replaceState(null, "", url);
