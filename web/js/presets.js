@@ -5,6 +5,7 @@
 //     { type: "taxAreas", title }            DOTAX tax areas overlapping the district
 //     { type: "context", title, ids }        county/state figures (county_context indicator ids)
 //     { type: "programs", title }            program cards: who qualifies, limits, how to apply
+//     { type: "likelyEligible", title }      residents likely eligible, by program (estimates)
 //     { type: "note", title, text }          plain text block
 //   keywords: words in a chat question that point to this view.
 //   groups:   metric groups (get_district_profile) that point to this view.
@@ -75,13 +76,14 @@ export const PRESETS = [
   },
   {
     id: "programs", label: "Program need",
-    blurb: "Residents with low incomes compared with the poverty line, and how many use SNAP and Medicaid. These are not eligibility counts.",
+    blurb: "Residents with low incomes compared with the poverty line, how many use SNAP and Medicaid, and estimates of how many are likely eligible on income. None of these are eligibility counts.",
     metrics: ["under_125pct_poverty_share", "under_200pct_poverty_share", "poor_households_without_snap_share",
               "low_income_uninsured_rate", "snap_share", "medicaid_share"],
     keywords: ["snap", "food stamp", "medicaid", "med-quest", "medquest", "program", "eligib",
                "qualif", "benefit", "assist", "outreach", "uninsured", "insurance", "enroll", "uptake", "poverty", "low-income", "low income"],
     groups: ["Program need and uptake"],
     sections: [
+      { type: "likelyEligible", title: "Residents likely eligible on income (estimates)" },
       { type: "programs", title: "Programs residents may qualify for" },
       { type: "context", title: "Program use: county and state records",
         ids: ["snap_cases_monthly", "snap_people_monthly", "medquest_managed_care", "dotax_eitc_claims", "dotax_food_excise_claims", "dotax_renters_claims"] },

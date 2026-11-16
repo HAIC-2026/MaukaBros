@@ -1,6 +1,6 @@
 // DOM builders for district figures, shared by the map page and the report page.
 // Every value is inserted with textContent (via el()), never as HTML.
-import { fmtMetric, fmtMoe, diffText, shortCounty, shortGeo, compareEstimates } from "./format.js";
+import { fmtMetric, fmtMoe, fmtCount, diffText, shortCounty, shortGeo, compareEstimates } from "./format.js";
 
 export const $ = id => document.getElementById(id);
 
@@ -318,6 +318,110 @@ export function renderTaxAreas(data, countyName) {
     el("div", { className: "inner" }, body));
 }
 
+// "Residents likely eligible" estimates (programs.yaml `likely_eligible`, docs/ELIGIBILITY_METHOD.md).
+// Counts of people, so no "higher/lower than" comparison: districts, counties and the state differ in size.
+const STATUS_TEXT = {
+  suppressed: "Not published: too few survey responses for this area",
+  not_applicable: "Not applicable for this area",
+};
+const leCount = e => e && e.value != null ? fmtCount(e.value) : "Not available";
+const leMoe = e => !e ? "Not in this tool's data"
+  : e.value == null ? (STATUS_TEXT[e.value_status] || "Not published for this area")
+  : e.moe == null ? "margin of error not available"
+  : `${e.moe_status === "derived" ? "about " : ""}plus or minus ${fmtCount(e.moe)}`;
+const leTitle = (le, p) => le.label ? le.label.split(":")[0] : `${p.name}: residents likely eligible`;
+const LE_DIRECTION = { low: "Likely counts too few.", high: "Likely counts too many.", uncertain: "Could count too many or too few." };
+const leProgs = data => (data.programs || []).filter(p => p.likely_eligible);
+
+function leCard(p, countyName) {
+  const le = p.likely_eligible;
+  if (!le.estimated) {
+    return el("article", { className: "fact missing" }, el("h3", { textContent: `${p.name}: residents likely eligible` }),
+      el("p", { className: "big", textContent: "No estimate" }),
+      el("p", { className: "moe", textContent: "The survey has no defensible measure for this program" }),
+      el("p", { className: "muted small", style: "margin:0 0 0.5rem", textContent: le.reason }),
+      el("p", { className: "src", textContent: le.final_eligibility }));
+  }
+  const d = le.district;
+  const card = el("article", { className: "fact" }, el("h3", { textContent: leTitle(le, p) }),
+    el("p", { className: "big", textContent: leCount(d) }),
+    el("p", { className: "moe", textContent: `${d && d.value != null ? "residents, " : ""}${leMoe(d)}` }));
+  if (d && d.low_reliability) card.append(el("p", { className: "flag small", style: "margin:0 0 0.5rem", textContent: "Low reliability: large margin of error. Treat with caution." }));
+  card.append(el("p", { className: "small", style: "margin:0 0 0.5rem", textContent: `Cut used: ${le.acs_cut}.` }),
+    el("p", { className: "muted small", style: "margin:0 0 0.5rem", textContent: le.caveat }),
+    el("p", { className: "muted small", style: "margin:0 0 1rem", textContent: `${LE_DIRECTION[le.direction] || ""} Why: see this program below. ${le.final_eligibility}` }));
+  const vs = el("div", { className: "vs" });
+  [[le.county, countyName || "the county"], [le.state, "the state"]].forEach(([e, name]) => {
+    if (e) vs.append(el("div", { className: "row" }, `In ${name}: `, el("span", { className: "hl", textContent: leCount(e) }), ` (${leMoe(e)})`));
+  });
+  card.append(vs);
+  if (le.source) card.append(srcLine(le.source));
+  return card;
+}
+
+export function likelyEligibleBody(data) {
+  const progs = leProgs(data);
+  if (!progs.length) return null;
+  const county = countyOf(data);
+  return el("div", {},
+    el("p", { className: "muted small", textContent:
+      "Estimates of residents whose income is under each program's limit, from the Census survey. They apply the income test only: rules on immigration status, work, assets and who counts in a household are not applied, so these are estimates, not eligibility counts. Each card says which way its estimate likely errs. Final eligibility is decided by the agency that runs the program. The full method notes are under each program in the section below." }),
+    el("div", { className: "facts" }, ...progs.map(p => leCard(p, county))));
+}
+
+// Comparison mode: both districts' estimates side by side (counts; no difference test).
+export function likelyEligiblePair(a, b) {
+  const progs = leProgs(a).filter(p => p.likely_eligible.estimated);
+  if (!progs.length) return null;
+  const other = id => (b.programs || []).find(x => x.id === id);
+  const t = el("table");
+  const head = t.createTHead().insertRow();
+  ["Estimate", a.name, b.name, "State"].forEach(h => head.append(el("th", { scope: "col", textContent: h })));
+  const body = t.createTBody();
+  const cell = e => el("td", {}, leCount(e), el("span", { className: "moe", textContent: leMoe(e) }));
+  progs.forEach(p => {
+    const le = p.likely_eligible, lb = other(p.id) && other(p.id).likely_eligible;
+    const th = el("th", { scope: "row" }, leTitle(le, p), el("span", { className: "moe", textContent: `${le.acs_cut}. ${le.caveat}` }));
+    if (le.source) {
+      const geos = [...new Set([le, lb].filter(x => x && x.source).map(x => shortGeo(x.source.geography)))];
+      const src = srcLine({ ...le.source, geography: geos.join(" and ") });
+      src.style.fontWeight = "normal";
+      th.append(src);
+    }
+    body.insertRow().append(th, cell(le.district), cell(lb && lb.district), cell(le.state));
+  });
+  return el("div", {},
+    el("p", { className: "muted small", textContent: "Counts of residents, so larger districts have larger counts. Estimates apply the income test only. " + (progs[0].likely_eligible.final_eligibility || "") }),
+    el("div", { className: "table-wrap" }, t));
+}
+
+// The estimate inside a program's card in the Programs section, with the full method notes.
+function leProgramBlock(p, body, countyName) {
+  const le = p.likely_eligible;
+  if (!le) return;
+  body.append(el("h4", { textContent: "Residents likely eligible (estimate)" }));
+  if (!le.estimated) {
+    body.append(el("p", { className: "small", textContent: le.reason }), el("p", { className: "muted small", textContent: le.final_eligibility }));
+    return;
+  }
+  const ul = el("ul");
+  [[le.district, "This district"], [le.county, countyName || "County"], [le.state, "State"]].forEach(([e, name]) => {
+    if (e) ul.append(el("li", {}, `${name}: `, el("strong", { textContent: leCount(e) }), ` (${leMoe(e)})`,
+      e.low_reliability ? el("span", { className: "flag", textContent: " Low reliability: treat with caution." }) : null));
+  });
+  body.append(ul, ...[`Cut used: ${le.acs_cut}.`, `Program rule it approximates: ${le.rule}`,
+    `Counted among: ${le.universe_label} ${le.unit_note}`, le.direction_text]
+    .map(t => el("p", { className: "small", style: "margin:0.5rem 0 0", textContent: t })));
+  [["Why it may count too few", le.runs_low], ["Why it may count too many", le.runs_high], ["Could go either way", le.either_way]]
+    .filter(([, xs]) => xs && xs.length).forEach(([title, xs]) => {
+      const list = el("ul");
+      xs.forEach(x => list.append(el("li", { textContent: x })));
+      body.append(el("p", { className: "small", style: "margin:0.5rem 0 0", textContent: title + ":" }), list);
+    });
+  body.append(el("p", { className: "muted small", textContent: `${le.caveat} ${le.final_eligibility}` }));
+  if (le.source) body.append(srcLine(le.source));
+}
+
 // Programs (pipeline/programs.yaml). Every fact is quoted from a saved official document.
 export function programsBody(data) {
   const progs = data.programs || [];
@@ -340,6 +444,7 @@ export function programsBody(data) {
       });
       body.append(el("h4", { textContent: "In this district" }), ul);
     }
+    leProgramBlock(p, body, countyOf(data));
     if (p.uptake.length) {
       const ul = el("ul");
       p.uptake.forEach(u => ul.append(el("li", { textContent: `${u.label}, ${u.period}: county ${val(u.county)}, state ${val(u.state)} (program records)` })));

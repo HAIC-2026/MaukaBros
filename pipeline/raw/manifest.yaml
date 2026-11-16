@@ -587,3 +587,13 @@ files:
     downloaded_on: "2026-11-16"
     downloaded_by: a team member, by hand in a browser
     sha256: 14b3d7abb74bb1d3c333b2940a12a6ecdc74ff2e13f6eb1a27ae35afa7e36546
+
+  - path: usgs/DomesticNames_HI_Text.zip
+    source_id: usgs_gnis
+    status: present
+    url: https://prd-tnm.s3.amazonaws.com/StagedProducts/GeographicNames/DomesticNames/DomesticNames_HI_Text.zip
+    how: "Downloaded once with curl (a single request) by Claude Code at the team's request, from the USGS National Map staged products (GNIS Domestic Names, Hawaii, pipe-delimited text, published 2026-11-02). USGS terms: pipeline/sources.yaml."
+    use: "Official names and reference points of populated places (neighborhoods such as Kāhala), matched to districts by pipeline/named_places.py for the place-name lookup."
+    downloaded_on: "2026-11-16T18:39:13Z" # UTC; 2026-11-16 in Hawaiʻi
+    downloaded_by: Claude Code, at the team's request
+    sha256: ad048fd3ce070e70019a317845bdd714e8d454395b885724f57e8fe87813ecee

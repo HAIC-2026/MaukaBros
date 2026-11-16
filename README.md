@@ -107,6 +107,7 @@ All data is public and aggregated; there are no individual records.
 | 2021 Reapportionment Commission Final Report                    | Official permanent-resident population each district was drawn on                                               | Districts                  |
 | Hawaiʻi Statewide GIS Program (OPSD)                            | 2022 legislative district boundaries                                                                            | Districts                  |
 | U.S. Census Bureau, 2020 Census blocks                          | Matching districts to towns, ZIP codes and tax areas, weighted by residents                                     | Blocks                     |
+| U.S. Geological Survey, GNIS (published 2026-11-02)             | Official names and reference points of neighborhoods and villages (e.g. Kāhala), for the place-name lookup      | Points                     |
 | Hawaiʻi Department of Taxation                                  | Income on tax returns and tax-credit claims, tax year 2023                                                      | Tax areas, counties, state |
 | DBEDT Data Book 2025 (from Hawaiʻi DHS)                         | SNAP cases and people served                                                                                    | Counties, state            |
 | Hawaiʻi Med-QUEST Enrollment Report 2026                        | Managed-care members                                                                                            | Counties, state            |
@@ -121,9 +122,9 @@ How districts are linked to smaller areas: [docs/GEOGRAPHY_METHOD.md](docs/GEOGR
 ## Accuracy
 
 ```
-python validation/validate.py        # 51 data checks
-python validation/test_security.py   # 35 security checks, no AI calls
-python validation/test_agent.py      # 15 assistant questions (uses the Anthropic API)
+python validation/validate.py        # 70 data checks
+python validation/test_security.py   # 39 security checks, no AI calls
+python validation/test_agent.py      # 21 assistant questions (uses the Anthropic API)
 ```
 
 - Our district figures match DBEDT's published ACS district profiles exactly: 1,064 estimates and
@@ -135,6 +136,37 @@ python validation/test_agent.py      # 15 assistant questions (uses the Anthropi
   shown under the answer as "not found in the data".
 
 What the checks do and do not prove: [validation/PROTOCOL.md](validation/PROTOCOL.md).
+
+## Deploy on Render
+
+[render.yaml](render.yaml) describes the whole service. The data is built during each deploy from
+the saved files in `pipeline/raw/` (about a minute, no keys needed), so the database is never
+committed.
+
+1. On [Render](https://dashboard.render.com), choose **New > Blueprint**, connect this GitHub
+   repository and pick the branch to deploy (normally `main`).
+2. Paste your `ANTHROPIC_API_KEY` when asked. Leave it empty to run without the research assistant.
+   Render creates `CHAT_SIGNING_KEY` itself.
+3. Set a monthly spending limit in the Anthropic Console. `CHAT_DAILY_USD` in `render.yaml`
+   caps the assistant at about $5 a day.
+4. After the first deploy, open the site and put its address in **Live site** above.
+
+Each push to the deployed branch redeploys. The free plan sleeps after 15 minutes without visits and
+takes about a minute to wake, so `render.yaml` uses `starter` for judging (switch back to `free`
+afterwards).
+
+After each deploy that touches `api/security.py`, check that one visitor cannot pose as another by
+faking `X-Forwarded-For`. An empty question is refused after the limit is counted and before the
+AI is called, so this check costs nothing:
+
+```
+for i in $(seq 1 12); do curl -s -o /dev/null -w "%{http_code} " -X POST https://maukabros.onrender.com/api/chat \
+  -H "Content-Type: application/json" -H "X-Forwarded-For: 10.0.0.$i" \
+  -d '{"messages":[{"role":"user","content":""}]}'; done
+```
+
+Ten `400` responses followed by `429` mean the limit holds. Twelve `400` responses mean the faked
+header is trusted: see `visitor_id` in `api/security.py`.
 
 ## Security and privacy
 

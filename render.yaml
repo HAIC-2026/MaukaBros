@@ -1,0 +1,42 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+# The data is built during each deploy from the saved sources in pipeline/raw/ (no downloads, no
+# keys needed), so data/kyd.duckdb and data/boundaries/ never need to be committed.
+# Settings are explained in .env.example and SECURITY.md.
+services:
+  - type: web
+    name: district-insight
+    runtime: python
+    plan: starter         # always on for judging; "free" sleeps after 15 minutes idle (about a minute to wake)
+    region: oregon        # closest Render region to Hawaiʻi
+    buildCommand: >-
+      pip install -r requirements.txt &&
+      python pipeline/build.py &&
+      python pipeline/boundaries.py
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/districts
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.14.1"
+      # Needed only for the research assistant. Render asks for it when the Blueprint is created.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Signs the assistant's answers. Must be set here: the fallback file in data/ is lost on
+      # every deploy and restart. Render generates a random value once.
+      - key: CHAT_SIGNING_KEY
+        generateValue: true
+      # Trust the proxy's client-address headers; without this every visitor shares one rate limit
+      # and HSTS is not sent. Render keeps a client-sent X-Forwarded-For, so the server prefers
+      # Cloudflare's True-Client-IP / CF-Connecting-IP (api/security.py, visitor_id). Check after
+      # each deploy (README, "Deploy on Render").
+      - key: TRUST_PROXY
+        value: "1"
+      # No interactive API docs on the public site.
+      - key: API_DOCS
+        value: "0"
+      # Spending guard for the public site (all visitors together); see .env.example for the rest.
+      - key: CHAT_DAILY_USD
+        value: "5.00"
+      # Optional: the assistant's model and effort (defaults in api/agent.py: claude-opus-5-5,
+      # medium). If you change the model, also set CHAT_PRICE_* so the spending cap stays right.
+      # - key: KYD_MODEL
+      #   value: claude-haiku-5-5

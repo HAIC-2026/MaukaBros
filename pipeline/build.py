@@ -17,6 +17,7 @@ import duckdb
 import yaml
 from blocks import build_overlaps, load_blocks
 from context import load_district_zcta
+from named_places import load_named_places
 from context import load_all as load_context
 from fetch_acs import CHAMBERS, HAWAII, cache_path, moe_var
 
@@ -162,6 +163,11 @@ def build() -> None:
     # 2020 blocks: population-weighted tax area, place and ZIP matching (pipeline/blocks.py).
     load_blocks(con)
     build_overlaps(con)
+    # Neighborhood names (USGS GNIS points in the OPSD district shapes, pipeline/named_places.py).
+    named = load_named_places()
+    con.executemany("INSERT INTO named_place VALUES (?, ?, ?, ?, ?, ?, ?)", named)
+    print(f"Loaded {len(named)} named places (USGS GNIS), "
+          f"{sum(1 for r in named if r[5])} inside a House district")
 
     check(con, len(indicators))
     con.close()

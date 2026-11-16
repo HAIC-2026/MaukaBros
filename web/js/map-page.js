@@ -1,6 +1,6 @@
 // Map page (index.html): district list, map, profile and research assistant.
 // Kept out of the HTML so the Content Security Policy can forbid inline scripts.
-import { fmtMetric, fmtCount, fmtMoe, shortCounty, districtLabel } from "/js/format.js";
+import { fmtMetric, fmtCount, fmtMoe, shortCounty, districtLabel, compareEstimates } from "/js/format.js";
 import { $, el, tableLinks, renderKeyFact, renderContext, renderTaxAreas, renderPrograms, planLine, reportUrl } from "/js/render.js";
 import { presetById, presetFor, districtFor } from "/js/presets.js";
 import { renderMarkdown } from "/js/markdown.js";
@@ -188,8 +188,7 @@ async function selectDistrict(id, zoom = true) {
   id ? url.searchParams.set("d", id) : url.searchParams.delete("d");
   history.replaceState(null, "", url);
   drawSelection(zoom);
-  if (!id) { $("main").replaceChildren(el("div", { className: "empty" }, el("h2", { textContent: "Who lives in your district?" }),
-    el("p", { textContent: "Choose a district above, or click one on the map." }))); return; }
+  if (!id) { renderLanding(); return; }
   $("main").replaceChildren(el("p", { className: "muted", textContent: "Loading..." }));
   try {
     const res = await fetch("/api/districts/" + encodeURIComponent(id));
@@ -200,6 +199,78 @@ async function selectDistrict(id, zoom = true) {
   } catch (err) {
     $("main").replaceChildren(el("p", { className: "error", textContent: "Could not load this district. " + err.message }));
   }
+}
+
+// ---------- landing: one outreach opportunity, statewide ----------
+// Households below the poverty level that did not receive SNAP (ACS B22003), with the districts
+// that have the most of them. Every number shows its margin of error and source (GET /api/outreach).
+let outreachData = null;
+
+function renderLanding() {
+  const intro = el("div", { className: "empty" }, el("h2", { textContent: "Who lives in your district?" }),
+    el("p", { textContent: "Choose a district above, or click one on the map, to see a sourced profile of its residents." }));
+  const slot = el("section", { className: "outreach" });
+  slot.setAttribute("aria-labelledby", "outreach-h");
+  $("main").replaceChildren(intro, slot);
+  const fill = d => { if (slot.isConnected) slot.replaceChildren(...outreachSection(d)); };
+  if (outreachData) return fill(outreachData);
+  fetch("/api/outreach").then(r => r.ok ? r.json() : Promise.reject(new Error(r.statusText)))
+    .then(d => { outreachData = d; fill(d); })
+    .catch(() => slot.remove()); // the landing still works without the highlight
+}
+
+async function openDistrict(id) {
+  const chamber = id.startsWith("HD") ? "house" : "senate";
+  if (chamber !== state.chamber) {
+    state.chamber = chamber;
+    $("ch-house").setAttribute("aria-pressed", chamber === "house");
+    $("ch-senate").setAttribute("aria-pressed", chamber === "senate");
+    state.districtId = id;
+    fillDistrictList();
+    await drawMap();
+  }
+  await selectDistrict(id, true);
+  const h = document.querySelector("#main h2.district");
+  if (h) { h.tabIndex = -1; h.focus(); }
+}
+
+function outreachSection(d) {
+  const s = d.state;
+  const pct = v => (v * 100).toFixed(0) + "%";
+  const list = (title, rows) => {
+    const ol = el("ol");
+    rows.forEach(r => ol.append(el("li", {}, el("button", { type: "button", onclick: () => openDistrict(r.geo_id) },
+      el("span", { className: "name", textContent: r.name }),
+      el("span", { className: "n", textContent: fmtCount(r.count) + " households" }),
+      el("span", { className: "detail", textContent:
+        `${fmtMoe(r.count_moe, "count")} · ${fmtMetric(r.share, "percent")} of its households below poverty (${fmtMoe(r.share_moe, "percent")})`
+        + (r.low_reliability ? " · low reliability: large margin of error" : "") })))));
+    const [a, b] = rows;
+    const close = a && b && compareEstimates({ value: a.count, moe: a.count_moe }, { value: b.count, moe: b.count_moe });
+    return el("div", {}, el("h3", { textContent: title }), ol,
+      close && close.within_margin_of_error !== false
+        ? el("p", { className: "order-note", textContent: `The order of ${a.name} and ${b.name} may not be a real difference: it is within the margin of error.` })
+        : null);
+  };
+  const src = el("p", { className: "src" }, `Source: ${d.source.publisher}, ACS 5-year ${d.source.year}, `);
+  tableLinks(d.source, src);
+  src.append(". State of Hawaiʻi and Census state legislative districts. Income rule: ",
+    el("a", { href: d.program.url, target: "_blank", rel: "noopener", textContent: "Hawaiʻi DHS SNAP page" }), ".");
+  return [
+    el("p", { className: "kicker", textContent: "Outreach opportunity · SNAP" }),
+    el("h2", { id: "outreach-h", textContent: `${pct(s.share)} of Hawaiʻi households below the poverty level did not receive SNAP` }),
+    el("div", { className: "headline" },
+      el("p", { className: "big", textContent: fmtCount(s.count) }),
+      el("p", { className: "big-label", textContent: `households statewide had incomes below the poverty level and did not receive SNAP in the past 12 months: ${fmtMetric(s.share, "percent")} of all households below poverty.` }),
+      el("p", { className: "moe", textContent: `Count ${fmtMoe(s.count_moe, "count")} households; share ${fmtMoe(s.share_moe, "percent")}.` })),
+    el("p", { className: "why", textContent: `These households have incomes under the poverty level, well inside SNAP's income limit. ${d.income_rule}` }),
+    el("div", { className: "where" }, list("Most households, House", d.house), list("Most households, Senate", d.senate)),
+    el("p", { className: "caveat", textContent: `${d.caveat} Final eligibility is always decided by ${d.program.agency.split(" (")[0]}.` }),
+    el("div", { className: "actions" },
+      el("button", { className: "btn secondary", type: "button", textContent: "Color the map by this measure",
+        onclick: () => { $("metric").value = d.metric_id; drawMap(); } })),
+    src,
+  ];
 }
 
 function fillDistrictList() {
@@ -244,7 +315,7 @@ require(["esri/Map", "esri/views/MapView", "esri/layers/GraphicsLayer", "esri/Gr
     map.addMany([fillLayer, hoverLayer, selLayer]); // hover and selection outlines sit on top
     view = new MapView({ container: "viewDiv", map, background: { color: OCEAN },
       extent: new Extent({ ...STATE_EXTENT, spatialReference: { wkid: 4326 } }).expand(1.05),
-      ui: { components: ["zoom"] } });
+      ui: { components: ["zoom", "attribution"] } }); // Esri requires its attribution (pipeline/sources.yaml)
 
     const quantileEdges = (values, n) => {
       const v = values.filter(x => x !== null).sort((a, b) => a - b);
@@ -377,6 +448,7 @@ async function init() {
     fillDistrictList();
     await drawMap();
     if (state.districtId) { $("district").value = state.districtId; selectDistrict(state.districtId, true); }
+    else renderLanding();
   } catch (err) {
     $("main").replaceChildren(el("p", { className: "error", textContent: "Could not load. " + err.message }));
   }

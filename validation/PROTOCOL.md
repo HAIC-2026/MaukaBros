@@ -44,7 +44,7 @@ The script exits non-zero if any check fails, so it can run before every release
 | E. Context (info) | Medicaid: ACS residents with Medicaid/means-tested coverage vs Med-QUEST managed-care members, by county and state | Records how much the survey under-counts Medicaid (68% statewide), the reason survey Medicaid shares are labeled likely understated |
 | E. Context | Reapportionment plan: 76 districts; House and Senate each add up to the report's 1,348,054 permanent residents (also checked when the extract is made) | The report's district tables were read correctly |
 | P. Programs | Every program document (11) is a saved file matching its fingerprint in the manifest | Program facts come from the official documents as saved, not from memory or live pages |
-| P. Programs | Every quote in `pipeline/programs.yaml` (35) appears in its saved document, and every income-table number (144) is printed in it. Tested by tampering: a made-up quote and two wrong numbers were all caught | Eligibility rules, income limits and contacts are exactly what the agencies published |
+| P. Programs | Every quote in `pipeline/programs.yaml` (41, including the likely-eligible rule quotes) appears in its saved document, and every income-table number (145, including the contiguous-states guideline used in the method) is printed in it. Tested by tampering: a made-up quote and two wrong numbers were all caught | Eligibility rules, income limits and contacts are exactly what the agencies published |
 | H. DBEDT | Our figures equal DBEDT/READ's published ACS 2020-2024 district profiles (DP02-DP05): 14 measures with identical definitions (population, age, households, labor force, unemployment, income, SNAP, insurance, rent, NHPI, Hispanic) in all 76 districts; 1,064 estimates and 910 published margins of error, 0 differences | Independent confirmation by the challenge champion's own publication that the right ACS values were stored for every district |
 | F. Overlap | Census relationship files: each district's overlap parts add up to its land area; all 76 districts present | The Census files were read completely |
 | F. Overlap | Every district overlaps at least one DOTAX tax area; each tax area's 2020 residents are fully shared out among House districts and among Senate districts | No district or tax area is left out of the matching |
@@ -55,6 +55,11 @@ The script exits non-zero if any check fails, so it can run before every release
 | G. Blocks (info) | Largest differences between 2020 Census and ACS 2020-2024 district populations | Records how far the 2020 weights are from current estimates |
 | G. Reliability (info) | Number of district figures flagged low reliability (coefficient of variation = (MOE / 1.645) / estimate, over 30%) | Records how many figures carry the caution (2024: 179 of 3,344) |
 | E. Context | BLS unemployment rate shown equals unemployed / labor force (read from the saved file) in every county | The BLS columns were read correctly |
+| L. Likely eligible | SNAP, Med-QUEST and the Hawaiʻi EITC each have an estimate or a written reason for none; each estimate's cut point matches its program's official income table and the HHS Hawaiʻi guideline within 1 point | The estimate applies the rule the agency published, not a remembered one |
+| L. Likely eligible | Each estimate has a figure for all 82 geographies with source, year and margin of error (or a not-published status, never a number), from the ACS table the method names; every district's API response carries district, county and state figures, the caveat and the agency note | Every estimate shown can be cited and carries its uncertainty |
+| L. Likely eligible | House districts, Senate districts and counties each add up to the state within the 90% margin of error of the difference, sqrt(sum of the parts' squared MOEs + the state's squared MOE) | District estimates cover the state with no gaps or double counting, allowing for survey error |
+| L. Likely eligible | Each estimate is never larger than its universe (and the larger universes that contain it) in any geography | No impossible counts |
+| L. Likely eligible (info) | Estimates next to DHS SNAP people served and Med-QUEST members, by county and state | Records the scale (2024: SNAP records 50% of the estimate; Med-QUEST members 202%, which is why the Med-QUEST estimate is labeled as running low) |
 
 Every saved source file is listed in `pipeline/raw/manifest.yaml` with its URL, download date and
 SHA-256 fingerprint; `pipeline/build.py` refuses a file whose fingerprint does not match.
@@ -70,8 +75,10 @@ SHA-256 fingerprint; `pipeline/build.py` refuses a file whose fingerprint does n
   by district number), so this affects only the drawn shapes.
 - **Rates.** Margins of error are not computed for map rates (numerator / denominator).
 - **Eligibility.** Need-side figures are checked for consistency (group B); their method is in
-  `docs/ELIGIBILITY_METHOD.md`. Program eligibility rules are not loaded yet, so nothing tests
-  them.
+  `docs/ELIGIBILITY_METHOD.md`. Group L checks that the likely-eligible estimates use the
+  published income limit and add up, not that the people counted would actually be found
+  eligible: rules other than income (immigration, work, assets for some groups, household
+  definition) cannot be applied to survey data.
 
 ## Known limitations (found by running the checks)
 
@@ -109,6 +116,15 @@ change to the assistant's instructions or tools. Each run costs about 15 model c
 3. Any "no" is a defect: record it, fix it, re-run `validate.py`, and re-sample.
 4. Include at least one district in a rural area and one high-income district, as Seth Colby's
    kickoff asked for coverage beyond struggling districts.
+
+The six sampled indicators are already compared by machine in all 76 districts against a second
+publication: population, 65 and older, median household income, median gross rent and no health
+insurance against DBEDT's published ACS district profiles (group H), and residents below poverty
+against Census subject table S1701 (group A). The expert check adds what a script cannot: a person
+at DBEDT/READ confirming the figures and their citations, as the brief's Success Scenario asks.
+
+Status (2026-11-16): not done yet; to be requested from DBEDT/READ in Slack #c_dbedt_agent.
+`verified_by_expert` stays empty until an expert fills it. Do not fill it in on their behalf.
 
 ## When to re-run
 

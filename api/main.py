@@ -138,7 +138,7 @@ def get_district(geo_id: str) -> dict:
     context = build_context(district_county(geo_id)) if is_district else []
     tax_areas = build_tax_areas(geo_id) if is_district else None
     plan = district_plan(geo_id) if is_district else None
-    programs = build_programs(comparisons, context) if is_district else []
+    programs = build_programs(comparisons, context, geo_id) if is_district else []
     return {**district[0], "facts": facts, "comparisons": comparisons, "county_context": context,
             "tax_areas": tax_areas, "plan": plan, "programs": programs}
 
@@ -160,9 +160,62 @@ def list_programs() -> dict:
     return program_data()
 
 
-def build_programs(comparisons: list[dict], context: list[dict]) -> list[dict]:
+FINAL_ELIGIBILITY = "Final eligibility is decided by the agency that runs the program."
+
+
+def build_likely_eligible(spec: dict | None, geo_id: str | None) -> dict | None:
+    """Our "residents likely eligible" estimate for one program (programs.yaml `likely_eligible`,
+    docs/ELIGIBILITY_METHOD.md): the method as written, plus the figure for the district, its
+    county and the state when geo_id is given. Each figure carries its margin of error, status,
+    source, year and geography. Programs with no defensible estimate return the written reason."""
+    if not spec:
+        return None
+    if not spec.get("estimated"):
+        return {"estimated": False, "reason": spec["reason"], "final_eligibility": FINAL_ELIGIBILITY}
+    out = {k: v for k, v in spec.items() if k != "limit_column"}
+    out["final_eligibility"] = FINAL_ELIGIBILITY
+    if geo_id is None:
+        return out
+    county_id = district_county(geo_id)
+    geos = [geo_id, "STATE-15"] + ([county_id] if county_id else [])
+    rows = query(f"""
+        SELECT f.geo_id, g.name, g.geo_type, f.value, f.moe, f.value_status, f.moe_status,
+               i.label, i.unit, i.table_ids, s.publisher, s.dataset, s.year, s.url
+        FROM fact f JOIN geography g USING (geo_id) JOIN indicator i USING (indicator_id)
+        JOIN source s USING (source_id)
+        WHERE f.indicator_id = ? AND f.geo_id IN ({",".join("?" * len(geos))})""",
+                 [spec["indicator"], *geos])
+    by_geo = {r["geo_id"]: r for r in rows}
+
+    def entry(g: str | None) -> dict | None:
+        r = by_geo.get(g)
+        if r is None:
+            return None
+        ok = r["value_status"] == "ok"
+        value, moe = (r["value"], r["moe"]) if ok else (None, None)
+        return {"geo_id": g, "name": r["name"], "value": value, "moe": moe,
+                "value_status": r["value_status"], "moe_status": r["moe_status"],
+                "geography": GEOGRAPHY_LABELS.get(r["geo_type"], r["geo_type"]),
+                **reliability(value, moe)}
+
+    d = by_geo.get(geo_id)
+    if d:
+        out.update(label=d["label"], unit=d["unit"], source={
+            "publisher": d["publisher"], "dataset": d["dataset"], "year": d["year"],
+            "url": d["url"], "table_ids": d["table_ids"],
+            "tables": table_links(d["table_ids"], d["year"]),
+            "geography": GEOGRAPHY_LABELS.get(d["geo_type"], d["geo_type"])})
+    out.update(district=entry(geo_id), county=entry(county_id), state=entry("STATE-15"))
+    return out
+
+
+def build_programs(comparisons: list[dict], context: list[dict],
+                   geo_id: str | None = None) -> list[dict]:
     """Each program with the district figures it relates to (our link, not the agency's) and the
-    county program-use figures we hold. Eligibility is always the agency's decision."""
+    county program-use figures we hold. Eligibility is always the agency's decision.
+
+    With geo_id, each program's `likely_eligible` also carries the district, county and state
+    estimates (added 2026-11-16; existing fields unchanged)."""
     data = program_data()
     comp = {c["metric_id"]: c for c in comparisons}
     ctx = {c["indicator_id"]: c for c in context}
@@ -181,9 +234,12 @@ def build_programs(comparisons: list[dict], context: list[dict]) -> list[dict]:
                    "county": ctx[u]["county"]["value"] if ctx[u].get("county") else None,
                    "state": ctx[u]["state"]["value"] if ctx[u].get("state") else None,
                    "unit": ctx[u]["unit"]} for u in p.get("uptake", []) if u in ctx]
-        out.append({**{k: v for k, v in p.items() if k not in ("related_measures", "uptake")},
-                    "district_measures": here[:3], "uptake": uptake,
-                    "checked_on": data["checked_on"], "note": data["note_on_eligibility"]})
+        item = {**{k: v for k, v in p.items() if k not in ("related_measures", "uptake")},
+                "district_measures": here[:3], "uptake": uptake,
+                "checked_on": data["checked_on"], "note": data["note_on_eligibility"]}
+        if p.get("likely_eligible"):
+            item["likely_eligible"] = build_likely_eligible(p["likely_eligible"], geo_id)
+        out.append(item)
     return out
 
 
@@ -661,6 +717,47 @@ def map_layer(metric_id: str, chamber: str) -> dict:
     return collection
 
 
+@app.get("/api/outreach")
+def outreach() -> dict:
+    """The headline outreach example (HAIC brief, Success Scenario): households below the poverty
+    level that did not receive SNAP, statewide and in the districts with the most of them.
+    Below poverty is well under SNAP's gross income limit (200% of poverty under broad-based
+    categorical eligibility; pipeline/programs.yaml), so most of these households likely qualify on
+    income. Read-only; every figure carries its margin of error and source."""
+    count_id, metric_id = "households_below_poverty_no_snap", "poor_households_without_snap_share"
+    metric = MAP_METRICS[metric_id]
+    src = query("SELECT publisher, dataset, year, url FROM source WHERE source_id = 'acs5'")[0]
+    tables = {t["table_id"]: t for i in (metric["numerator"], metric["denominator"])
+              for t in table_links(query("SELECT table_ids FROM indicator WHERE indicator_id = ?",
+                                         [i])[0]["table_ids"], src["year"])}
+    geos = [r["geo_id"] for r in query(
+        "SELECT geo_id FROM geography WHERE geo_type IN ('house', 'senate', 'state')")]
+    vals = fetch_values(geos)
+    names = {r["geo_id"]: r["name"] for r in query("SELECT geo_id, name FROM geography")}
+
+    def entry(geo_id: str) -> dict:
+        count, count_moe = vals.get(geo_id, {}).get(count_id, (None, None))
+        share, share_moe = metric_estimate(metric, vals.get(geo_id, {}))
+        return {"geo_id": geo_id, "name": names[geo_id], "count": count, "count_moe": count_moe,
+                "share": share, "share_moe": share_moe, **reliability(count, count_moe)}
+
+    def top(prefix: str, n: int = 3) -> list[dict]:
+        rows = [entry(g) for g in geos if g.startswith(prefix)]
+        return sorted((r for r in rows if r["count"] is not None),
+                      key=lambda r: -r["count"])[:n]
+
+    snap = next(p for p in program_data()["programs"] if p["id"] == "snap")
+    return {
+        "label": MAP_METRICS[metric_id]["label"], "metric_id": metric_id,
+        "state": entry("STATE-15"), "house": top("HD-"), "senate": top("SD-"),
+        "program": {"id": snap["id"], "name": snap["name"], "url": snap["url"],
+                    "agency": snap["agency"]},
+        "income_rule": next(f["text"] for f in snap["facts"] if "200%" in f["text"]),
+        "caveat": METRIC_GROUPS["Program need and uptake"],
+        "source": {**src, "tables": list(tables.values())},
+    }
+
+
 # --- Research assistant (api/agent.py). Abuse and integrity controls: api/security.py, SECURITY.md.
 class ChatMessage(BaseModel):
     role: Literal["user", "assistant"]
@@ -703,7 +800,9 @@ def chat(req: ChatRequest, request: Request) -> dict:
         selected = None
 
     visitor = security.visitor_id(request.client.host if request.client else None,
-                                  request.headers.get("x-forwarded-for"))
+                                  request.headers.get("x-forwarded-for"),
+                                  request.headers.get("true-client-ip")
+                                  or request.headers.get("cf-connecting-ip"))
     try:
         _budget.check_day()
         _limiter.acquire(visitor)

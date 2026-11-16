@@ -89,7 +89,53 @@ def check() -> tuple[int, int, list[str]]:
                 n_numbers += 1
                 if not printed(v, text):
                     problems.append(f"{p['id']}: {v} not printed in {rel}")
+        le = p.get("likely_eligible")
+        if le and le.get("estimated"):
+            rel = le.get("file", p["file"])
+            for q in le.get("rule_quotes", []):
+                n_quotes += 1
+                if norm(q) not in norm(file_text(rel, cache)):
+                    problems.append(f"{p['id']}: likely_eligible quote not found in {rel}: {q[:60]!r}")
+    if "contiguous_states_1_person_100pct" in pg:
+        n_numbers += 1
+        if not printed(pg["contiguous_states_1_person_100pct"], file_text(pg["source_file"], cache)):
+            problems.append("poverty guidelines: contiguous-states figure not printed in the file")
     return n_quotes, n_numbers, problems
+
+
+def check_cut_points() -> tuple[list[str], list[str]]:
+    """Each likely-eligible estimate's cut point must match its program's income table: the monthly
+    limit x 12, divided by the HHS Hawaiʻi guideline (100%) for the same household size, must be
+    within 1 point of `cut_percent` for every household size printed. Returns (summaries, problems)."""
+    data = load()
+    guide = {int(k): v[100] for k, v in data["poverty_guidelines"]["by_household_size"].items()}
+    indicators = {i["id"] for i in yaml.safe_load(
+        (HERE / "indicators.yaml").read_text(encoding="utf-8"))["indicators"]}
+    summaries, problems = [], []
+    for p in data["programs"]:
+        le = p.get("likely_eligible")
+        if not le:
+            continue
+        if not le.get("estimated"):
+            if not le.get("reason"):
+                problems.append(f"{p['id']}: no estimate and no written reason")
+            continue
+        if le.get("indicator") not in indicators:
+            problems.append(f"{p['id']}: indicator {le.get('indicator')} not in indicators.yaml")
+        lim = p.get("income_limits") or {}
+        rows = lim.get("by_household_size")
+        if lim.get("unit") != "dollars per month" or not rows:
+            problems.append(f"{p['id']}: no monthly income table by household size to check against")
+            continue
+        col = le["limit_column"]
+        pcts = [100 * vals[col] * 12 / guide[int(size)] for size, vals in rows.items()]
+        off = [x for x in pcts if abs(x - le["cut_percent"]) > 1]
+        summaries.append(f"{p['id']}: {lim['columns'][col]} = {min(pcts):.1f}% to {max(pcts):.1f}% "
+                         f"of the Hawaiʻi guideline, cut {le['cut_percent']}%")
+        if off:
+            problems.append(f"{p['id']}: income table is {min(pcts):.1f}-{max(pcts):.1f}% of the "
+                            f"guideline, not {le['cut_percent']}%")
+    return summaries, problems
 
 
 if __name__ == "__main__":

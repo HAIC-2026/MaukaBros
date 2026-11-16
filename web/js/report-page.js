@@ -1,6 +1,6 @@
 // Report page (report.html): district report, views, comparison of two districts.
 // Kept out of the HTML so the Content Security Policy can forbid inline scripts.
-import { $, el, renderKeyFact, missingFact, comparisonTable, renderDetails, contextBody, taxAreasBody, programsBody, planLine, countyOf, pairTable, reportUrl, takeQuestion } from "/js/render.js";
+import { $, el, renderKeyFact, missingFact, comparisonTable, renderDetails, contextBody, taxAreasBody, programsBody, planLine, countyOf, pairTable, reportUrl, takeQuestion, likelyEligibleBody, likelyEligiblePair } from "/js/render.js";
 import { fmtCount, fmtMoe, fmtToday } from "/js/format.js";
 import { PRESETS, presetById } from "/js/presets.js";
 
@@ -73,6 +73,7 @@ function renderSection(s, data, county) {
   } else if (s.type === "taxAreas") body = taxAreasBody(data, county);
   else if (s.type === "context") body = contextBody(data, county, s.ids);
   else if (s.type === "programs") body = programsBody(data);
+  else if (s.type === "likelyEligible") body = likelyEligibleBody(data);
   else if (s.type === "note") body = el("div", { className: "card" }, el("p", { className: "muted", style: "margin:0", textContent: s.text }));
   return el("section", { className: "block" }, el("h2", { textContent: s.title }),
     body || el("p", { className: "muted", textContent: "Not available for this district in this tool's data." }));
@@ -90,6 +91,8 @@ function renderPairSection(s, a, b) {
       pairTable(comps.map(c => c.metric_id), strip(a), strip(b))) : null;
   } else if (s.type === "note") {
     body = el("div", { className: "card" }, el("p", { className: "muted", style: "margin:0", textContent: s.text }));
+  } else if (s.type === "likelyEligible") {
+    body = likelyEligiblePair(a, b);
   } else {
     const what = s.type === "taxAreas" ? "Tax areas overlap each district differently"
       : s.type === "programs" ? "Program details are the same for every district"
