@@ -13,6 +13,9 @@ each check does and does not prove.
   D. Mapping       Boundary district ids match the database ids one for one.
   E. Context       County/state figures from other sources (BEA...): add up, only attached to
                    counties and the state, and each traceable to a saved file.
+  L. Likely eligible  Program estimates (docs/ELIGIBILITY_METHOD.md): cut points match the official
+                   income tables, parts add up to the state within their margins of error, counts
+                   never exceed their universe, every figure has source, year and margin of error.
 """
 
 import csv
@@ -532,6 +535,126 @@ def check_context(con) -> None:
                + "; ".join(f"{g} {a:,} vs {b:,.0f}" for g, a, b in rows), True)
 
 
+def check_likely_eligible(con) -> None:
+    """L. Residents likely eligible (programs.yaml `likely_eligible`, docs/ELIGIBILITY_METHOD.md).
+
+    Additivity tolerance: districts partition the state, so House districts (and Senate districts,
+    and counties) should add up to the state figure. The parts are separate survey estimates, so
+    the gap is allowed to be as large as the 90% margin of error of the difference, using the
+    Census approximation for sums: sqrt(sum of each part's MOE squared + the state's MOE squared).
+    """
+    import programs as prog
+    sys.path.insert(0, str(ROOT))
+    from api import main as kyd  # noqa: E402
+
+    data = prog.load()
+    specs = [(p, p["likely_eligible"]) for p in data["programs"] if p.get("likely_eligible")]
+    est = [(p, le) for p, le in specs if le.get("estimated")]
+    n_geo = con.execute("SELECT count(*) FROM geography").fetchone()[0]
+
+    have = {p["id"] for p, _ in specs}
+    missing = [pid for pid in ("snap", "med_quest", "hawaii_eitc") if pid not in have]
+    no_reason = [p["id"] for p, le in specs if not le.get("estimated") and not le.get("reason")]
+    record("L likely eligible", f"SNAP, Med-QUEST and the Hawaiʻi EITC each have an estimate or a "
+           f"written reason for none ({len(est)} estimated: {', '.join(p['id'] for p, _ in est)}; "
+           f"not estimated: {', '.join(p['id'] for p, le in specs if not le.get('estimated'))})",
+           not missing and not no_reason, f"missing {missing}, no reason {no_reason}")
+
+    summaries, probs = prog.check_cut_points()
+    record("L likely eligible", "each estimate's cut point matches its program's official income "
+           "table and the HHS Hawaiʻi guideline, within 1 point: " + "; ".join(summaries),
+           not probs, "; ".join(probs))
+
+    for p, le in est:
+        ind = le["indicator"]
+        rows = con.execute("""
+            SELECT f.geo_id, g.geo_type, f.value, f.moe, f.value_status, f.moe_status,
+                   s.year, s.url, s.publisher, i.table_ids
+            FROM fact f JOIN geography g USING (geo_id) JOIN source s USING (source_id)
+            JOIN indicator i USING (indicator_id) WHERE f.indicator_id = ?""", [ind]).fetchall()
+        bad = [r[0] for r in rows if not r[6] or not r[7] or not r[8]
+               or (r[4] == "ok" and (r[2] is None or r[3] is None or r[5] not in ("ok", "derived")))
+               or (r[4] != "ok" and r[2] is not None)]
+        tables = {r[9] for r in rows}
+        table_ok = len(tables) == 1 and all(t in le["acs_cut"] for t in next(iter(tables)).split(","))
+        record("L likely eligible", f"{ind}: a figure for all {n_geo} geographies, each with source, "
+               f"year and margin of error (or a not-published status, never a number); ACS table "
+               f"{', '.join(sorted(tables))} is the one the method names", len(rows) == n_geo
+               and not bad and table_ok, f"{len(rows)} rows; bad: {bad[:5]}; tables {tables}")
+
+        by = {r[0]: r for r in rows}
+        state = by["STATE-15"]
+        for geo_type, name in (("house", "House districts"), ("senate", "Senate districts"),
+                               ("county", "counties")):
+            parts = [r for r in rows if r[1] == geo_type]
+            unpublished = [r[0] for r in parts if r[2] is None or r[3] is None]
+            total = sum(r[2] or 0 for r in parts)
+            tol = (sum(r[3] ** 2 for r in parts if r[3] is not None) + state[3] ** 2) ** 0.5
+            record("L likely eligible", f"{ind}: {name} add up to the state within the margin of "
+                   f"error of the difference ({total:,.0f} vs {state[2]:,.0f}, gap "
+                   f"{total - state[2]:+,.0f}, allowed ±{tol:,.0f})",
+                   not unpublished and abs(total - state[2]) <= tol,
+                   f"unpublished parts: {unpublished[:5]}" if unpublished else "")
+
+        over = []
+        for uni in le["contained_in"]:
+            for g, v, u in con.execute("""
+                SELECT a.geo_id, a.value, b.value FROM fact a JOIN fact b USING (geo_id)
+                WHERE a.indicator_id = ? AND b.indicator_id = ? AND a.value_status = 'ok'
+                  AND b.value_status = 'ok'""", [ind, uni]).fetchall():
+                if v > u:
+                    over.append(f"{g}: {v:,.0f} > {uni} {u:,.0f}")
+        record("L likely eligible", f"{ind}: never larger than its universe "
+               f"({', '.join(le['contained_in'])}) in any geography", not over, "; ".join(over[:5]))
+
+    # Every district's API response: each estimate has district, county and state entries with
+    # source and year, and a margin of error wherever a value is shown.
+    bad, n = [], 0
+    for g, t in con.execute("""SELECT geo_id, geo_type FROM geography
+                               WHERE geo_type IN ('house', 'senate')""").fetchall():
+        for item in kyd.build_programs(kyd.build_comparisons(g, t), [], g):
+            le = item.get("likely_eligible")
+            if not le:
+                continue
+            if not le.get("estimated"):
+                if not le.get("reason") or not le.get("final_eligibility"):
+                    bad.append(f"{g} {item['id']}: no reason")
+                continue
+            n += 1
+            src = le.get("source") or {}
+            if not (src.get("year") and src.get("publisher") and src.get("tables")
+                    and le.get("final_eligibility") and le.get("caveat")):
+                bad.append(f"{g} {item['id']}: missing source, caveat or agency note")
+            for key in ("district", "county", "state"):
+                e = le.get(key)
+                if e is None or (e["value"] is not None and e["moe"] is None) or (
+                        e["value"] is None and e["value_status"] == "ok"):
+                    bad.append(f"{g} {item['id']} {key}: {e}")
+    record("L likely eligible", f"API: all {n} district estimates carry source, year, margin of "
+           "error, county and state figures, the estimate caveat and the agency note", not bad,
+           "; ".join(bad[:5]))
+
+    # Info: estimates next to program records (different measures and periods; not pass/fail).
+    pairs = [("snap_likely_eligible", "snap_people_monthly", "SNAP people served, average month"),
+             ("medquest_likely_eligible", "medquest_managed_care", "Med-QUEST managed-care members")]
+    for ind, ctx, label in pairs:
+        rows = con.execute("""
+            SELECT f.geo_id, f.value, f.moe, c.value, c.period FROM fact f JOIN context_fact c
+              ON c.geo_id = f.geo_id AND c.indicator_id = ?
+            WHERE f.indicator_id = ? AND c.value IS NOT NULL ORDER BY 1""", [ctx, ind]).fetchall()
+        if rows:
+            record("L likely eligible (info)", f"{ind} (ACS 2020-2024) vs {label} ({rows[0][4]}), "
+                   "records as a share of the estimate: " + "; ".join(
+                       f"{g} {v:,.0f} ±{m:,.0f} vs {c:,.0f} ({c / v:.0%})" for g, v, m, c, _ in rows),
+                   True)
+    sample = con.execute("""
+        SELECT f.geo_id, f.indicator_id, f.value, f.moe FROM fact f
+        WHERE f.indicator_id IN ('snap_likely_eligible', 'medquest_likely_eligible')
+          AND f.geo_id IN ('STATE-15', 'HD-24', 'HD-18', 'SD-12') ORDER BY 1, 2""").fetchall()
+    record("L likely eligible (info)", "sample: " + "; ".join(
+        f"{g} {i.split('_')[0]} {v:,.0f} (about ±{m:,.0f})" for g, i, v, m in sample), True)
+
+
 def write_spot_sample(con) -> Path:
     """A reproducible sample for subject-matter experts (e.g. DBEDT/READ) to verify by hand."""
     rng = random.Random(2026)
@@ -580,6 +703,7 @@ def main() -> None:
     check_provenance(con)
     check_mapping(con)
     check_context(con)
+    check_likely_eligible(con)
     sample = write_spot_sample(con)
     report = write_report()
     con.close()

@@ -446,6 +446,25 @@ indicators:
     type: sum
     variables: [B17020_007E, B17020_008E, B17020_009E]
 
+  # --- Residents likely eligible, by program (added 2026-11-16) ---
+  # Estimates, not eligibility counts. Each one applies a single program's income limit, mapped to
+  # the nearest ACS income-to-poverty cut. The program rule each approximates (with its quote and
+  # source), the universe, and whether it likely runs high or low are in pipeline/programs.yaml
+  # (`likely_eligible`) and docs/ELIGIBILITY_METHOD.md. Same cells as the income measures above,
+  # kept under their own ids so a program's estimate can change method without touching them.
+  # Margin of error: sum of cells, sqrt(sum of squares) (Census approximation), so "about".
+  - id: snap_likely_eligible
+    label: "Residents likely eligible for SNAP on income (estimate): income under 200% of the poverty level"
+    unit: people
+    type: sum
+    variables: [C17002_002E, C17002_003E, C17002_004E, C17002_005E, C17002_006E, C17002_007E]
+
+  - id: medquest_likely_eligible
+    label: "Residents likely eligible for Med-QUEST on income (estimate): income under 138% of the poverty level"
+    unit: people
+    type: sum
+    variables: [C27016_002E, C27016_012E]
+
   # --- Young families (B11005), added 2026-11-16 ---
   - id: households_children_universe
     label: Total households (presence of people under 18)

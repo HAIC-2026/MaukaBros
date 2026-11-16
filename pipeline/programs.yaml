@@ -12,6 +12,12 @@
 #     claim from the source. `uptake` names program-use figures we hold.
 #   - Rules change. `valid_for` is the period the document gives; `checked_on` is when the document
 #     was saved. Re-save the documents and update both when rules change (see CHECKLIST.md).
+#   - `likely_eligible` is OUR estimate (docs/ELIGIBILITY_METHOD.md): the ACS count of residents
+#     under the program's income limit, stored as an indicator in pipeline/indicators.yaml. It
+#     names the ACS cut, the program rule it approximates (with quotes, checked like the facts),
+#     the universe, and which way it likely errs. `cut_percent` is checked against the program's
+#     income table and the HHS Hawaiʻi guideline (validation group P). A program with no
+#     defensible ACS proxy says so (`estimated: false`) instead of getting a number.
 
 checked_on: "2026-11-16"
 note_on_eligibility: "Informational only. Final eligibility is always decided by the agency that runs the program."
@@ -23,6 +29,9 @@ poverty_guidelines:
   title: "2026 Poverty Guidelines: Hawaii"
   unit: dollars per year
   quote: "Each individual program--e.g., SNAP, Medicaid--determines how to round various multiples of the poverty guidelines, what income is to be included, and how the eligibility unit is defined."
+  # For comparison only (the ACS poverty scale is national, not Hawaiʻi's): 100% for one person
+  # in the 48 contiguous states, from the same file. Checked as printed in it.
+  contiguous_states_1_person_100pct: 15960
   # household size -> {percent of the guideline: dollars per year}, as printed in the Hawaii table
   by_household_size:
     1: {100: 18360, 125: 22950, 130: 23868, 133: 24418.80, 138: 25336.80, 150: 27540, 185: 33966, 200: 36720}
@@ -82,6 +91,34 @@ programs:
         6: [5527, 8502]
         7: [6234, 9590]
         8: [6941, 10680]
+    likely_eligible:
+      estimated: true
+      indicator: snap_likely_eligible
+      cut_percent: 200
+      limit_column: 1   # income_limits column the cut must match: "200% FPL (BBCE)"
+      acs_cut: "Income under 200% of the poverty level (ACS table C17002: ratio of income to poverty under 2.00)"
+      rule: "Gross income under 200% of the federal poverty level, under broad-based categorical eligibility (BBCE), which most households receive. BBCE has no asset limit and, since February 2025, no net income test."
+      rule_quotes:
+        - "Under BBCE, the gross income limit is 200% FPL and there is an unlimited asset standard."
+        - "As of February 1, 2025, under BBCE households are also not subject to the net income test."
+        - "Most households qualify for BBCE"
+      universe: pop_ratio_universe
+      universe_label: "Residents for whom the Census Bureau determines poverty status (ACS table C17002). It leaves out people living in institutions, military barracks and college dorms, and unrelated children under 15."
+      contained_in: [pop_ratio_universe, pop_total]
+      unit_note: "Counts people, not households. SNAP counts households (people who buy and prepare food together); the ACS compares each family's income with the poverty line for a family of its size."
+      direction: uncertain
+      direction_text: "Could run high or low. The income test is applied on a national scale that leaves out some Hawaiʻi residents under the limit (low), while rules other than income, which the survey cannot apply, would remove some people counted here (high)."
+      runs_low:
+        - "The ACS compares income with the Census Bureau's national poverty thresholds, which are the same in every state. HHS sets Hawaiʻi's guidelines about 15% higher (2026: $18,360 for one person, against $15,960 in the 48 contiguous states), so 200% of the Hawaiʻi guideline is roughly 230% on the national scale. The ACS table used (C17002) has no cut above 200%, so people between the two are not counted."
+        - "Households with an elderly or disabled member face only the net income test, and households where everyone receives TANF or SSI cash assistance have no income limit, so some people above 200% qualify."
+      runs_high:
+        - "Only U.S. citizens and some lawful permanent residents may qualify; the survey cannot apply immigration rules."
+        - "Most able-bodied adults must meet work requirements, and every household member needs a Social Security number."
+        - "A household member disqualified under SNAP may keep the household out of BBCE."
+      either_way:
+        - "The ACS measures income over the past 12 months; SNAP looks at current monthly income."
+        - "SNAP households and Census families are different units: people who share a home but buy food separately can be separate SNAP households."
+      caveat: "Estimate. Applies only SNAP's gross income limit (200% of poverty, BBCE), not its other rules, and counts people rather than households."
 
   - id: med_quest
     name: Med-QUEST (Hawaiʻi Medicaid)
@@ -128,6 +165,34 @@ programs:
         6: [5867, 4464, 8332, 13306]
         7: [6618, 5035, 9399, 15009]
         8: [7369, 5607, 10465, 16712]
+    likely_eligible:
+      estimated: true
+      indicator: medquest_likely_eligible
+      cut_percent: 138
+      limit_column: 0   # income_limits column the cut must match: "Adults 19-64 (138% FPL)"
+      file: programs/medquest_2026_income_standards.pdf
+      acs_cut: "Income under 138% of the poverty level (ACS table C27016: under 1.00 plus 1.00 to 1.37)"
+      rule: "Income-based (MAGI) coverage for adults 19-64: income up to 138% of the federal poverty level (133% plus the 5% disregard), with no asset test. Children under 19 qualify up to 313%, so every child counted here is under the children's limit."
+      rule_quotes:
+        - "MAX MAGI STANDARD: This is the minimum MAGI income standard plus the 5% disregard"
+        - "ASSETS ARE EXEMPT FOR INDIVIDUALS SUBJECT TO MAGI METHODOLOGY"
+        - "2026 MAGI-EXCEPTED ASSET LIMITS"
+      universe_label: "Civilian residents not living in institutions, for whom the Census Bureau determines poverty status (ACS table C27016). Active-duty military are not counted."
+      contained_in: [pop_insurance_universe, pop_ratio_universe, pop_total]
+      unit_note: "Counts people of all ages. Med-QUEST counts income for a tax household under MAGI rules; the ACS compares each family's income with the poverty line for a family of its size."
+      direction: low
+      direction_text: "Likely runs low. It leaves out children and pregnant women who qualify above 138%, and the national income scale leaves out some Hawaiʻi residents under the limit. Statewide, Med-QUEST has about twice as many members as this estimate."
+      runs_low:
+        - "Children under 19 qualify up to 313% and pregnant women up to 196%; the ACS tables used here do not split those groups at those limits, so people between 138% and those limits are not counted."
+        - "The ACS compares income with the Census Bureau's national poverty thresholds, the same in every state. HHS sets Hawaiʻi's guidelines about 15% higher (2026: $18,360 for one person, against $15,960 in the 48 contiguous states), so 138% of the Hawaiʻi guideline is roughly 159% on the national scale."
+        - "Other routes to coverage (for example medically needy spend-down, and aged, blind or disabled coverage) are not counted above 138%."
+      runs_high:
+        - "Residents 65 and older are counted, but they are covered under other (MAGI-excepted) rules with asset limits ($2,000 for one person in 2026)."
+        - "Immigration-status rules apply; the survey cannot apply them and the saved documents do not detail them."
+        - "From January 1, 2027, adults 19-64 who are not blind, disabled or pregnant must show work, school or volunteering, which may reduce the number who qualify."
+      either_way:
+        - "The ACS measures income over the past 12 months; Med-QUEST looks at current monthly income, and each program decides what income counts and who is in the household (HHS)."
+      caveat: "Estimate. Applies only the adult income limit (138% of poverty) to residents of every age; leaves out children and pregnant women who qualify above it."
 
   - id: hawaii_eitc
     name: Hawaiʻi Earned Income Tax Credit (EITC)
@@ -161,6 +226,9 @@ programs:
         "1": [1731, 50434, 57554]
         "2": [2861, 57310, 64430]
         "3 or more": [3218, 61555, 68675]
+    likely_eligible:
+      estimated: false
+      reason: "No district estimate. The limits are federal AGI in dollars by number of children and filing status (about 104% to 203% of the Hawaiʻi guideline for the matching household size), the credit needs earned income, and it is paid only on a filed tax return. The ACS district tables in this tool do not cross income-to-poverty with earnings and children, so any count would be a guess. Use the share of tax returns claiming the credit (DOTAX, by tax area) as the uptake figure instead."
 
   - id: food_excise_credit
     name: Hawaiʻi Refundable Food/Excise Tax Credit

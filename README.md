@@ -121,9 +121,9 @@ How districts are linked to smaller areas: [docs/GEOGRAPHY_METHOD.md](docs/GEOGR
 ## Accuracy
 
 ```
-python validation/validate.py        # 51 data checks
+python validation/validate.py        # 67 data checks
 python validation/test_security.py   # 35 security checks, no AI calls
-python validation/test_agent.py      # 15 assistant questions (uses the Anthropic API)
+python validation/test_agent.py      # 21 assistant questions (uses the Anthropic API)
 ```
 
 - Our district figures match DBEDT's published ACS district profiles exactly: 1,064 estimates and
@@ -135,6 +135,35 @@ python validation/test_agent.py      # 15 assistant questions (uses the Anthropi
   shown under the answer as "not found in the data".
 
 What the checks do and do not prove: [validation/PROTOCOL.md](validation/PROTOCOL.md).
+
+## Deploy on Render
+
+[render.yaml](render.yaml) describes the whole service. The data is built during each deploy from
+the saved files in `pipeline/raw/` (about a minute, no keys needed), so the database is never
+committed.
+
+1. On [Render](https://dashboard.render.com), choose **New > Blueprint**, connect this GitHub
+   repository and pick the branch to deploy (normally `main`).
+2. Paste your `ANTHROPIC_API_KEY` when asked. Leave it empty to run without the research assistant.
+   Render creates `CHAT_SIGNING_KEY` itself.
+3. Set a monthly spending limit in the Anthropic Console. `CHAT_DAILY_USD` in `render.yaml`
+   caps the assistant at about $5 a day.
+4. After the first deploy, open the site and put its address in **Live site** above.
+
+Each push to the deployed branch redeploys. The free plan sleeps after 15 minutes without visits and
+takes about a minute to wake; switch `plan` to `starter` for judging so the site answers at once.
+
+After the first deploy, check that one visitor cannot pose as another (the per-visitor question
+limit trusts the `X-Forwarded-For` header Render passes on):
+
+```
+for i in $(seq 1 12); do curl -s -o /dev/null -w "%{http_code} " -X POST https://YOUR-SITE/api/chat \
+  -H "Content-Type: application/json" -H "X-Forwarded-For: 10.0.0.$i" \
+  -d '{"messages":[{"role":"user","content":"Population of House District 1?"}]}'; done
+```
+
+If all 12 return `200`, the faked header is trusted: tell whoever owns `api/security.py`.
+Some `429` responses mean the limit holds.
 
 ## Security and privacy
 

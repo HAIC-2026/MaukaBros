@@ -40,7 +40,11 @@ and say what related figures are available. Do not guess, estimate from general 
 fill gaps with typical values.
 - Give comparisons, not bare numbers: compare the district with its county and the state. When a \
 tool marks a difference as within the margin of error, say it may not be a real difference.
-- Census survey figures have margins of error; mention them for small groups or close comparisons.
+- Census survey figures have margins of error: give the margin with each district survey figure \
+you state, e.g. "15.0% (±2.3 points)". Tax and program-record figures have none.
+- Cite only source ids a tool returned, and never name the tools in your answer. find_district \
+returns no source id: when you use its shares, say in words that they are shares of 2020 Census \
+residents.
 - Tax-area figures describe the whole DOTAX tax area, not the district. County context figures \
 describe the county, not the district. Say so when you use them.
 - Program-need figures (income below the poverty line, households without SNAP, low-income \
@@ -145,6 +149,14 @@ def district_name(geo_id: str) -> str:
     return f"{'House' if chamber == 'HD' else 'Senate'} District {n}"
 
 
+def county_display(name: str | None) -> str | None:
+    """Census county name ("Kauai County, Hawaii") in Hawaiian spelling ("Kauaʻi County")."""
+    if not name:
+        return name
+    name = re.sub(r", Hawaii$", "", name)
+    return name.replace("Hawaii County", "Hawaiʻi County").replace("Kauai County", "Kauaʻi County")
+
+
 def check_district(district_id: str) -> str:
     gid = (district_id or "").strip().upper()
     if not re.fullmatch(r"(HD|SD)-\d{1,2}", gid) or not kyd.query(
@@ -201,7 +213,9 @@ def tool_find_district(args: dict, src: Sources) -> dict:
                             ORDER BY place_share DESC""", [pl["place_fp"]])
         out["matches"].append({"census_place": pl["name"],
                                "why": "Census place (town or CDP); districts listed with the share "
-                                      "of its 2020 residents in each",
+                                      "of its 2020 residents in each. The name is in Census "
+                                      "spelling without ʻokina or kahakō (Pahoa for Pāhoa); write "
+                                      "the Hawaiian spelling.",
                                "districts": shares(rows, "place_share")})
 
     # DOTAX tax-area names (e.g. "North Shore", "Molokai", "Waianae Coast")
@@ -236,7 +250,8 @@ def tool_get_district_profile(args: dict, src: Sources) -> dict:
     geo_type = "house" if gid.startswith("HD") else "senate"
     groups = set(args.get("groups") or [])
     comps = kyd.build_comparisons(gid, geo_type)
-    county_name = next((c["county"]["name"] for c in comps if c.get("county")), None)
+    county_name = county_display(next((c["county"]["name"] for c in comps if c.get("county")),
+                                      None))
     vals = kyd.fetch_values([gid])[gid]
     pop, pop_moe = vals.get("pop_total", (None, None))
     hh, hh_moe = vals.get("households_total", (None, None))
@@ -322,7 +337,11 @@ def tool_get_local_context(args: dict, src: Sources) -> dict:
                                 "DOTAX tax areas (whole areas) and the State of Hawaiʻi",
                                 cr["source"]["tables"]) if cr else None
         out["tax_areas"] = {
-            "applies_to": ta["applies_to"], "caveat": ta["caveat"], "label": ta["label"],
+            "applies_to": ta["applies_to"] + (
+                " share_of_district_residents_in_area is the part of this district's residents "
+                "who live in the area; share_of_area_residents_in_district is the part of the "
+                "area's residents who live in this district. Do not swap them."),
+            "caveat": ta["caveat"], "label": ta["label"],
             "period": ta["period"],
             "district_residents_in_no_tax_area":
                 f"{100 * ta['district_residents_in_no_tax_area']:.1f}%",
@@ -403,11 +422,13 @@ def tool_get_programs(args: dict, src: Sources) -> dict:
     wanted = set(args.get("program_ids") or [])
     gid = args.get("district_id") or ""
     related: dict[str, list] = {}
+    moes: dict[str, float | None] = {}
     if gid:
         gid = check_district(gid)
         geo_type = "house" if gid.startswith("HD") else "senate"
-        built = kyd.build_programs(kyd.build_comparisons(gid, geo_type),
-                                   kyd.build_context(kyd.district_county(gid)))
+        comps = kyd.build_comparisons(gid, geo_type)
+        moes = {c["metric_id"]: c["district"]["moe"] for c in comps}
+        built = kyd.build_programs(comps, kyd.build_context(kyd.district_county(gid)), gid)
         related = {p["id"]: p for p in built}
     out = []
     for p in data["programs"]:
@@ -434,11 +455,28 @@ def tool_get_programs(args: dict, src: Sources) -> dict:
                              f"{district_name(gid)} and the State of Hawaiʻi", [])
             entry["in_this_district"] = [{
                 "measure": m["label"], "district": fmt_value(m["district"], m["format"]),
+                "district_moe": fmt_moe(moes.get(m["metric_id"]), m["format"]) or "not available",
                 "state": fmt_value(m["state"], m["format"]), "cite": mcite,
                 **({"reliability": "LOW RELIABILITY"} if m["low_reliability"] else {})}
                 for m in r["district_measures"]]
             entry["in_this_district_note"] = ("Our link between the program and district figures; "
-                                              "not counts of eligible people.")
+                                              "not counts of eligible people. State each district "
+                                              "figure with its district_moe.")
+            le = r.get("likely_eligible")
+            if le and le.get("estimated") and le.get("district"):
+                d = le["district"]
+                le_cite = src.cite(le["source"]["publisher"], le["source"]["dataset"],
+                                   le["source"]["year"], f"{district_name(gid)}", [])
+                entry["residents_likely_eligible"] = {
+                    "district": fmt_value(d["value"], "count"),
+                    "district_moe": (("about " if d["moe_status"] == "derived" else "")
+                                     + (fmt_moe(d["moe"], "count") or "not available")),
+                    **({"reliability": "LOW RELIABILITY"} if d.get("low_reliability") else {}),
+                    "cut_used": le["acs_cut"], "likely_direction": le.get("direction_text"),
+                    "caveat": le["caveat"], "final_eligibility": le["final_eligibility"],
+                    "cite": le_cite}
+            elif le and not le.get("estimated"):
+                entry["residents_likely_eligible"] = {"not_estimated": le["reason"]}
         out.append(entry)
     pg = data["poverty_guidelines"]
     pg_cite = src.cite(pg["publisher"], pg["title"], "2026", "Hawaiʻi", [{"table_id": "PDF",
@@ -611,9 +649,16 @@ def answer(history: list[dict], selected_district: str | None = None, spend=None
         text = (text + "\n\n" if text else "") + ("I stopped before finishing because the "
                                                   "question needed too many lookups. Please ask "
                                                   "a narrower question.")
+    # The model sometimes cites as "(S4)" or "(S1, S3)"; the page and the source list below
+    # only recognise square brackets, so those figures would lose their source.
+    text = re.sub(r"\((S\d+(?:\s*,\s*S\d+)*)\)", r"[\1]", text)
+    # It also sometimes "cites" a tool, e.g. "[find_district]", despite the instructions. Tool
+    # names mean nothing to readers and are not sources, so drop them.
+    tool_names = "|".join(re.escape(t["name"]) for t in TOOLS)
+    text = re.sub(rf"\s*\[(?:{tool_names})\]", "", text)
     # Every number the model wrote should appear in what its tools returned (or in the question).
     unverified = answer_check.unverified_numbers(text, tool_texts, [str(history[-1].get("content", ""))])
-    cited ={sid for group in re.findall(r"\[([^\]]*)\]", text)
+    cited = {sid for group in re.findall(r"\[([^\]]*)\]", text)
              for sid in re.findall(r"\bS\d+\b", group)}
     return {"answer": text,
             "sources": [s for s in src.items if s["id"] in cited],

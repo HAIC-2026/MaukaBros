@@ -8,14 +8,16 @@ Seth Colby's kickoff video ("Seth").
 
 ## 1. Core product (the "agent")
 
-- [~] **Chat agent that answers plain-language questions** [Basic Flow 1, 5; Desired platform]: built (`api/agent.py`, `POST /api/chat`, chat panel on the page). Claude Opus 5.5 via the Anthropic API, refusal fallbacks on. **Not yet run against the real model: needs `ANTHROPIC_API_KEY` in `.env`**
+- [~] **Chat agent that answers plain-language questions** [Basic Flow 1, 5; Desired platform]: built (`api/agent.py`, `POST /api/chat`, chat panel on the page). Claude Opus 5.5 via the Anthropic API, refusal fallbacks on. Tested against the real model 2026-11-16 (21 of 21 pass; see Test set below)
   - [~] Team to confirm the model/API choice (brief: teams choose; favor components the State could evaluate)
   - [x] Answers use only data from the API: five tools read only `data/kyd.duckdb` (find_district, list_measures, get_district_profile, get_local_context, rank_districts); the instructions forbid figures from memory [Responsible AI]
   - [x] Every figure cites a numbered source (publisher, dataset, period, geography, table links), shown under the answer; margins of error and "may not be a real difference" come from the tools [Business Rules]
-  - [~] Says "unavailable" instead of guessing: instructed, and tested by questions 10-14 in `validation/test_agent.py` (not run yet) [Business Rules]
-  - [~] Never identifies or infers anything about individual residents: instructed; test question 13 [Business Rules]
-  - [~] Stays nonpartisan: instructed; test question 12 [Business Rules]
-  - [~] Test set: 15 questions with expected figures looked up from the database (`validation/test_agent.py`, report `validation/agent_report.md`). **Run it once a key is set (about 15 model calls)** [Model Validation]
+  - [x] Says "unavailable" instead of guessing: instructed; tested by questions 10, 11 and 15 in `validation/test_agent.py` [Business Rules]
+  - [x] Never identifies or infers anything about individual residents: instructed; tested by questions 14 and 20 [Business Rules]
+  - [x] Stays nonpartisan: instructed; tested by questions 13 and 21 [Business Rules]
+  - [x] Test set: 21 questions with expected figures looked up from the database (`validation/test_agent.py`, report `validation/agent_report.md`). Every answer is also checked for: citations only to sources a tool returned, a margin of error wherever a Census figure is cited, no tool names, ʻokina and kahakō. **21 of 21 pass (2026-11-16)** [Model Validation]
+    - [ ] Run was on `.env`'s `KYD_MODEL=claude-haiku-5-5`, `KYD_EFFORT=low`. Rerun at the model and effort used for the demo (answers varied between runs at low effort)
+    - [ ] "Kahala" finds only ZIP 96816 (53% in HD-21), but Kāhala itself is in HD-20: add a small neighborhood lookup with a cited source
   - [ ] Questions are sent to Anthropic's API. They contain no resident data, but note it in the privacy statement
 - [~] Find a district by place name: ZIP codes, 163 Census places (towns/CDPs) and DOTAX tax areas, each with the share of residents per district, through the assistant's find_district. No neighborhood (e.g. Kahala) or address lookup yet [Basic Flow 1; Seth]
 - [x] Choose a district by chamber and number (House 51, Senate 25)
@@ -42,7 +44,9 @@ Seth Colby's kickoff video ("Seth").
 - [x] Each program links to its official page [Business Rules]
 - [x] "Final eligibility is decided by the agency" note shown with every program and in the assistant's rules [Business Rules]
 - [ ] Keep program information current: re-save the documents when rules change (SNAP each October, Med-QUEST each January, HHS guidelines each January, tax credits each tax year), update `checked_on`, run `python pipeline/programs.py` [Assumptions; winning criteria]
-- [~] Estimate of residents likely eligible for a program [Calculations]: need-side figures by district built; method in `docs/ELIGIBILITY_METHOD.md`. Still needs program income rules from official sources (program group) to pick the cut point
+- [x] Estimate of residents likely eligible for a program [Calculations] (2026-11-16): SNAP (income under 200% of poverty, C17002; statewide 314,200, about ±7,269) and Med-QUEST (under 138%, C27016; 198,763, about ±5,554) for every district, county and the state, with margin of error, the cut used, which way it likely errs, and the agency note. Hawaiʻi EITC not estimated (no defensible ACS proxy; reason shown). On the report's Program need view, in each program card, and in the assistant's `get_programs` tool. Method in `docs/ELIGIBILITY_METHOD.md`; validation group L
+  - [ ] Team: keep the Med-QUEST label "likely eligible on income (likely counts too few)" or rename to "under the adult income limit"? Members are about twice the estimate (children qualify up to 313%)
+  - [ ] Ask DHS what share of SNAP households are under BBCE, and how much citizenship rules matter, to size the "counts too many" side; ask READ whether a published adjustment for the Hawaiʻi guideline vs the national threshold exists
 - [x] Program uptake counts where published, to show the outreach gap [Calculations]: SNAP by county (DHS), SNAP and Medicaid by district (ACS, self-reported)
 - [~] At least one population + program example where outreach could raise uptake [Success Scenario]: households below poverty not receiving SNAP (statewide 62%, ~31,700; largest HD-24, SD-12). Labeled likely overstated (ACS counts 68% of DHS SNAP cases). Confirm the SNAP income rule before the demo
 
@@ -100,7 +104,7 @@ Seth Colby's kickoff video ("Seth").
 - [x] Written protocol, `validation/PROTOCOL.md`
 - [ ] Subject-matter expert (DBEDT/READ) fills in `validation/spot_check_sample.csv`
 - [ ] Run `validate.py` again after every data rebuild and before each demo
-- [~] Test the agent's answers against the same figures: `validation/test_agent.py` written, not run yet (needs `ANTHROPIC_API_KEY`)
+- [x] Test the agent's answers against the same figures: `validation/test_agent.py`, 21 of 21 pass (2026-11-16). Rerun after any change to `api/agent.py` and before each demo
 - [ ] Test program eligibility results **(other group)**
 - [ ] Confirm what the margin-of-error flag means for small districts in the demo script
 
@@ -128,5 +132,8 @@ Seth Colby's kickoff video ("Seth").
 - [x] Write the README: what it is, how to run each step, data sources, limits (live-site link still a placeholder)
 - [x] Remove the older `web/map.html` page, now covered by the main page (deleted 2026-11-16)
 - [ ] Agree the interface with Shade if they build the real front end (the API stays the same)
-- [ ] Decide how the demo runs (local, or hosted) and test it on a clean machine
+- [~] Decide how the demo runs (local, or hosted) and test it on a clean machine: hosted on Render via `render.yaml` (data built at deploy time; README "Deploy on Render"). Tested 2026-11-16 as a fresh clone with fresh dependencies, no `.env`: build peaks at 172 MB and the server at 160 MB (free plan allows 512 MB), all 76 districts load
+  - [ ] Create the Render Blueprint, add `ANTHROPIC_API_KEY`, put the URL in README "Live site"
+  - [ ] After the first deploy, run the README's `X-Forwarded-For` check on the per-visitor question limit
+  - [ ] Switch `plan` to `starter` before judging (free plan sleeps after 15 minutes)
 - [ ] Prepare the demo script: one rural, one urban, one high-income district

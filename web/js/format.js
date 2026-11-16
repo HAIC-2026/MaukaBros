@@ -10,7 +10,10 @@ export const fmtMoe = (m, f) => m == null ? "margin of error not available"
   : f === "count" ? "plus or minus " + Math.round(m).toLocaleString("en-US")
   : "plus or minus " + (m * 100).toFixed(1) + " points";
 
-export const shortCounty = n => n ? n.replace(/, Hawaii$/, "") : "its county";
+// Census county names lack the ʻokina ("Kauai County, Hawaii"); show the Hawaiian spelling.
+export const shortCounty = n => n
+  ? n.replace(/, Hawaii$/, "").replace(/^Hawaii County/, "Hawaiʻi County").replace(/^Kauai County/, "Kauaʻi County")
+  : "its county";
 export const shortGeo = g => g.split(" (")[0];
 
 export const districtLabel = id => id
