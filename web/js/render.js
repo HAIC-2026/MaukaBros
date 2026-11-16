@@ -44,7 +44,7 @@ export function renderKeyFact(c) {
   return card;
 }
 
-// Placeholder for a figure a preset asks for but the data store does not have.
+// Card shown when a view asks for a figure the data store does not have.
 export function missingFact(label) {
   return el("article", { className: "fact missing" }, el("h3", { textContent: label }),
     el("p", { className: "big", textContent: "Not available" }),
@@ -504,10 +504,41 @@ export function planLine(data) {
     `, Tables 9-10 (${data.plan.source.page}).`);
 }
 
+// A question asked in chat travels to the report page through this browser's storage, never the
+// link, so it stays out of browser history, server logs and the Referer sent to other sites.
+// The link carries only a random id; the report page reads the question once and deletes it.
+const Q_PREFIX = "di-question-";
+const Q_MAX_AGE_MS = 24 * 3600 * 1000;
+
+function storeQuestion(question) {
+  try {
+    const id = Array.from(crypto.getRandomValues(new Uint8Array(9)), b => b.toString(16).padStart(2, "0")).join("");
+    localStorage.setItem(Q_PREFIX + id, JSON.stringify({ q: question.slice(0, 200), t: Date.now() }));
+    return id;
+  } catch { return null; } // storage blocked: the report simply opens without the question
+}
+
+export function takeQuestion(id) {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) { // drop anything left over and stale
+      const k = localStorage.key(i);
+      if (k && k.startsWith(Q_PREFIX)) {
+        const v = JSON.parse(localStorage.getItem(k) || "{}");
+        if (!(v.t > Date.now() - Q_MAX_AGE_MS)) localStorage.removeItem(k);
+      }
+    }
+    if (!id || !/^[0-9a-f]{18}$/.test(id)) return "";
+    const v = JSON.parse(localStorage.getItem(Q_PREFIX + id) || "{}");
+    localStorage.removeItem(Q_PREFIX + id);
+    return typeof v.q === "string" ? v.q : "";
+  } catch { return ""; }
+}
+
 export const reportUrl = (districtId, view, question) => {
   const u = new URL("/report.html", location.origin);
   u.searchParams.set("d", districtId);
   if (view && view !== "overview") u.searchParams.set("view", view);
-  if (question) u.searchParams.set("q", question.slice(0, 200));
+  const qid = question ? storeQuestion(question) : null;
+  if (qid) u.searchParams.set("qid", qid);
   return u.pathname + u.search;
 };

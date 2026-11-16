@@ -6,18 +6,37 @@ Then open http://127.0.0.1:8000 for the preview page, or http://127.0.0.1:8000/d
 """
 
 import json
+import logging
 import math
+import os
 from pathlib import Path
+from typing import Literal
 
 import duckdb
-from fastapi import FastAPI, HTTPException
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+load_dotenv()  # before api.security reads its settings
+
+from api import security  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = ROOT / "data" / "kyd.duckdb"
 
-app = FastAPI(title="Know Your District API")
+log = logging.getLogger("district_insight")
+
+# Interactive API docs at /docs. Set API_DOCS=0 in production to turn them off (the API is
+# read-only, so they only reveal what the endpoints already return).
+_docs = os.getenv("API_DOCS", "1") != "0"
+app = FastAPI(title="District Insight API", docs_url="/docs" if _docs else None,
+              redoc_url="/redoc" if _docs else None, openapi_url="/openapi.json" if _docs else None)
+# Outermost first: security headers on every response, then the chat body-size cap.
+app.add_middleware(security.ChatBodyLimit)
+app.add_middleware(security.SecurityHeaders)
+
+UNAVAILABLE = "This information is not available right now. Please try again later."
 
 def table_links(table_ids: str, period: str) -> list[dict]:
     """Links to the official Census page for each ACS table behind a figure.
@@ -41,7 +60,8 @@ GEOGRAPHY_LABELS = {
 
 def query(sql: str, params: list | None = None) -> list[dict]:
     if not DB_PATH.exists():
-        raise HTTPException(503, "Data store not built. Run: python pipeline/build.py")
+        log.error("Database missing at %s. Run: python pipeline/build.py", DB_PATH)
+        raise HTTPException(503, UNAVAILABLE)
     con = duckdb.connect(str(DB_PATH), read_only=True)
     try:
         cur = con.execute(sql, params or [])
@@ -649,7 +669,8 @@ def map_layer(metric_id: str, chamber: str) -> dict:
         raise HTTPException(404, "chamber must be 'house' or 'senate'")
     path = BOUNDARY_DIR / f"{chamber}.geojson"
     if not path.exists():
-        raise HTTPException(503, "Boundaries not built. Run: python pipeline/boundaries.py")
+        log.error("Boundary file missing at %s. Run: python pipeline/boundaries.py", path)
+        raise HTTPException(503, UNAVAILABLE)
 
     ids = [metric["value"]] if "value" in metric else [metric["numerator"], metric["denominator"]]
     rows = query(f"""
@@ -696,33 +717,76 @@ def map_layer(metric_id: str, chamber: str) -> dict:
     return collection
 
 
-# Serve the preview page. Mounted last so /api routes take priority.
+# --- Research assistant (api/agent.py). Abuse and integrity controls: api/security.py, SECURITY.md.
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=security.MAX_ANSWER_CHARS)
+    signature: str | None = Field(default=None, max_length=128)  # set by the server on its answers
+
+
 class ChatRequest(BaseModel):
-    messages: list[dict]                 # [{"role": "user"|"assistant", "content": str}, ...]
-    district_id: str | None = None       # district selected on the page, if any
+    messages: list[ChatMessage] = Field(min_length=1, max_length=security.MAX_HISTORY_MESSAGES)
+    district_id: str | None = Field(default=None, max_length=8)  # district selected on the page
+
+
+_limiter = security.ChatLimiter()
+_budget = security.SpendBudget()
 
 
 @app.post("/api/chat")
-def chat(req: ChatRequest) -> dict:
+def chat(req: ChatRequest, request: Request) -> dict:
     """The research assistant (api/agent.py). Answers only from this fact store, with sources."""
     from api import agent  # imported here: agent.py imports this module
+
+    # Questions must be short; earlier answers are kept only if this server signed them.
+    for m in req.messages:
+        if m.role == "user" and len(m.content) > security.MAX_QUESTION_CHARS:
+            raise HTTPException(400, f"Please keep questions under {security.MAX_QUESTION_CHARS:,} characters.")
+    if req.messages[-1].role != "user":
+        raise HTTPException(400, "The last message must be your question.")
+    history = []
+    for m in req.messages:
+        if m.role == "assistant" and not security.verify_answer(m.content, m.signature):
+            # Drop the unverified answer and the question it claimed to answer, keeping turns paired.
+            if history and history[-1]["role"] == "user":
+                history.pop()
+            continue
+        history.append({"role": m.role, "content": m.content})
 
     selected = req.district_id.upper() if req.district_id else None
     if selected and not query("SELECT 1 FROM geography WHERE geo_id = ? AND geo_type IN "
                               "('house', 'senate')", [selected]):
         selected = None
+
+    visitor = security.visitor_id(request.client.host if request.client else None,
+                                  request.headers.get("x-forwarded-for"))
     try:
-        return agent.answer(req.messages, selected)
+        _budget.check_day()
+        _limiter.acquire(visitor)
+    except security.LimitExceeded as exc:
+        headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after else None
+        raise HTTPException(exc.status, exc.message, headers=headers) from exc
+    try:
+        result = agent.answer(history, selected, spend=_budget.question())
+        result["signature"] = security.sign_answer(result.get("answer") or "")
+        return result
+    # Details go to the server log; visitors get a plain message without internals.
     except agent.AssistantUnavailable as exc:
-        raise HTTPException(503, str(exc)) from exc
+        log.error("Assistant unavailable: %s", exc)
+        raise HTTPException(503, "The research assistant is not available right now.") from exc
     except ValueError as exc:
-        raise HTTPException(400, str(exc)) from exc
+        log.warning("Bad chat request: %s", exc)
+        raise HTTPException(400, "The question could not be processed.") from exc
     except agent.anthropic.RateLimitError as exc:
         raise HTTPException(429, "The assistant is busy. Please try again in a minute.") from exc
     except agent.anthropic.APIConnectionError as exc:
-        raise HTTPException(502, "Could not reach the AI service. Check the connection.") from exc
+        log.error("AI service unreachable: %s", exc)
+        raise HTTPException(502, "The research assistant could not be reached. Please try again later.") from exc
     except agent.anthropic.APIStatusError as exc:
-        raise HTTPException(502, f"The AI service returned an error ({exc.status_code}).") from exc
+        log.error("AI service error %s: %s", exc.status_code, exc)
+        raise HTTPException(502, "The research assistant had a problem. Please try again later.") from exc
+    finally:
+        _limiter.release()
 
 
 app.mount("/", StaticFiles(directory=ROOT / "web", html=True), name="web")

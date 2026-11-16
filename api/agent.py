@@ -1,4 +1,4 @@
-"""The Know Your District research assistant: Claude answering questions with tools that read
+"""The District Insight research assistant: Claude answering questions with tools that read
 only our validated fact store (data/kyd.duckdb), never the web or the model's memory.
 
 Every figure a tool returns carries a source id such as "S3". The model must cite figures with
@@ -17,6 +17,7 @@ import unicodedata
 import anthropic
 from dotenv import load_dotenv
 
+from api import answer_check
 from api import main as kyd
 
 load_dotenv()
@@ -24,7 +25,7 @@ MODEL = os.getenv("KYD_MODEL", "claude-opus-5-5")
 EFFORT = os.getenv("KYD_EFFORT", "medium")
 MAX_TOOL_ROUNDS = 10
 
-SYSTEM_PROMPT = """You are the research assistant in Know Your District, a tool for Hawaiʻi state \
+SYSTEM_PROMPT = """You are the research assistant in District Insight, a tool for Hawaiʻi state \
 legislators and their staff. You describe the people who live in a House or Senate district, \
 compare the district with its county and the state, and point out where outreach could help \
 residents use programs that already exist.
@@ -580,9 +581,10 @@ class AssistantUnavailable(Exception):
     pass
 
 
-def answer(history: list[dict], selected_district: str | None = None) -> dict:
+def answer(history: list[dict], selected_district: str | None = None, spend=None) -> dict:
     """history: [{"role": "user"|"assistant", "content": str}, ...], ending with the user's
-    question. Returns {answer, sources, trace, stop_reason}."""
+    question. spend: an api.security.QuestionSpend (or None), checked before every model call.
+    Returns {answer, sources, trace, stop_reason, unverified_numbers}."""
     if not os.getenv("ANTHROPIC_API_KEY"):
         raise AssistantUnavailable("The assistant needs ANTHROPIC_API_KEY in .env "
                                    "(see .env.example).")
@@ -603,8 +605,13 @@ def answer(history: list[dict], selected_district: str | None = None) -> dict:
     client = anthropic.Anthropic()
     src = Sources()
     trace: list[dict] = []
+    tool_texts: list[str] = []  # every tool result, to check the numbers in the answer against
     response = None
+    over_budget = False
     for _ in range(MAX_TOOL_ROUNDS):
+        if spend is not None and not spend.allow():
+            over_budget = True
+            break
         response = client.beta.messages.create(
             model=MODEL,
             max_tokens=16000,
@@ -616,6 +623,8 @@ def answer(history: list[dict], selected_district: str | None = None) -> dict:
             betas=["server-side-fallback-2026-07-01"],
             fallbacks="default",
         )
+        if spend is not None:
+            spend.record(response.usage)
         if response.stop_reason != "tool_use":
             break
         messages.append({"role": "assistant", "content": response.content})
@@ -624,6 +633,7 @@ def answer(history: list[dict], selected_district: str | None = None) -> dict:
             if block.type != "tool_use":
                 continue
             result, is_error = run_tool(block.name, dict(block.input), src)
+            tool_texts.append(result)
             trace.append({"tool": block.name, "input": block.input, "error": is_error})
             results.append({"type": "tool_result", "tool_use_id": block.id, "content": result,
                             **({"is_error": True} if is_error else {})})
@@ -632,6 +642,9 @@ def answer(history: list[dict], selected_district: str | None = None) -> dict:
     text = "".join(b.text for b in response.content if b.type == "text").strip() if response else ""
     if response is not None and response.stop_reason == "refusal":
         text = "I can't help with that request. I can answer questions about district data."
+    elif over_budget and (response is None or response.stop_reason == "tool_use"):
+        text = ("I stopped before finishing because the assistant reached its spending limit. "
+                "Please ask a narrower question, or try again later.")
     elif response is not None and response.stop_reason == "tool_use":
         text = (text + "\n\n" if text else "") + ("I stopped before finishing because the "
                                                   "question needed too many lookups. Please ask "
@@ -639,6 +652,12 @@ def answer(history: list[dict], selected_district: str | None = None) -> dict:
     # The model sometimes cites as "(S4)" or "(S1, S3)"; the page and the source list below
     # only recognise square brackets, so those figures would lose their source.
     text = re.sub(r"\((S\d+(?:\s*,\s*S\d+)*)\)", r"[\1]", text)
+    # It also sometimes "cites" a tool, e.g. "[find_district]", despite the instructions. Tool
+    # names mean nothing to readers and are not sources, so drop them.
+    tool_names = "|".join(re.escape(t["name"]) for t in TOOLS)
+    text = re.sub(rf"\s*\[(?:{tool_names})\]", "", text)
+    # Every number the model wrote should appear in what its tools returned (or in the question).
+    unverified = answer_check.unverified_numbers(text, tool_texts, [str(history[-1].get("content", ""))])
     cited = {sid for group in re.findall(r"\[([^\]]*)\]", text)
              for sid in re.findall(r"\bS\d+\b", group)}
     return {"answer": text,
@@ -646,4 +665,5 @@ def answer(history: list[dict], selected_district: str | None = None) -> dict:
             "sources_consulted": len(src.items),
             "trace": trace,
             "model": response.model if response else MODEL,
-            "stop_reason": response.stop_reason if response else None}
+            "stop_reason": response.stop_reason if response else None,
+            "unverified_numbers": unverified}

@@ -43,7 +43,7 @@ Run on 2026-11-16 against ACS 5-year 2020-2024. 67 of 67 checks passed.
 | PASS | F overlap | Census files cover all 51 House and 25 Senate districts | 76 found |
 | PASS | F overlap | every district overlaps at least one DOTAX tax area |  |
 | PASS | F overlap | each tax area's 2020 residents are fully shared out among House districts, and among Senate districts |  |
-| PASS | F overlap (info) | Seth's examples, share of each area's 2020 residents by district: Molokaʻi: HD-13 100.0%, SD-7 100.0%; Oʻahu North Shore: SD-23 100.0%, HD-47 87.5%, HD-46 7.5%, HD-48 5.0% (check against the district map) |  |
+| PASS | F overlap (info) | Seth's examples, share of each area's 2020 residents by district: Molokaʻi: SD-7 100.0%, HD-13 100.0%; Oʻahu North Shore: SD-23 100.0%, HD-47 87.5%, HD-46 7.5%, HD-48 5.0% (check against the district map) |  |
 | PASS | E context | DOTAX credits A-7: tax areas plus Other/Unknown add up to the state total for returns, food/excise, renters' and EITC claims |  |
 | PASS | E context | DOTAX credits A-4: counties add up to the state for each credit |  |
 | PASS | E context | Reapportionment plan: 76 districts (76); House and Senate each add up to 1,348,054 permanent residents (1,348,054 / 1,348,054) |  |

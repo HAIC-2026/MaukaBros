@@ -1,4 +1,4 @@
-# Know Your District: build checklist
+# District Insight: build checklist
 
 Status as of 2026-11-15. Source for each item: the HAIC use case brief (section named in brackets) or
 Seth Colby's kickoff video ("Seth").
@@ -129,8 +129,11 @@ Seth Colby's kickoff video ("Seth").
 
 - [ ] Commit the current work (many uncommitted changes on `api-and-preview`) and open a pull request
 - [x] Add `.env.example` (`build.py` points to it)
-- [ ] Write the README: what it is, how to run each step, data sources, limits
-- [ ] Remove the older `web/map.html` page, now covered by the main page
+- [x] Write the README: what it is, how to run each step, data sources, limits (live-site link still a placeholder)
+- [x] Remove the older `web/map.html` page, now covered by the main page (deleted 2026-11-16)
 - [ ] Agree the interface with Shade if they build the real front end (the API stays the same)
-- [ ] Decide how the demo runs (local, or hosted) and test it on a clean machine
+- [~] Decide how the demo runs (local, or hosted) and test it on a clean machine: hosted on Render via `render.yaml` (data built at deploy time; README "Deploy on Render"). Tested 2026-11-16 as a fresh clone with fresh dependencies, no `.env`: build peaks at 172 MB and the server at 160 MB (free plan allows 512 MB), all 76 districts load
+  - [ ] Create the Render Blueprint, add `ANTHROPIC_API_KEY`, put the URL in README "Live site"
+  - [ ] After the first deploy, run the README's `X-Forwarded-For` check on the per-visitor question limit
+  - [ ] Switch `plan` to `starter` before judging (free plan sleeps after 15 minutes)
 - [ ] Prepare the demo script: one rural, one urban, one high-income district

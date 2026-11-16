@@ -88,7 +88,7 @@ sources:
     how_we_comply:
       - "The default Esri attribution is left on the map (not hidden)."
     open_questions:
-      - "PARTLY ANSWERED (challenge team in Slack, seen 2026-11-15, replying to another team's MapLibre question): Esri and the State give HAIC participants free ArcGIS access. Request a complimentary $25 ArcGIS Location Platform voucher (SDKs, APIs, MCP) and a free ArcGIS Hub Community identity at https://esri-haic-histategis.hub.arcgis.com/ ; free tier: https://location.arcgis.com/pricing/ . ACTION: request the voucher/account and load the SDK with our own API key. Not yet stated: whether keyless loading is acceptable."
+      - "PARTLY ANSWERED (challenge team in Slack, seen 2026-11-15): Esri and the State give HAIC participants free ArcGIS access. Request a complimentary $25 ArcGIS Location Platform voucher (SDKs, APIs, MCP) and a free ArcGIS Hub Community identity at https://esri-haic-histategis.hub.arcgis.com/ ; free tier: https://location.arcgis.com/pricing/ . ACTION: request the voucher/account and load the SDK with our own API key. Not yet stated: whether keyless loading is acceptable."
       - "The licensing page does not say whether the SDK may be loaded from js.arcgis.com without an account or API key. We load it with none and use no Esri services. Confirm with Esri or the challenge team (the brief says ESRI is a challenge co-sponsor and 'may be used'), and read the product-specific terms at https://developers.arcgis.com/documentation/terms-of-use/ (not read yet)."
       - "The Esri docs now list a newer SDK version (5.2) than the 4.31 we load."
 

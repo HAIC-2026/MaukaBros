@@ -108,9 +108,9 @@ QUESTIONS = [
     {"q": "What is the income limit for SNAP in Hawaiʻi for a family of four?",
      "figures": lambda: [snap_limit(4, 0), snap_limit(4, 1)],
      # "final decision"/"decides" added: "DHS makes the final decision" / "DHS decides final
-     # eligibility" say the same as the others.
+     # eligibility" / "makes the final eligibility decision" say the same as the others.
      "any_of": ["agency", "intake worker", "final determination", "final decision", "decided by",
-                "decides final", "decides eligibility"],
+                "decides final", "decides eligibility", "eligibility decision"],
      "none_of": [r"\b(you|they|families?) (are|is) eligible\b"]},
     {"q": "What programs could help kūpuna in House District 45, and how do they apply?",
      "district": "HD-45",

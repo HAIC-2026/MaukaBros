@@ -1,4 +1,4 @@
-"""Validation checks for the Know Your District fact store.
+"""Validation checks for the District Insight fact store.
 
     python validation/validate.py
 
