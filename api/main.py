@@ -12,6 +12,7 @@ from pathlib import Path
 import duckdb
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 ROOT = Path(__file__).resolve().parent.parent
 DB_PATH = ROOT / "data" / "kyd.duckdb"
@@ -526,4 +527,32 @@ def map_layer(metric_id: str, chamber: str) -> dict:
 
 
 # Serve the preview page. Mounted last so /api routes take priority.
+class ChatRequest(BaseModel):
+    messages: list[dict]                 # [{"role": "user"|"assistant", "content": str}, ...]
+    district_id: str | None = None       # district selected on the page, if any
+
+
+@app.post("/api/chat")
+def chat(req: ChatRequest) -> dict:
+    """The research assistant (api/agent.py). Answers only from this fact store, with sources."""
+    from api import agent  # imported here: agent.py imports this module
+
+    selected = req.district_id.upper() if req.district_id else None
+    if selected and not query("SELECT 1 FROM geography WHERE geo_id = ? AND geo_type IN "
+                              "('house', 'senate')", [selected]):
+        selected = None
+    try:
+        return agent.answer(req.messages, selected)
+    except agent.AssistantUnavailable as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    except agent.anthropic.RateLimitError as exc:
+        raise HTTPException(429, "The assistant is busy. Please try again in a minute.") from exc
+    except agent.anthropic.APIConnectionError as exc:
+        raise HTTPException(502, "Could not reach the AI service. Check the connection.") from exc
+    except agent.anthropic.APIStatusError as exc:
+        raise HTTPException(502, f"The AI service returned an error ({exc.status_code}).") from exc
+
+
 app.mount("/", StaticFiles(directory=ROOT / "web", html=True), name="web")

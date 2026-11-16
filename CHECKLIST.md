@@ -8,16 +8,17 @@ Seth Colby's kickoff video ("Seth").
 
 ## 1. Core product (the "agent")
 
-- [ ] **Chat agent that answers plain-language questions** [Basic Flow 1, 5; Desired platform]. The Ask box is a disabled placeholder.
-  - [ ] Decide who builds it and which model/API to use
-  - [ ] Answers use only data from the API (no figures from the model's memory) [Responsible AI]
-  - [ ] Every answer cites source, year, geography, and margin of error [Business Rules]
-  - [ ] Says "unavailable / uncertain" instead of guessing [Business Rules]
-  - [ ] Never identifies or infers anything about individual residents [Business Rules]
-  - [ ] Stays nonpartisan, no political commentary [Business Rules]
-  - [ ] Test set of questions with expected answers, run before each demo [Model Validation]
+- [~] **Chat agent that answers plain-language questions** [Basic Flow 1, 5; Desired platform]: built (`api/agent.py`, `POST /api/chat`, chat panel on the page). Claude Opus 5.5 via the Anthropic API, refusal fallbacks on. **Not yet run against the real model: needs `ANTHROPIC_API_KEY` in `.env`**
+  - [~] Team to confirm the model/API choice (brief: teams choose; favor components the State could evaluate)
+  - [x] Answers use only data from the API: five tools read only `data/kyd.duckdb` (find_district, list_measures, get_district_profile, get_local_context, rank_districts); the instructions forbid figures from memory [Responsible AI]
+  - [x] Every figure cites a numbered source (publisher, dataset, period, geography, table links), shown under the answer; margins of error and "may not be a real difference" come from the tools [Business Rules]
+  - [~] Says "unavailable" instead of guessing: instructed, and tested by questions 10-14 in `validation/test_agent.py` (not run yet) [Business Rules]
+  - [~] Never identifies or infers anything about individual residents: instructed; test question 13 [Business Rules]
+  - [~] Stays nonpartisan: instructed; test question 12 [Business Rules]
+  - [~] Test set: 15 questions with expected figures looked up from the database (`validation/test_agent.py`, report `validation/agent_report.md`). **Run it once a key is set (about 15 model calls)** [Model Validation]
+  - [ ] Questions are sent to Anthropic's API. They contain no resident data, but note it in the privacy statement
+- [~] Find a district by place name: DOTAX tax-area names (e.g. North Shore, Molokaʻi, Kona) through the assistant's find_district. No neighborhood or address lookup yet [Basic Flow 1; Seth]
 - [x] Choose a district by chamber and number (House 51, Senate 25)
-- [ ] Find a district by place name or address (e.g. "North Shore", "Molokaʻi") [Basic Flow 1; Seth]
 
 ## 2. District profile (data on screen)
 
@@ -92,7 +93,7 @@ Seth Colby's kickoff video ("Seth").
 - [x] Written protocol, `validation/PROTOCOL.md`
 - [ ] Subject-matter expert (DBEDT/READ) fills in `validation/spot_check_sample.csv`
 - [ ] Run `validate.py` again after every data rebuild and before each demo
-- [ ] Test the agent's answers against the same figures (see section 1)
+- [~] Test the agent's answers against the same figures: `validation/test_agent.py` written, not run yet (needs `ANTHROPIC_API_KEY`)
 - [ ] Test program eligibility results **(other group)**
 - [ ] Confirm what the margin-of-error flag means for small districts in the demo script
 
