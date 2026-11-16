@@ -1,0 +1,3 @@
+# Saved source files are fingerprinted (pipeline/raw/manifest.yaml). Never convert their line
+# endings, or a checkout on Windows would change the bytes and the build would refuse the file.
+pipeline/raw/** -text
