@@ -44,11 +44,18 @@ tool marks a difference as within the margin of error, say it may not be a real 
 describe the county, not the district. Say so when you use them.
 - Program-need figures (income below the poverty line, households without SNAP, low-income \
 uninsured) are not eligibility counts: each program has its own rules and the administering \
-agency decides eligibility. The share of households not receiving SNAP is likely overstated, \
-because the survey counts fewer SNAP households than DHS records; say so when you use it.
-- Program details (eligibility rules, how to apply) are not loaded in this tool yet. If asked, say \
-so, describe the relevant population with figures, and suggest checking the agency's official \
-site. Do not state eligibility rules or income limits from memory.
+agency decides eligibility. Survey answers under-count program use (the survey finds about 68% \
+of the SNAP households and Med-QUEST members in DHS records), so survey shares receiving SNAP or \
+Medicaid are likely understated and the share of households not receiving SNAP is likely \
+overstated; say so when you use them. County Med-QUEST and SNAP figures from get_local_context \
+are program records.
+- For programs, use get_programs: it returns each program's eligibility rules, income limits, how \
+to apply, documents to bring and official link, all from saved official documents. Cite them, give \
+the official link, and always say that final eligibility is decided by the agency. Never say a \
+person or group "is eligible"; say they "may qualify". Do not state rules, limits or programs that \
+get_programs does not return; if asked about another program, say it is not in this tool yet and \
+suggest the agency's official site. To turn "% of poverty" into dollars, use the HHS Hawaiʻi \
+poverty guidelines that get_programs returns.
 
 Other rules:
 - Describe groups of residents, never individuals. Do not infer anything about a specific person.
@@ -170,26 +177,49 @@ def tool_find_district(args: dict, src: Sources) -> dict:
                     out["matches"].append({"district_id": gid, "name": district_name(gid),
                                            "why": "district number (chamber not given)"})
 
-    # DOTAX tax-area names (e.g. "North Shore", "Molokai", "Waianae")
+    words = [w for w in re.findall(r"[a-z]+", p) if len(w) > 3]
+
+    def shares(rows: list[dict], key: str) -> list[dict]:
+        return [{"district_id": r["geo_id"], "name": district_name(r["geo_id"]),
+                 "share_of_residents": f"{100 * r[key]:.0f}%"} for r in rows]
+
+    # 5-digit ZIP codes (as Census ZIP code tabulation areas)
+    for z in re.findall(r"\b(96\d{3})\b", q):
+        rows = kyd.query("""SELECT geo_id, zcta_share FROM zcta_district WHERE zcta = ?
+                            ORDER BY zcta_share DESC""", [z])
+        out["matches"].append({"zip_code": z, "why": "ZIP code area; districts listed with the "
+                               "share of its 2020 residents in each" if rows else
+                               "ZIP code not found as a Census ZIP area (it may be a PO-box-only "
+                               "ZIP with no residents)", "districts": shares(rows, "zcta_share")})
+
+    # Census places (towns and CDPs), Census spelling without ʻokina, matched ignoring them
+    places = kyd.query("SELECT place_fp, name FROM place")
+    for pl in [pl for pl in places if plain(pl["name"]) in p
+               or (plain(pl["name"]) in words and len(plain(pl["name"])) > 3)]:
+        rows = kyd.query("""SELECT geo_id, place_share FROM place_district WHERE place_fp = ?
+                            ORDER BY place_share DESC""", [pl["place_fp"]])
+        out["matches"].append({"census_place": pl["name"],
+                               "why": "Census place (town or CDP); districts listed with the share "
+                                      "of its 2020 residents in each",
+                               "districts": shares(rows, "place_share")})
+
+    # DOTAX tax-area names (e.g. "North Shore", "Molokai", "Waianae Coast")
     areas = kyd.query("SELECT area_id, name FROM tax_area")
     hit = [a for a in areas if plain(a["name"]) in p or any(
-        len(w) > 3 and w in plain(a["name"]).replace(",", " ").split()
-        for w in re.findall(r"[a-z]+", p))]
+        w in plain(a["name"]).replace(",", " ").split() for w in words)]
     for a in hit:
-        rows = kyd.query("""SELECT geo_id, district_share, area_share FROM tax_area_district
-                            WHERE area_id = ? AND relation = 'overlaps'
-                            ORDER BY area_share DESC""", [a["area_id"]])
-        out["matches"].append({
-            "tax_area": a["name"],
-            "why": "DOTAX tax area name; districts listed by how much of the area's land "
-                   "they contain (land, not population)",
-            "districts": [{"district_id": r["geo_id"], "name": district_name(r["geo_id"]),
-                           "share_of_area_land": f"{100 * r['area_share']:.0f}%"}
-                          for r in rows]})
+        rows = kyd.query("""SELECT geo_id, area_share FROM tax_area_district
+                            WHERE area_id = ? AND area_share > 0 ORDER BY area_share DESC""",
+                         [a["area_id"]])
+        out["matches"].append({"tax_area": a["name"],
+                               "why": "DOTAX tax area; districts listed with the share of the "
+                                      "area's 2020 residents in each",
+                               "districts": shares(rows, "area_share")})
     if not out["matches"]:
-        out["note"] = ("No match. This tool can find districts by number, and places by DOTAX "
-                       "tax-area name (e.g. Oʻahu North Shore, Waiʻanae Coast, Molokaʻi, Kona, "
-                       "Hilo). It has no street-address or neighborhood lookup yet.")
+        out["note"] = ("No match. This tool finds districts by number, ZIP code, Census place name "
+                       "(towns and CDPs such as Kaneohe, Hilo, Waianae) and DOTAX tax-area name "
+                       "(e.g. Oʻahu North Shore, Kona). It has no street-address or neighborhood "
+                       "lookup (Kahala, for example, is a neighborhood inside Urban Honolulu).")
     return out
 
 
@@ -218,6 +248,12 @@ def tool_get_district_profile(args: dict, src: Sources) -> dict:
                                         f"{district_name(gid)}",
                                         kyd.table_links("B01001,B11001", acs["year"]))},
         "households": {"value": fmt_value(hh, "households"), "moe": fmt_moe(hh_moe, "households")},
+        **({"official_permanent_resident_population": {
+            "value": fmt_value(plan["permanent_residents"], "people"),
+            "note": plan["note"],
+            "cite": src.cite(plan["source"]["publisher"], plan["source"]["dataset"],
+                             "2020 Census base", district_name(gid), [],
+                             plan["source"]["page"])}} if (plan := kyd.district_plan(gid)) else {}),
         "measures": [],
         "group_notes": {},
     }
@@ -232,6 +268,10 @@ def tool_get_district_profile(args: dict, src: Sources) -> dict:
             "metric_id": c["metric_id"], "label": c["label"], "group": c["group"],
             "district": fmt_value(c["district"]["value"], kind),
             "district_moe": fmt_moe(c["district"]["moe"], kind),
+            **({"reliability": "LOW RELIABILITY: the margin of error is large compared with the "
+                               "estimate (coefficient of variation over 30%). Say so and treat "
+                               "the figure with caution."}
+               if c["district"].get("low_reliability") else {}),
             "county": fmt_value(c["county"]["value"], kind) if c.get("county") else None,
             "vs_county": fmt_diff(c.get("county"), kind),
             "state": fmt_value(c["state"]["value"], kind),
@@ -274,19 +314,36 @@ def tool_get_local_context(args: dict, src: Sources) -> dict:
     ta = kyd.build_tax_areas(gid)
     if ta:
         cite = src.cite(ta["source"]["publisher"], ta["source"]["dataset"], ta["period"],
-                        "DOTAX tax areas (whole areas), matched to districts by land overlap",
+                        "DOTAX tax areas (whole areas), matched to districts by 2020 residents",
                         ta["source"]["tables"], ta["overlap_source"])
+        cr = ta.get("credits")
+        credits_cite = src.cite(cr["source"]["publisher"], cr["source"]["dataset"], cr["period"],
+                                "DOTAX tax areas (whole areas) and the State of Hawaiʻi",
+                                cr["source"]["tables"]) if cr else None
         out["tax_areas"] = {
             "applies_to": ta["applies_to"], "caveat": ta["caveat"], "label": ta["label"],
             "period": ta["period"],
-            "district_land_in_no_tax_area": f"{100 * ta['district_land_in_no_tax_area']:.1f}%",
+            "district_residents_in_no_tax_area":
+                f"{100 * ta['district_residents_in_no_tax_area']:.1f}%",
             "areas": [{"tax_area": a["name"], "relation": a["relation"],
                        "median_income_on_tax_returns": fmt_value(a["median_agi"], "dollars"),
                        "resident_tax_returns": fmt_value(a["returns"], "returns"),
-                       "share_of_district_land_in_area": f"{100 * a['share_of_district_land']:.1f}%",
-                       "share_of_area_land_in_district":
-                           f"{100 * a['share_of_area_land_in_district']:.1f}%",
-                       "cite": cite} for a in ta["areas"]]}
+                       "share_of_district_residents_in_area":
+                           f"{100 * a['share_of_district_residents']:.1f}%",
+                       "share_of_area_residents_in_district":
+                           f"{100 * (a['share_of_area_residents_in_district'] or 0):.1f}%",
+                       "cite": cite,
+                       **({"returns_claiming_hawaii_eitc": f"{100 * a['eitc_share']:.1f}%",
+                           "returns_claiming_food_excise_credit":
+                               f"{100 * a['food_excise_share']:.1f}%",
+                           "credits_cite": credits_cite} if a.get("eitc_share") is not None
+                          and credits_cite else {})} for a in ta["areas"]]}
+        if ta.get("credits"):
+            out["tax_areas"]["credit_claims_note"] = ta["credits"]["note"]
+            out["tax_areas"]["state_returns_claiming_hawaii_eitc"] = (
+                f"{100 * ta['credits']['state_eitc_share']:.1f}%")
+            out["tax_areas"]["state_returns_claiming_food_excise_credit"] = (
+                f"{100 * ta['credits']['state_food_excise_share']:.1f}%")
     return out
 
 
@@ -339,6 +396,59 @@ def tool_rank_districts(args: dict, src: Sources) -> dict:
                       for i, (g, v, m, k) in enumerate(rows[:limit])]}
 
 
+def tool_get_programs(args: dict, src: Sources) -> dict:
+    """Programs from pipeline/programs.yaml, optionally with a district's related figures."""
+    data = kyd.program_data()
+    wanted = set(args.get("program_ids") or [])
+    gid = args.get("district_id") or ""
+    related: dict[str, list] = {}
+    if gid:
+        gid = check_district(gid)
+        geo_type = "house" if gid.startswith("HD") else "senate"
+        built = kyd.build_programs(kyd.build_comparisons(gid, geo_type),
+                                   kyd.build_context(kyd.district_county(gid)))
+        related = {p["id"]: p for p in built}
+    out = []
+    for p in data["programs"]:
+        if wanted and p["id"] not in wanted:
+            continue
+        cite = src.cite(p["agency"], f"{p['name']}: official program information",
+                        f"saved {data['checked_on']}", "Program rules (statewide)",
+                        [{"table_id": "official page", "url": p["url"]}])
+        entry = {"program_id": p["id"], "name": p["name"], "agency": p["agency"],
+                 "serves": p["serves"], "official_link": p["url"], "cite": cite,
+                 "facts": [{"topic": f["topic"], "text": f["text"]} for f in p["facts"]]}
+        if p.get("uptake_note"):
+            entry["program_use"] = p["uptake_note"]
+        lim = p.get("income_limits")
+        if lim:
+            key = next(k for k in lim if k.startswith("by_"))
+            entry["income_limits"] = {"valid_for": lim["valid_for"], "description": lim["description"],
+                                      "unit": lim["unit"], "columns": lim["columns"],
+                                      key: {str(k): v for k, v in lim[key].items()}}
+        if gid and p["id"] in related:
+            r = related[p["id"]]
+            acs = kyd.query("SELECT publisher, dataset, year FROM source WHERE source_id = 'acs5'")[0]
+            mcite = src.cite(acs["publisher"], acs["dataset"], acs["year"],
+                             f"{district_name(gid)} and the State of Hawaiʻi", [])
+            entry["in_this_district"] = [{
+                "measure": m["label"], "district": fmt_value(m["district"], m["format"]),
+                "state": fmt_value(m["state"], m["format"]), "cite": mcite,
+                **({"reliability": "LOW RELIABILITY"} if m["low_reliability"] else {})}
+                for m in r["district_measures"]]
+            entry["in_this_district_note"] = ("Our link between the program and district figures; "
+                                              "not counts of eligible people.")
+        out.append(entry)
+    pg = data["poverty_guidelines"]
+    pg_cite = src.cite(pg["publisher"], pg["title"], "2026", "Hawaiʻi", [{"table_id": "PDF",
+                                                                         "url": pg["url"]}])
+    return {"note": data["note_on_eligibility"], "programs": out,
+            "hhs_poverty_guidelines_hawaii_2026": {
+                "unit": pg["unit"], "cite": pg_cite, "caution": pg["quote"],
+                "by_household_size": {str(k): {f"{pct}%": v for pct, v in row.items()}
+                                      for k, row in pg["by_household_size"].items()}}}
+
+
 def _schema(props: dict, required: list[str]) -> dict:
     return {"type": "object", "properties": props, "required": required,
             "additionalProperties": False}
@@ -349,9 +459,11 @@ DISTRICT_ID = {"type": "string", "description": "District id: HD-1 to HD-51 (Hou
 TOOLS = [
     {"name": "find_district", "strict": True,
      "description": "Find district ids from a district number (e.g. 'House 13', 'Senate "
-                    "District 7') or a place name that matches a DOTAX tax area (e.g. 'North "
-                    "Shore', 'Molokaʻi', 'Waiʻanae', 'Kona'). Use this whenever the user names a "
-                    "place or a district you do not have an id for.",
+                    "District 7'), a ZIP code (e.g. '96744'), a town or Census place (e.g. "
+                    "'Kāneʻohe', 'Hilo', 'Waiʻanae') or a DOTAX tax area (e.g. 'North Shore', "
+                    "'Kona'). Places spanning several districts come back with the share of their "
+                    "2020 residents in each. Use this whenever the user names a place or a "
+                    "district you do not have an id for.",
      "input_schema": _schema({"query": {"type": "string",
                                         "description": "The district or place as the user wrote it."}},
                              ["query"])},
@@ -376,8 +488,10 @@ TOOLS = [
      "description": "For one district: (1) county and state figures from other sources (DHS "
                     "SNAP program records, DOTAX median income on tax returns, BLS unemployment "
                     "rate, BEA income per person), which describe the county, not the district; "
-                    "(2) the DOTAX tax areas that overlap the district (e.g. Oʻahu North Shore), "
-                    "with each whole area's median income on tax returns, tax year 2023.",
+                    "(2) the DOTAX tax areas the district's residents live in (e.g. Oʻahu North "
+                    "Shore), with each whole area's median income on tax returns and the share of "
+                    "its returns claiming the Hawaiʻi EITC and food/excise credit (program use), "
+                    "tax year 2023, compared with the state; plus county claim counts.",
      "input_schema": _schema({"district_id": DISTRICT_ID}, ["district_id"])},
     {"name": "rank_districts", "strict": True,
      "description": "Rank all House or all Senate districts on one measure, e.g. to find where "
@@ -391,7 +505,22 @@ TOOLS = [
          "limit": {"type": "integer", "description": "How many districts to return (1-51)."}},
          ["metric_id", "chamber", "by", "highest_first", "limit"])},
 ]
+TOOLS.append(
+    {"name": "get_programs", "strict": True,
+     "description": "Programs residents may qualify for (SNAP, Med-QUEST, Hawaiʻi EITC, food/excise "
+                    "tax credit, WIC, Kūpuna Care, SSI): who they serve, eligibility rules, income "
+                    "limits, how to apply, documents to bring, official link, from saved official "
+                    "documents; plus the 2026 HHS poverty guidelines for Hawaiʻi. Give a district_id "
+                    "to also get that district's related figures. Leave program_ids empty for all.",
+     "input_schema": _schema({
+         "district_id": {"type": "string", "description": "Optional district id (HD-n or SD-n); "
+                                                          "empty string for none."},
+         "program_ids": {"type": "array", "items": {"type": "string", "enum": [
+             "snap", "med_quest", "hawaii_eitc", "food_excise_credit", "wic", "kupuna_care",
+             "ssi"]}, "description": "Optional: only these programs. Empty list for all."}},
+         ["district_id", "program_ids"])})
 HANDLERS = {"find_district": tool_find_district, "list_measures": tool_list_measures,
+            "get_programs": tool_get_programs,
             "get_district_profile": tool_get_district_profile,
             "get_local_context": tool_get_local_context, "rank_districts": tool_rank_districts}
 

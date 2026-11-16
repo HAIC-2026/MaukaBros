@@ -39,9 +39,21 @@ The script exits non-zero if any check fails, so it can run before every release
 | E. Context | Data Book SNAP cases and people: counties add up to the state (0.1% allowed: the table notes rounding) | The right row and columns were read from each Data Book table |
 | E. Context | DOTAX: ZIP codes (A-14) add up to their area (A-13), areas to their county, counties to the Hawaiʻi-addresses total, and that plus "Other/Unidentified" to all returns. An area may exceed its listed ZIP codes by up to 10 returns, because DOTAX does not publish counts of ten or fewer below the state level; any such gap is printed (2023: Wahiawā, Mililani, 1 return) | The area and ZIP tables were read completely and every ZIP code is in the right area |
 | E. Context | DOTAX area names use the ʻokina (DOTAX prints an apostrophe) | Correct Hawaiian spelling (brief: business rules) |
+| E. Context | DOTAX tax credits: Table A-7 tax areas plus "Other/Unknown" add up to the state total (returns, food/excise, renters', EITC); Table A-4 counties add up to the state for each credit | Both credit tables were read completely and every A-7 area matched an income-report area |
+| E. Context | Med-QUEST: the six islands add up to the report's managed-care total in every month (when the extract is made); counties add up to the state | The report's island table was read correctly |
+| E. Context (info) | Medicaid: ACS residents with Medicaid/means-tested coverage vs Med-QUEST managed-care members, by county and state | Records how much the survey under-counts Medicaid (68% statewide), the reason survey Medicaid shares are labeled likely understated |
+| E. Context | Reapportionment plan: 76 districts; House and Senate each add up to the report's 1,348,054 permanent residents (also checked when the extract is made) | The report's district tables were read correctly |
+| P. Programs | Every program document (11) is a saved file matching its fingerprint in the manifest | Program facts come from the official documents as saved, not from memory or live pages |
+| P. Programs | Every quote in `pipeline/programs.yaml` (35) appears in its saved document, and every income-table number (144) is printed in it. Tested by tampering: a made-up quote and two wrong numbers were all caught | Eligibility rules, income limits and contacts are exactly what the agencies published |
+| H. DBEDT | Our figures equal DBEDT/READ's published ACS 2020-2024 district profiles (DP02-DP05): 14 measures with identical definitions (population, age, households, labor force, unemployment, income, SNAP, insurance, rent, NHPI, Hispanic) in all 76 districts; 1,064 estimates and 910 published margins of error, 0 differences | Independent confirmation by the challenge champion's own publication that the right ACS values were stored for every district |
 | F. Overlap | Census relationship files: each district's overlap parts add up to its land area; all 76 districts present | The Census files were read completely |
-| F. Overlap | Every district overlaps at least one DOTAX tax area; each tax area's land is fully shared out among House districts and among Senate districts | No district or tax area is left out of the matching |
-| F. Overlap (info) | Prints Seth's examples (Oʻahu North Shore, Molokaʻi) with the share of each area's land by district | For a person to check against the district map; land is not population |
+| F. Overlap | Every district overlaps at least one DOTAX tax area; each tax area's 2020 residents are fully shared out among House districts and among Senate districts | No district or tax area is left out of the matching |
+| F. Overlap (info) | Prints Seth's examples (Oʻahu North Shore, Molokaʻi) with the share of each area's residents by district | For a person to check against the district map |
+| G. Blocks | All 14,732 blocks are in a known House and Senate district; all 76 districts have blocks | The block files were read completely |
+| G. Blocks | Every populated block's district-and-ZCTA pairing appears in the Census district-to-ZCTA relationship files | Two separate Census products agree (independent check of the matching) |
+| G. Blocks | Each place's and each ZIP area's residents add up to 100% per chamber; no district's tax-area shares exceed 100% | Place and ZIP lookups are complete and not double counted |
+| G. Blocks (info) | Largest differences between 2020 Census and ACS 2020-2024 district populations | Records how far the 2020 weights are from current estimates |
+| G. Reliability (info) | Number of district figures flagged low reliability (coefficient of variation = (MOE / 1.645) / estimate, over 30%) | Records how many figures carry the caution (2024: 179 of 3,344) |
 | E. Context | BLS unemployment rate shown equals unemployed / labor force (read from the saved file) in every county | The BLS columns were read correctly |
 
 Every saved source file is listed in `pipeline/raw/manifest.yaml` with its URL, download date and
@@ -49,9 +61,9 @@ SHA-256 fingerprint; `pipeline/build.py` refuses a file whose fingerprint does n
 
 ## What this does NOT prove
 
-- **Independence.** The cross-check compares two tables from the same agency (Census ACS). It
-  catches pipeline mistakes, not errors in the ACS itself. Independent confirmation of ACS
-  figures against other primary sources (e.g. DBEDT/READ, DOTAX) is not yet done.
+- **Independence.** Group A compares two tables from the same agency (Census ACS), and group H
+  compares with DBEDT's republication of the ACS. Both catch pipeline mistakes, not errors in the
+  ACS itself.
 - **Boundary equivalence.** The map uses the state OPSD 2022 layer. ACS is tabulated on Census
   TIGER 2024 districts. They are believed to describe the same districts but a geometry overlap
   check has NOT been run. Indicator values do not depend on boundary geometry (they are tabulated

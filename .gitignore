@@ -5,3 +5,7 @@ __pycache__/
 .venv/
 # Playwright screenshots and logs from UI checks
 .playwright-mcp/
+# The 2021 Reapportionment Commission report is 400 MB (over GitHub's file limit). It is kept
+# locally and fingerprinted in pipeline/raw/manifest.yaml; the extract in pipeline/raw/elections/ is
+# committed instead.
+pipeline/raw/elections/*.pdf

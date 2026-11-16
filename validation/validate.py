@@ -307,6 +307,22 @@ def check_context(con) -> None:
            "cases FY2025: " + "; ".join(f"{g} {a:,.0f} vs {d:,.0f} ({a / d:.0%})"
                                         for g, a, d in rows), True)
 
+    # Med-QUEST: counties add up to the state exactly; survey vs records (info), as for SNAP.
+    row = con.execute("""
+        SELECT sum(value) FILTER (WHERE geo_id LIKE 'COUNTY-%'),
+               max(value) FILTER (WHERE geo_id = 'STATE-15'), any_value(period)
+        FROM context_fact WHERE indicator_id = 'medquest_managed_care'""").fetchone()
+    if row[1] is not None:
+        record("E context", f"Med-QUEST managed care ({row[2]}): counties add up to the state "
+               f"({row[0]:,.0f} vs {row[1]:,.0f})", row[0] == row[1])
+        rows = con.execute("""
+            SELECT f.geo_id, f.value, c.value FROM fact f JOIN context_fact c
+              ON c.geo_id = f.geo_id AND c.indicator_id = 'medquest_managed_care'
+            WHERE f.indicator_id = 'pop_medicaid' AND c.value IS NOT NULL ORDER BY 1""").fetchall()
+        record("E context (info)", "Medicaid: residents reporting Medicaid/means-tested coverage "
+               "(ACS 2020-2024) vs Med-QUEST managed-care members (" + row[2] + "): "
+               + "; ".join(f"{g} {a:,.0f} vs {d:,.0f} ({a / d:.0%})" for g, a, d in rows), True)
+
     # DOTAX: ZIP codes add up to their area, areas to their county, counties to the state.
     if con.execute("SELECT count(*) FROM tax_area").fetchone()[0]:
         dotax = context.load_dotax()["check"]
@@ -359,15 +375,161 @@ def check_context(con) -> None:
         n = con.execute("SELECT count(*) FROM tax_area").fetchone()[0]
         m = con.execute("""SELECT count(DISTINCT area_id || g.geo_type) FROM tax_area_district
                            JOIN geography g USING (geo_id)""").fetchone()[0]
-        record("F overlap", "each tax area's land is fully shared out among House districts, and "
-               "among Senate districts", not bad and m == 2 * n, "; ".join(bad))
+        record("F overlap", "each tax area's 2020 residents are fully shared out among House "
+               "districts, and among Senate districts", not bad and m == 2 * n, "; ".join(bad))
         rows = con.execute("""SELECT a.name, string_agg(t.geo_id || ' ' ||
                 round(100 * t.area_share, 1) || '%', ', ' ORDER BY t.area_share DESC)
             FROM tax_area a JOIN tax_area_district t USING (area_id)
-            WHERE a.name IN ('Oʻahu North Shore', 'Molokaʻi') GROUP BY 1 ORDER BY 1""").fetchall()
-        record("F overlap (info)", "Seth's examples, share of each area's land by district: "
-               + "; ".join(f"{a}: {d}" for a, d in rows) + " (check against the district map)",
-               True)
+            WHERE a.name IN ('Oʻahu North Shore', 'Molokaʻi') AND t.area_share > 0
+            GROUP BY 1 ORDER BY 1""").fetchall()
+        record("F overlap (info)", "Seth's examples, share of each area's 2020 residents by "
+               "district: " + "; ".join(f"{a}: {d}" for a, d in rows)
+               + " (check against the district map)", True)
+
+    # DOTAX tax credits: A-7 areas plus "Other/Unknown" add up to the state total (columns with no
+    # suppressed cell); A-4 counties add up to the state.
+    if con.execute("SELECT count(*) FROM tax_area_credit").fetchone()[0]:
+        bad = []
+        for col in ("returns", "food_excise", "renters", "eitc"):
+            parts, nulls, state = con.execute(f"""
+                SELECT sum({col}) FILTER (WHERE area_id <> 'STATE-TOTAL'),
+                       count(*) FILTER (WHERE {col} IS NULL),
+                       max({col}) FILTER (WHERE area_id = 'STATE-TOTAL')
+                FROM tax_area_credit""").fetchone()
+            if nulls == 0 and parts != state:
+                bad.append(f"{col}: {parts:,.0f} vs {state:,.0f}")
+        record("E context", "DOTAX credits A-7: tax areas plus Other/Unknown add up to the state "
+               "total for returns, food/excise, renters' and EITC claims", not bad, "; ".join(bad))
+        bad = []
+        for ind in ("dotax_eitc_claims", "dotax_food_excise_claims", "dotax_renters_claims"):
+            s, st = con.execute("""
+                SELECT sum(value) FILTER (WHERE geo_id LIKE 'COUNTY-%'),
+                       max(value) FILTER (WHERE geo_id = 'STATE-15')
+                FROM context_fact WHERE indicator_id = ?""", [ind]).fetchone()
+            if s != st:
+                bad.append(f"{ind}: {s:,.0f} vs {st:,.0f}")
+        record("E context", "DOTAX credits A-4: counties add up to the state for each credit",
+               not bad, "; ".join(bad))
+
+    # 2021 Reapportionment Plan: every district once; each chamber adds to the report's total.
+    if con.execute("SELECT count(*) FROM district_plan").fetchone()[0]:
+        rows = dict(con.execute("""SELECT left(geo_id, 2), sum(permanent_residents)
+                                   FROM district_plan GROUP BY 1""").fetchall())
+        n = con.execute("SELECT count(*) FROM district_plan").fetchone()[0]
+        record("E context", f"Reapportionment plan: 76 districts ({n}); House and Senate each add "
+               f"up to 1,348,054 permanent residents ({rows.get('HD', 0):,} / {rows.get('SD', 0):,})",
+               n == 76 and rows.get("HD") == rows.get("SD") == 1348054)
+
+    # P. Program inventory (pipeline/programs.yaml): every document is a fingerprinted saved file,
+    # every quote appears in it, and every income-table number is printed in it.
+    import programs as prog
+    data = prog.load()
+    files = {data["poverty_guidelines"]["source_file"]} | {
+        f.get("file", p["file"]) for p in data["programs"] for f in p["facts"]} | {
+        p["file"] for p in data["programs"]} | {
+        p["income_limits"].get("file", p["file"]) for p in data["programs"] if p.get("income_limits")}
+    bad = []
+    for rel in sorted(files):
+        try:
+            context.saved_file(rel)
+        except (context.MissingFile, SystemExit) as exc:
+            bad.append(f"{rel}: {exc}")
+    record("P programs", f"all {len(files)} program documents are saved and match their "
+           "fingerprints in the manifest", not bad, "; ".join(bad))
+    n_q, n_n, probs = prog.check()
+    record("P programs", f"{len(data['programs'])} programs: all {n_q} quotes appear in their saved "
+           f"documents and all {n_n} income-table numbers are printed in them", not probs,
+           "; ".join(probs[:10]))
+
+    # H. Cross-check against DBEDT's published ACS district profiles (pipeline/dbedt_profiles.py):
+    # every compared estimate (and published margin of error) must equal DBEDT's.
+    try:
+        import dbedt_profiles
+        published, _ = dbedt_profiles.load()
+    except context.MissingFile:
+        published = None
+    if published:
+        ours = {(g, i): (v, m, ms) for g, i, v, m, ms in con.execute(
+            "SELECT geo_id, indicator_id, value, moe, moe_status FROM fact").fetchall()}
+        n_est = n_moe = 0
+        bad = []
+        for (g, ind), (est, moe) in published.items():
+            v, m, ms = ours[(g, ind)]
+            n_est += 1
+            if est is None or v is None or abs(est - v) > 0.5:
+                bad.append(f"{g} {ind}: DBEDT {est} vs ours {v}")
+            if dbedt_profiles.MATCHES[ind][3] and ms == "ok":
+                n_moe += 1
+                if moe is None or m is None or abs(moe - m) > 0.5:
+                    bad.append(f"{g} {ind} MOE: DBEDT {moe} vs ours {m}")
+        record("H DBEDT", f"our figures equal DBEDT's published ACS district profiles: "
+               f"{n_est:,} estimates and {n_moe:,} margins of error for "
+               f"{len(dbedt_profiles.MATCHES)} measures in all 76 districts "
+               f"({len(bad)} differences)", not bad, "; ".join(bad[:10]))
+
+    # Low-reliability flag (api/main.py: CV = (MOE / 1.645) / estimate > 30%): how many district
+    # figures it marks, for the record.
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT))
+    from api import main as kyd  # noqa: E402
+    flagged = total = 0
+    worst = []
+    for g, t in con.execute("""SELECT geo_id, geo_type FROM geography
+                               WHERE geo_type IN ('house', 'senate')""").fetchall():
+        for c in kyd.build_comparisons(g, t):
+            if c["district"]["value"] is None:
+                continue
+            total += 1
+            if c["district"]["low_reliability"]:
+                flagged += 1
+                worst.append((c["district"]["cv"] or 9, g, c["metric_id"]))
+    worst.sort(reverse=True)
+    record("G reliability (info)", f"{flagged} of {total} district figures are flagged low "
+           "reliability (CV over 30%); highest: "
+           + ", ".join(f"{g} {m} CV {cv:.0%}" for cv, g, m in worst[:3]), True)
+
+    # G. Census blocks (pipeline/blocks.py): complete, consistent with the other Census files.
+    if con.execute("SELECT count(*) FROM block").fetchone()[0]:
+        n_h, n_s, pop_h, pop_s, n_blocks = con.execute("""
+            SELECT count(DISTINCT house_id), count(DISTINCT senate_id),
+                   (SELECT sum(pop20) FROM block), (SELECT sum(pop20) FROM block), count(*)
+            FROM block""").fetchone()
+        known = {g for (g,) in con.execute(
+            "SELECT geo_id FROM geography WHERE geo_type IN ('house', 'senate')").fetchall()}
+        used = {g for (g,) in con.execute(
+            "SELECT house_id FROM block UNION SELECT senate_id FROM block").fetchall()}
+        record("G blocks", f"every one of {n_blocks:,} blocks is in a known House and Senate "
+               f"district; all 51 + 25 districts have blocks ({n_h} + {n_s})",
+               used == known and n_h == 51 and n_s == 25, ", ".join(sorted(used ^ known)))
+        # Independent check: the block files and the Census district-to-ZCTA relationship files
+        # are separate products. Every populated (district, ZCTA) pair from blocks must appear
+        # in the relationship files.
+        missing = con.execute("""
+            SELECT DISTINCT d.geo_id, b.zcta FROM block b
+            CROSS JOIN LATERAL (VALUES (b.house_id), (b.senate_id)) AS d(geo_id)
+            WHERE b.zcta IS NOT NULL AND b.pop20 > 0
+            EXCEPT SELECT geo_id, zcta FROM district_zcta WHERE zcta IS NOT NULL""").fetchall()
+        record("G blocks", "every populated block's district and ZIP area pairing appears in the "
+               "Census district-to-ZCTA relationship files", not missing,
+               ", ".join(f"{g}/{z}" for g, z in missing[:10]))
+        bad = [f"{k} {c}: {s:.4f}" for k, c, s in con.execute("""
+            SELECT place_fp, left(geo_id, 2), sum(place_share) FROM place_district GROUP BY 1, 2
+            UNION ALL
+            SELECT zcta, left(geo_id, 2), sum(zcta_share) FROM zcta_district GROUP BY 1, 2
+            UNION ALL
+            SELECT geo_id, 'tax areas', sum(district_share) FROM tax_area_district GROUP BY 1
+            HAVING sum(district_share) > 1.0001""").fetchall() if abs(s - 1) > 0.0001
+               and c != "tax areas" or c == "tax areas"]
+        record("G blocks", "each place's and each ZIP area's residents add up to 100% per chamber; "
+               "no district's tax-area shares exceed 100%", not bad, "; ".join(bad[:10]))
+        rows = con.execute("""
+            SELECT b.house_id, sum(b.pop20), any_value(f.value) FROM block b
+            JOIN fact f ON f.geo_id = b.house_id AND f.indicator_id = 'pop_total'
+            GROUP BY 1 ORDER BY abs(sum(b.pop20) - any_value(f.value)) / any_value(f.value) DESC
+            LIMIT 3""").fetchall()
+        record("G blocks (info)", "largest differences between 2020 Census and ACS 2020-2024 "
+               "district population (blocks are only weights; expected to differ): "
+               + "; ".join(f"{g} {a:,} vs {b:,.0f}" for g, a, b in rows), True)
 
 
 def write_spot_sample(con) -> Path:

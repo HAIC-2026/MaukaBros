@@ -318,3 +318,272 @@ files:
     downloaded_on: "2026-11-16"
     downloaded_by: "Claude Code (at the team's request)"
     sha256: c53062d927344a6af18749c04d7b27713c2da0077db37986d5679b18c31c5732
+
+  # Census 2020 blocks, for population-weighted matching (docs/GEOGRAPHY_METHOD.md). The national
+  # originals are too large for the repository, so pipeline/extract_census_blocks.py keeps only
+  # Hawaiʻi's rows. Each extract records its original's URL, size and SHA-256; re-download the
+  # original, check its fingerprint, and re-run the script to re-create the same extract.
+  # All originals downloaded once with curl by Claude Code at the team's request, 2026-11-16
+  # 13:18-13:19 UTC. Federal sources: the hawaii.gov automated-access restriction does not apply.
+  - path: census/blocks/hi_block_sldl24.csv
+    source_id: census_blocks
+    status: present
+    url: https://www2.census.gov/programs-surveys/decennial/rdo/mapping-files/2025/2024-state-legislative-bef/sldl24.zip
+    how: "Extract (Hawaiʻi rows of NationalSLDL24.txt) of the 2024 State Legislative District (Lower) Block Equivalency File, from https://www.census.gov/geographies/mapping-files/2025/dec/rdo/2024-state-legislative-bef.html. Original: sldl24.zip, 26,030,411 bytes, sha256 0d916eb6f901a891014a881ac951de40148f2ce391a275fe86ff172d47cada13."
+    use: "Which 2024 House district each 2020 block is in (14,732 Hawaiʻi blocks). Hawaiʻi's districts are unchanged since 2022 (Census Bureau 2024 SLD page)."
+    downloaded_on: "2026-11-16"
+    downloaded_by: "Claude Code (at the team's request)"
+    sha256: 228c9c7a49685bad0d0ccd20a78dc876c865ce7d90e42ba23100112673bb9ab7
+
+  - path: census/blocks/hi_block_sldu24.csv
+    source_id: census_blocks
+    status: present
+    url: https://www2.census.gov/programs-surveys/decennial/rdo/mapping-files/2025/2024-state-legislative-bef/sldu24.zip
+    how: "Extract (Hawaiʻi rows of NationalSLDU24.txt), as above. Original: sldu24.zip, 24,664,995 bytes, sha256 52e4d2b1ebdf8470d906c8de9b2824fa86f936e8c016ce9b5598fb2b7271b55d."
+    use: "Which 2024 Senate district each 2020 block is in."
+    downloaded_on: "2026-11-16"
+    downloaded_by: "Claude Code (at the team's request)"
+    sha256: 0cae98b213a6a36c9b7c0e54252ee6c5ebb7552d5784cf4fcf505affa32fd8dc
+
+  - path: census/blocks/hi_blocks_2020.csv
+    source_id: census_blocks
+    status: present
+    url: https://www2.census.gov/geo/tiger/TIGER2020/TABBLOCK20/tl_2020_15_tabblock20.zip
+    how: "Extract (attribute table: GEOID20, POP20, HOUSING20, ALAND20, AWATER20, INTPTLAT20, INTPTLON20) of TIGER/Line 2020 tabulation blocks for Hawaiʻi. Original: 24,070,539 bytes, sha256 c29683118cd7eada4bd4672e30de6bdd5638a752c1d0f7f795b4dd580c02259e."
+    use: "2020 Census population of each block: the weights for matching tax areas, places and ZIP areas to districts."
+    downloaded_on: "2026-11-16"
+    downloaded_by: "Claude Code (at the team's request)"
+    sha256: 55394f4c584f2ff121cc902c375c54f9bb99e9d4005a04c2e460d40f60cd636d
+
+  - path: census/blocks/hi_block_zcta520.csv
+    source_id: census_blocks
+    status: present
+    url: https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_tabblock20_natl.txt
+    how: "Extract (Hawaiʻi blocks) of the 2020 ZCTA to 2020 Census Tabulation Block relationship file, listed on https://www.census.gov/geographies/reference-files/time-series/geo/relationship-files.2020.html. Original: 1,057,697,144 bytes, sha256 7f077624d252fc1cc5a2d1100be07cfe038ffc152bfe193561d068b4def6bbbf."
+    use: "Which ZIP code tabulation area each block is in."
+    downloaded_on: "2026-11-16"
+    downloaded_by: "Claude Code (at the team's request)"
+    sha256: 339a0d9d4ce04ba637969738ebab00ef3deb6eecc0e045c8d3c23d3251f2dd6c
+
+  - path: census/blocks/BlockAssign_ST15_HI.zip
+    source_id: census_blocks
+    status: present
+    url: https://www2.census.gov/geo/docs/maps-data/data/baf2020/BlockAssign_ST15_HI.zip
+    how: "Whole file: 2020 Census Block Assignment Files for Hawaiʻi, from https://www.census.gov/geographies/reference-files/time-series/geo/block-assignment-files.html."
+    use: "Only BlockAssign_ST15_HI_INCPLACE_CDP.txt (the 2020 place of each block), for place-name lookup. Its SLDL/SLDU files are the earlier district plan and are NOT used."
+    downloaded_on: "2026-11-16"
+    downloaded_by: "Claude Code (at the team's request)"
+    sha256: 99ff6595ad6566804cc4682c9e73b9d854ae127154bffb9b0f2e6e97a7fa8147
+
+  - path: census/blocks/2020_Gaz_place_national.zip
+    source_id: census_blocks
+    status: present
+    url: https://www2.census.gov/geo/docs/maps-data/data/gazetteer/2020_Gazetteer/2020_Gaz_place_national.zip
+    how: "Whole file: 2020 Census Gazetteer, places."
+    use: "Names of Hawaiʻi's 2020 Census places (CDPs and Urban Honolulu), for place-name lookup. Names are as the Census Bureau publishes them, without ʻokina or kahakō."
+    downloaded_on: "2026-11-16"
+    downloaded_by: "Claude Code (at the team's request)"
+    sha256: 6e5745b3e1adf7a1e024a988301d484697e2a0f25b3cf10114eef676f09d5c18
+
+  - path: dotax/2023credit_tables.xlsx
+    source_id: dotax_tax_credits
+    status: present
+    url: https://tax.hawaii.gov/stats/a5_1annual/a5_4credits/
+    how: "By hand in a browser from the page above (\"2023 (XLSX)\"). Tax Credits Claimed by Hawaiʻi Taxpayers, Tax Year 2023. The page URL is recorded; the direct file link was not recorded."
+    use: "Read by pipeline/context.py: Table A-4 (claims by tax district: Hawaiʻi EITC, refundable food/excise credit, renters' credit) as county context; Table A-7 (resident returns claiming each credit, by DOTAX geographic area) attached to the tax areas."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: cbab7ed28e5f2d3bf0f29708553b1539709ffef831821b39f5a6fc7931bf9fba
+
+  - path: dotax/2023credit.pdf
+    source_id: dotax_tax_credits
+    status: present
+    url: https://files.hawaii.gov/tax/stats/stats/credits/2023credit.pdf
+    how: "By hand in a browser from https://tax.hawaii.gov/stats/a5_1annual/a5_4credits/ (\"2023 (PDF)\")."
+    use: "Reference: the report text behind the tables (definitions and notes)."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 179ecd93cf25c3973aa213ac2a6bfe8094fededecec404906f3ec0ef018ed2b2
+
+  - path: elections/2021-Reapportionment-Commission-Final-Report-952-pages-February-25-2022.pdf
+    source_id: reapportionment_2021
+    status: present
+    url: https://elections.hawaii.gov/about-us/boards-and-commissions/reapportionment/
+    how: "By hand in a browser from the Office of Elections Reapportionment Commission page (2021 Reapportionment Commission Final Report and Plan, 952 pages, February 25, 2022). 400,750,607 bytes: too large for GitHub, so NOT in Git (.gitignore). Re-download it to re-run pipeline/extract_reapportionment.py."
+    use: "Source of the extract below. The build reads only the extract."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 5d37fcbc082551100f447285193a4e996daeb33e6e8d2af991cce248f6226c06
+
+  - path: elections/reapportionment_2021_district_population.csv
+    source_id: reapportionment_2021
+    status: present
+    url: https://elections.hawaii.gov/about-us/boards-and-commissions/reapportionment/
+    how: "Extract made by pipeline/extract_reapportionment.py from the report above (Tables 9 and 10, PDF pages 26-28): each district's permanent-resident population and statewide target. Checked: 51 House and 25 Senate districts, each chamber adding to the report's state total of 1,348,054."
+    use: "Official permanent-resident population of each district (2020 Census base, excluding non-permanent military and students)."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser (extract by pipeline/extract_reapportionment.py)
+    sha256: 7d2250963f5c26b090b0999667d4b8b14a57764dff68a94020ecdf89a6f873bb
+
+  - path: dbedt/acs2024/acs2024_5yr_house_hi.xlsx
+    source_id: dbedt_acs
+    status: present
+    url: https://census.hawaii.gov/acs/acs-2024/
+    how: "By hand in a browser from the page above (state legislative districts, \"House Districts [EXCEL]\"). DBEDT's ACS 2020-2024 5-year Data Profiles DP02-DP05 for the 51 House districts."
+    use: "Cross-check only (validation/validate.py group H, pipeline/dbedt_profiles.py): our figures must equal DBEDT's published district profiles."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 2e090640d69e4418fd95690f2fb870be311cc82381642d302c55505772115c4e
+
+  - path: dbedt/acs2024/acs2024_5yr_senate_hi.xlsx
+    source_id: dbedt_acs
+    status: present
+    url: https://census.hawaii.gov/acs/acs-2024/
+    how: "By hand in a browser from the page above (\"Senate Districts [EXCEL]\"). Same Data Profiles for the 25 Senate districts."
+    use: "Cross-check only, as above."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 84b7ee598ac2dd722f035ab82258167002189008300a86d1750538ae00c5552b
+
+  - path: dhs/Website Enrollment Report 2026 20261106.pdf
+    source_id: dhs_medquest
+    status: present
+    url: https://medquest.hawaii.gov/
+    how: "By hand in a browser from the Med-QUEST reports page, Enrollment Reports: \"2026 Hawaii Medicaid Managed Care Enrollment\". Hawaii Medicaid Enrollment Report (2026), report date 11/06/2026, January-September 2026. The direct file link was not recorded."
+    use: "Source of the extract below (pipeline/extract_medquest.py)."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: e685237a20dcfcb51271edcf55629bd682ae0bc84212a9b2cf1aefe464c76d82
+
+  - path: dhs/medquest_managed_care_by_island_2026.csv
+    source_id: dhs_medquest
+    status: present
+    url: https://medquest.hawaii.gov/
+    how: "Extract of \"Managed Care By Island\" and \"MEDICAID MANAGED CARE TOTAL\" from the 2026 report above, made by pipeline/extract_medquest.py. Checked: the six islands add up to the total in all 9 months."
+    use: "Med-QUEST managed-care enrollment by county (Maui County = Maui + Molokaʻi + Lānaʻi) and state, latest month at least six months before the report date (April 2026), as county context."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser (extract by pipeline/extract_medquest.py)
+    sha256: d5b0fb63fea28559d1ab24d42cde36de38dde88570b6a65603c0e3f7c22845b3
+
+  - path: dhs/Website Enrollment Report 2025 20250115.pdf
+    source_id: dhs_medquest
+    status: present
+    url: https://medquest.hawaii.gov/
+    how: "By hand in a browser, same page: \"2025 Hawaii Medicaid Managed Care Enrollment\". The report inside is dated 1/15/2026 and covers January-December 2025 (the file name says 20250115)."
+    use: "Reference only (full year 2025). Not read by the build: its island rows do not extract cleanly as text, and the 2026 report already gives a settled month."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 2ea5b0e5c4b59ca0747666d60b3877dfade76609c4ef8ad7ca008666a8ecbb1b
+
+  # Program documents (pipeline/programs.yaml). Each saved by hand in a browser 2026-11-16;
+  # validation group P checks every quote and income-table number in programs.yaml against them.
+
+  - path: programs/snap_dhs_page.pdf
+    source_id: program_documents
+    status: present
+    url: https://humanservices.hawaii.gov/bessd/snap/
+    how: "DHS BESSD SNAP page, saved with the browser's Print to PDF (income limits effective 10/1/2026)."
+    use: "Program facts in pipeline/programs.yaml (quotes and income tables)."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 8e4f193eb2a9e368392aa183f05a1bf319c498f3b0d72332dc5e44241c818353
+
+  - path: programs/medquest_2026_income_standards.pdf
+    source_id: program_documents
+    status: present
+    url: https://medquest.hawaii.gov/content/medquest/en/resources/rules-and-policy.html
+    how: "2026 MAGI and MAGI-Excepted Income Standards Chart (effective 01/13/2026), downloaded from Med-QUEST Rules & Policies, Medical Assistance Program FPL Standards."
+    use: "Program facts in pipeline/programs.yaml (quotes and income tables)."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: edec45ea28d792ceea896bcf36143ab8c6b1b14c6c88f62a9e3340a93156b694
+
+  - path: programs/medquest_how_to_apply.pdf
+    source_id: program_documents
+    status: present
+    url: https://medquest.hawaii.gov/en/members-applicants/get-started/how-to-apply
+    how: "Med-QUEST Apply for Medicaid page, saved with Print to PDF."
+    use: "Program facts in pipeline/programs.yaml (quotes and income tables)."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: bbbdf3005cd6b62b7b1819e0fd86581d81c0ec1729127724dcf8302b38b200a8
+
+  - path: programs/medquest_2027_adult_changes.pdf
+    source_id: program_documents
+    status: present
+    url: https://medquest.hawaii.gov/posts/changes-coming-to-med-quest-eligibility-for-adults--
+    how: "Med-QUEST news item 'Changes coming to Med-QUEST Eligibility for Adults!' (published 04/22/2026, updated 08/15/2026), saved with Print to PDF."
+    use: "Program facts in pipeline/programs.yaml (quotes and income tables)."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 3072b7dde9c3eed6cac7bb3b3b49f1d758bded89ed83d61f0cb39bc881ce8be4
+
+  - path: programs/dotax_eitc.pdf
+    source_id: program_documents
+    status: present
+    url: https://tax.hawaii.gov/geninfo/
+    how: "DOTAX Hawaiʻi Earned Income Tax Credit flyer (2025 tax year), linked from Hawaii Tax Information."
+    use: "Program facts in pipeline/programs.yaml (quotes and income tables)."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: eebf742cfdfabc58377bb691eb68276426ffa61a6bf5299e869eb3be4d43ac7d
+
+  - path: programs/dotax_food_excise_credit.pdf
+    source_id: program_documents
+    status: present
+    url: https://tax.hawaii.gov/geninfo/
+    how: "DOTAX Hawaiʻi Food/Excise Tax Credit flyer dated May 2024, linked from Hawaii Tax Information."
+    use: "Program facts in pipeline/programs.yaml (quotes and income tables)."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: ff3c624b9dab9858f6696dcd8c793a1531282008d9d3880fc4d3c4a6a5f23e50
+
+  - path: programs/wic_program_details.pdf
+    source_id: program_documents
+    status: present
+    url: https://health.hawaii.gov/wic/program_details/
+    how: "DOH WIC Program Details page, saved with Print to PDF."
+    use: "Program facts in pipeline/programs.yaml (quotes and income tables)."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: ac027eaf35691104979bb4f0c1af37a156e468c1bfbe744378f6574236d8c79c
+
+  - path: programs/eoa_page.pdf
+    source_id: program_documents
+    status: present
+    url: https://health.hawaii.gov/eoa/
+    how: "DOH Executive Office on Aging home page (county office on aging phone numbers), saved with Print to PDF."
+    use: "Program facts in pipeline/programs.yaml (quotes and income tables)."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: b5855182c4921f91e40cc81b4c8f33dba74487ba2244b692d18e335b86fd48cb
+
+  - path: programs/eoa_annual_report_sfy2024.pdf
+    source_id: program_documents
+    status: present
+    url: http://hawaiiadrc.org/wp-content/uploads/2025/01/EOA-Annual-Legislative-Report-SFY2024_FINAL.pdf
+    how: "Executive Office on Aging Annual Report for SFY 2024 (Kūpuna Care eligibility and participants), linked from the Hawaiʻi ADRC site."
+    use: "Program facts in pipeline/programs.yaml (quotes and income tables)."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: e4e3902baf4b9a5713f9701424ab1dac1c4e9bd27ba1feb08aeedfd93a928784
+
+  - path: programs/hhs_poverty_guidelines_2026.pdf
+    source_id: program_documents
+    status: present
+    url: https://aspe.hhs.gov/sites/default/files/documents/b1bfa16b20ae9b89d525bc35de7c1643/detailed-guidelines-2026.pdf
+    how: "HHS ASPE 2026 detailed poverty guidelines (with the Hawaii table). Saved by hand: the site refuses scripted downloads."
+    use: "Program facts in pipeline/programs.yaml (quotes and income tables)."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: cd1f9c435caad2a5596738d5ae22a53bd0a1a2255d65f41f973dd108ec1095fd
+
+  - path: programs/ssa_ssi_hawaii_2026.pdf
+    source_id: program_documents
+    status: present
+    url: https://www.ssa.gov/pubs/EN-05-11108.pdf
+    how: "SSA 'Supplemental Security Income (SSI) in Hawaii 2026'. Saved by hand: the site refuses scripted downloads."
+    use: "Program facts in pipeline/programs.yaml (quotes and income tables)."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 14b3d7abb74bb1d3c333b2940a12a6ecdc74ff2e13f6eb1a27ae35afa7e36546
