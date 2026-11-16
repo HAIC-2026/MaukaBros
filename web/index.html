@@ -7,39 +7,24 @@
   <!-- ArcGIS Maps SDK for JavaScript 4.31 (Esri CDN) -->
   <link rel="stylesheet" href="https://js.arcgis.com/4.31/esri/themes/light/main.css">
   <script src="https://js.arcgis.com/4.31/"></script>
+  <link rel="stylesheet" href="/css/base.css">
   <style>
-    :root {
-      --bg: #f4f6f6; --card: #ffffff; --text: #1b2631; --muted: #536270;
-      --accent: #0b6e69; --accent-dark: #0b4f4b; --warn: #8a5a00; --border: #d5dbdf;
-      --hdr: 8rem;
-    }
-    * { box-sizing: border-box; }
-    /* Text scales with the screen so it stays readable on large monitors. */
-    html { font-size: clamp(16px, 0.55vw + 10px, 22px); }
-    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-           background: var(--bg); color: var(--text); line-height: 1.45; }
-    a { color: var(--accent); }
-    a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible {
-      outline: 3px solid var(--accent); outline-offset: 2px; }
-
+    :root { --hdr: 8rem; }
     header.top { position: sticky; top: 0; z-index: 10; background: var(--card);
                  border-bottom: 1px solid var(--border); padding: 0.6rem 1.5rem 0.75rem; }
     .toprow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.5rem; }
     header.top h1 { margin: 0; font-size: 1.35rem; color: var(--accent-dark); }
     .controls { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; align-items: end; margin-top: 0.4rem; }
-    .field > span, .field > label { display: block; font-weight: 600; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.15rem; }
-    select, .ask input { font: inherit; padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); }
     select { min-width: 12rem; }
+    .controls .field { min-width: 0; max-width: 100%; }
+    #metric { width: 22rem; max-width: 100%; } /* long option labels would otherwise widen the page */
     .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
     .seg button { font: inherit; padding: 0.45rem 0.9rem; border: 0; background: var(--card); color: var(--text); cursor: pointer; }
     .seg button + button { border-left: 1px solid var(--border); }
     .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; font-weight: 600; }
     .ask { display: flex; gap: 0.4rem; flex: 1 1 22rem; min-width: 14rem; }
-    .ask input { flex: 1; background: #eef1f2; }
-    .btn { font: inherit; padding: 0.45rem 1rem; border-radius: 6px; border: 1px solid var(--accent);
-           background: var(--accent); color: #fff; cursor: pointer; font-weight: 600; }
-    .btn.secondary { background: var(--card); color: var(--accent); }
-    .btn[disabled] { opacity: 0.6; cursor: not-allowed; }
+    .ask input { flex: 1; min-width: 0; background: var(--input); }
+    #report-link[hidden] { display: none; }
 
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 1.5rem;
               padding: 1.25rem 1.5rem 3rem; }
@@ -60,34 +45,10 @@
 
     h2.district { margin: 0; font-size: 2rem; line-height: 1.15; }
     .sub { margin: 0.2rem 0 1rem; color: var(--muted); font-size: 1rem; }
-    .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.9rem; }
-    .fact { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem 1rem; }
-    .fact h3 { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--muted); min-height: 2.4em; }
-    .fact .big { margin: 0.1rem 0 0; font-size: 2.1rem; font-weight: 700; line-height: 1.1; }
-    .fact .moe { margin: 0.1rem 0 0.6rem; font-size: 0.8rem; color: var(--muted); }
-    .vs { font-size: 0.88rem; border-top: 1px solid var(--border); padding-top: 0.5rem; }
-    .vs .row { margin: 0.2rem 0; }
-    .vs .hl { font-weight: 600; }
-    .vs em { font-style: normal; color: var(--warn); font-size: 0.78rem; margin-left: 0.25rem; }
-    .src { margin: 0.6rem 0 0; font-size: 0.74rem; color: var(--muted); }
-
-    details { background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-top: 0.9rem; }
-    details > summary { cursor: pointer; padding: 0.75rem 1rem; font-weight: 600; }
-    details > .inner { padding: 0 1rem 1rem; overflow-x: auto; }
-    table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
-    th, td { text-align: left; padding: 0.45rem 0.6rem; border-top: 1px solid var(--border); vertical-align: top; }
-    thead th { border-top: 0; color: var(--muted); font-size: 0.76rem; }
-    td .moe, td .flag { display: block; font-size: 0.74rem; }
-    td .moe { color: var(--muted); }
-    .flag { color: var(--warn); }
-    .muted { color: var(--muted); }
-    .small { font-size: 0.82rem; }
-    .actions { margin-top: 1rem; display: flex; gap: 0.6rem; flex-wrap: wrap; }
     .empty { padding: 3rem 1rem; color: var(--muted); }
     .empty h2 { color: var(--text); font-size: 1.6rem; margin: 0 0 0.5rem; }
-    .error { color: #a61b1b; }
 
-    /* Research assistant panel */
+    /* Research assistant panel: short answers here, the full picture on the report page. */
     .chat { position: fixed; right: 1rem; bottom: 1rem; z-index: 20; width: min(34rem, calc(100vw - 2rem));
             max-height: calc(100vh - 2rem); display: flex; flex-direction: column; background: var(--card);
             border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,0.18); }
@@ -98,34 +59,39 @@
     .chat-head .ctx { font-size: 0.78rem; color: var(--muted); }
     .chat-log { overflow-y: auto; padding: 0.8rem 0.9rem; flex: 1; min-height: 8rem; }
     .msg { margin: 0 0 0.9rem; }
-    .msg.user { background: #eef1f2; border-radius: 8px; padding: 0.5rem 0.7rem; }
+    .msg.user { background: var(--input); border-radius: 8px; padding: 0.5rem 0.7rem; }
     .msg p, .msg ul, .msg ol { margin: 0.35rem 0; }
     .msg table { margin: 0.4rem 0; }
     .msg sup a { text-decoration: none; font-size: 0.72rem; font-weight: 600; }
-    .msg .sources { font-size: 0.76rem; color: var(--muted); margin-top: 0.5rem; border-top: 1px solid var(--border); padding-top: 0.4rem; }
-    .msg .sources ol { padding-left: 1.6rem; margin: 0.2rem 0; }
     .msg details { margin-top: 0.4rem; font-size: 0.76rem; }
     .msg details > summary { padding: 0.35rem 0.6rem; font-weight: 600; }
+    .msg details ol { padding: 0 0.6rem 0.5rem 2.2rem; margin: 0; color: var(--muted); }
     .msg details pre { white-space: pre-wrap; margin: 0; padding: 0 0.6rem 0.5rem; font-size: 0.72rem; }
+    .report-card { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
+                   margin-top: 0.6rem; padding: 0.6rem 0.8rem; border: 1px solid var(--accent); border-radius: 8px;
+                   background: var(--accent-soft); color: var(--text); text-decoration: none; }
+    .report-card:hover { background: #d4ebe9; }
+    .report-card strong { display: block; color: var(--accent-dark); }
+    .report-card .meta { font-size: 0.8rem; color: var(--muted); }
+    .report-card .go { font-size: 1.2rem; color: var(--accent-dark); }
     .chat-form { display: flex; gap: 0.4rem; padding: 0.6rem 0.9rem; border-top: 1px solid var(--border); }
     .chat-form textarea { flex: 1; font: inherit; resize: vertical; min-height: 2.6rem; max-height: 10rem;
                           padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; }
     .chat-note { margin: 0; padding: 0 0.9rem 0.6rem; font-size: 0.72rem; color: var(--muted); }
     .thinking { color: var(--muted); font-style: italic; }
-    @media print { .chat { display: none !important; } }
 
-    .site-footer { padding: 1rem 1.5rem 2rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.8rem; }
-    .site-footer p { margin: 0.2rem 0; }
     @media (max-width: 900px) {
       .layout { grid-template-columns: 1fr; padding: 1rem; }
       .col-map { position: static; height: 70vh; order: -1; }
-      header.top { position: static; }
+      header.top { position: static; padding: 0.6rem 1rem 0.75rem; }
+    }
+    @media (max-width: 600px) {
+      .controls .field, .controls select, #metric, #report-link { width: 100%; }
+      #report-link { justify-content: center; }
     }
     @media print {
-      header.top, .col-map, .actions { display: none !important; }
-      body { background: #fff; }
+      header.top, .col-map, .actions, .chat { display: none !important; }
       .layout { display: block; padding: 0; }
-      details { break-inside: avoid; }
     }
   </style>
 </head>
@@ -134,7 +100,7 @@
     <div class="toprow">
       <h1>Know Your District</h1>
       <form class="ask" id="ask-form" aria-label="Ask the research assistant">
-        <label for="ask-input" style="position:absolute;left:-9999px">Ask a question about a district</label>
+        <label for="ask-input" class="sr-only">Ask a question about a district</label>
         <input id="ask-input" type="text" autocomplete="off" placeholder='Ask a question, e.g. "How many kūpuna in my district live on fixed incomes?"'>
         <button class="btn secondary" type="submit">Ask</button>
       </form>
@@ -153,8 +119,9 @@
       </div>
       <div class="field">
         <label for="metric">Color the map by</label>
-        <select id="metric" style="min-width:20rem"><option>Loading...</option></select>
+        <select id="metric"><option>Loading...</option></select>
       </div>
+      <a class="btn secondary" id="report-link" href="/report.html" target="_blank" rel="noopener" hidden>Full report ↗<span class="sr-only"> (opens in a new tab)</span></a>
     </div>
   </header>
 
@@ -179,17 +146,17 @@
     <div class="chat-head">
       <div><h2>Research assistant</h2><div class="ctx" id="chat-ctx"></div></div>
       <div style="display:flex;gap:0.4rem">
-        <button class="btn secondary" type="button" id="chat-clear" style="padding:0.3rem 0.7rem;font-size:0.8rem">New conversation</button>
-        <button class="btn secondary" type="button" id="chat-close" aria-label="Close the assistant" style="padding:0.3rem 0.7rem;font-size:0.8rem">Close</button>
+        <button class="btn secondary small" type="button" id="chat-clear">New conversation</button>
+        <button class="btn secondary small" type="button" id="chat-close" aria-label="Close the assistant">Close</button>
       </div>
     </div>
     <div class="chat-log" id="chat-log" aria-live="polite"></div>
     <form class="chat-form" id="chat-form">
-      <label for="chat-input" style="position:absolute;left:-9999px">Your question</label>
+      <label for="chat-input" class="sr-only">Your question</label>
       <textarea id="chat-input" rows="2" placeholder="Ask a follow-up question"></textarea>
       <button class="btn" type="submit" id="chat-send">Send</button>
     </form>
-    <p class="chat-note">Answers use only this tool's published data, with sources. Informational only: final program eligibility is always decided by the agency.</p>
+    <p class="chat-note">Short answers here; the full report has every figure. Answers use only this tool's published data, with sources. Informational only: final program eligibility is always decided by the agency.</p>
   </aside>
 
   <footer class="site-footer">
@@ -197,11 +164,12 @@
     <p>Percentages and margins of error marked "calculated" or "about" are our own calculations from published Census figures. Informational only; not legal or eligibility advice.</p>
   </footer>
 
-  <script>
-    // The headline statistics. Edit this list to change what leads the summary (metric ids come
-    // from MAP_METRICS in api/main.py). Keep it short: fewer, well-chosen figures read best.
-    const KEY_METRICS = ["median_household_income", "poverty_rate", "share_65_plus", "rent_burden_rate",
-                         "no_insurance_rate", "snap_share", "unemployment_rate"];
+  <script type="module">
+    import { fmtMetric, fmtCount, fmtMoe, shortCounty, districtLabel } from "/js/format.js";
+    import { $, el, tableLinks, renderKeyFact, renderDetails, renderContext, renderTaxAreas, reportUrl } from "/js/render.js";
+    import { presetById, presetFor, districtFor } from "/js/presets.js";
+    import { renderMarkdown } from "/js/markdown.js";
+
     const COLORS = ["#e6f2f1", "#a8d5d1", "#5fb3ac", "#1f8a83", "#0b4f4b"];
     const STATE_EXTENT = { xmin: -160.5, ymin: 18.8, xmax: -154.6, ymax: 22.4 };
     const AREAS = [ // quick zoom buttons; county ids come from the boundary file
@@ -211,205 +179,14 @@
       { label: "Oʻahu", county: "COUNTY-003" },
       { label: "Kauaʻi", county: "COUNTY-007" },
     ];
-    const $ = id => document.getElementById(id);
     const state = { chamber: "house", districtId: null, mapData: null, districts: [], edges: [] };
     let view, fillLayer, selLayer, GraphicCtor, ExtentCtor;
 
-    // ---------- formatting ----------
-    const fmtMetric = (v, f) => v == null ? "Not available"
-      : f === "dollars" ? "$" + Math.round(v).toLocaleString("en-US") : (v * 100).toFixed(1) + "%";
-    const fmtCount = v => v == null ? "Not available" : Math.round(v).toLocaleString("en-US");
-    const fmtMoe = (m, f) => m == null ? "margin of error not available"
-      : f === "dollars" ? "plus or minus $" + Math.round(m).toLocaleString("en-US")
-      : f === "count" ? "plus or minus " + Math.round(m).toLocaleString("en-US")
-      : "plus or minus " + (m * 100).toFixed(1) + " points";
-    const shortCounty = n => n ? n.replace(/, Hawaii$/, "") : "its county";
-    const shortGeo = g => g.split(" (")[0];
-
-    function diffText(diff, f) {
-      if (!diff) return { text: "not available", flag: "", short: "" };
-      let text;
-      if (f === "dollars") {
-        const r = (diff.relative || 0) * 100;
-        text = Math.abs(r) < 0.5 ? "about the same" : `${Math.abs(r).toFixed(0)}% ${r > 0 ? "higher" : "lower"}`;
-      } else {
-        const p = diff.absolute * 100;
-        text = Math.abs(p) < 0.05 ? "about the same" : `${Math.abs(p).toFixed(1)} points ${p > 0 ? "higher" : "lower"}`;
-      }
-      const flag = diff.within_margin_of_error === true ? "Within the margin of error: may not be a real difference"
-        : diff.within_margin_of_error === null ? "Margin of error not available: treat as uncertain" : "";
-      const short = diff.within_margin_of_error === true ? "within margin of error"
-        : diff.within_margin_of_error === null ? "margin not available" : "";
-      return { text, flag, short };
-    }
-
-    const el = (tag, props = {}, ...kids) => {
-      const n = Object.assign(document.createElement(tag), props);
-      kids.forEach(k => n.append(k));
-      return n;
-    };
-    function tableLinks(src, into) {
-      (src.tables || []).forEach((t, i) => into.append(i ? ", " : "", el("a", { href: t.url, target: "_blank", rel: "noopener", textContent: "Table " + t.table_id })));
-    }
-    // Short source line: enough to cite source, year, table and geography on every figure.
-    function srcLine(src) {
-      const p = el("p", { className: "src" }, `Census ACS 5-year ${src.year} · `);
-      tableLinks(src, p);
-      p.append(` · ${shortGeo(src.geography)}`);
-      return p;
-    }
-
-    // ---------- summary pieces ----------
-    function renderKeyFact(c) {
-      const card = el("article", { className: "fact" }, el("h3", { textContent: c.label }));
-      card.append(el("p", { className: "big", textContent: fmtMetric(c.district.value, c.format) }));
-      card.append(el("p", { className: "moe", textContent: c.district.value != null ? fmtMoe(c.district.moe, c.format) : "" }));
-      const vs = el("div", { className: "vs" });
-      const line = (name, ref) => {
-        const d = diffText(ref && ref.difference, c.format);
-        const row = el("div", { className: "row" }, el("span", { className: "hl", textContent: d.text }),
-          ` than ${name} (${fmtMetric(ref && ref.value, c.format)})`);
-        if (d.short) row.append(el("em", { textContent: d.short, title: d.flag }));
-        return row;
-      };
-      if (c.county) vs.append(line(shortCounty(c.county.name), c.county));
-      vs.append(line("the state", c.state));
-      card.append(vs, srcLine(c.source));
-      return card;
-    }
-
-    function renderDetails(data) {
-      const wrap = el("div");
-      const t1 = el("table");
-      const cn = shortCounty(data.comparisons[0] && data.comparisons[0].county && data.comparisons[0].county.name);
-      const head = t1.createTHead().insertRow();
-      ["Measure", "This district", cn, "State", "Vs " + cn, "Vs state"].forEach(h => head.append(el("th", { scope: "col", textContent: h })));
-      const body = t1.createTBody();
-      let group = null;
-      data.comparisons.forEach(c => {
-        if (c.group !== group) {
-          group = c.group;
-          if (group !== "District profile") {
-            const gr = body.insertRow();
-            const th = el("th", { scope: "colgroup", colSpan: 6, textContent: group, style: "padding-top:0.9rem" });
-            if (c.group_note) th.append(el("span", { className: "moe", textContent: c.group_note }));
-            gr.append(th);
-          }
-        }
-        const tr = body.insertRow();
-        tr.append(el("th", { scope: "row", textContent: c.label }));
-        const v = (e, withMoe) => { const td = el("td", {}, fmtMetric(e && e.value, c.format));
-          if (withMoe && e && e.value != null) td.append(el("span", { className: "moe", textContent: fmtMoe(e.moe, c.format) })); return td; };
-        const d = ref => { const x = diffText(ref && ref.difference, c.format); const td = el("td", {}, x.text);
-          if (x.flag) td.append(el("span", { className: "flag", textContent: x.flag })); return td; };
-        tr.append(v(c.district, true), c.county ? v(c.county, false) : el("td"), v(c.state, false), d(c.county), d(c.state));
-      });
-      wrap.append(el("p", { className: "muted small", textContent:
-        "Percentages are calculated from published counts. Margins of error use the Census Bureau's method for proportions. A difference inside its margin of error may not be a real difference." }), t1);
-
-      const t2 = el("table");
-      const h2 = t2.createTHead().insertRow();
-      ["Figure", "Value", "Source table"].forEach(h => h2.append(el("th", { scope: "col", textContent: h })));
-      const b2 = t2.createTBody();
-      data.facts.forEach(f => {
-        const tr = b2.insertRow();
-        tr.append(el("th", { scope: "row", textContent: f.label }));
-        const unitFmt = v => f.unit === "dollars" ? "$" + Math.round(v).toLocaleString("en-US") : Math.round(v).toLocaleString("en-US");
-        const vt = el("td");
-        if (f.value_status === "ok") {
-          vt.append(unitFmt(f.value));
-          vt.append(el("span", { className: "moe", textContent: f.moe == null ? "margin of error not available"
-            : `${f.moe_status === "derived" ? "about " : ""}plus or minus ${unitFmt(f.moe)}` }));
-        } else {
-          vt.append("Not available", el("span", { className: "flag", textContent: "Too few cases for the source to publish" }));
-        }
-        const st = el("td");
-        tableLinks({ tables: f.source.tables }, st);
-        st.append(` (${f.source.year})`);
-        tr.append(vt, st);
-      });
-      wrap.append(el("h3", { textContent: "Every figure behind this profile", style: "margin:1.2rem 0 0.4rem;font-size:0.95rem" }),
-        el("p", { className: "muted small", textContent:
-          "All figures: " + data.facts[0].source.publisher + ", " + data.facts[0].source.dataset + ". Geography: " + data.facts[0].source.geography +
-          ". Reported directly for this geography; not estimated or apportioned by us." }), t2);
-      return wrap;
-    }
-
-    // Figures published only for counties and the state (e.g. BEA). Never shown as district figures.
-    function renderContext(data, countyName) {
-      const ctx = data.county_context || [];
-      if (!ctx.length) return null;
-      const t = el("table");
-      const h = t.createTHead().insertRow();
-      ["Measure", countyName || "County", "State", "Source"].forEach(x => h.append(el("th", { scope: "col", textContent: x })));
-      const b = t.createTBody();
-      const fmt = (v, unit) => v == null ? "Not available" : unit === "dollars" ? "$" + Math.round(v).toLocaleString("en-US")
-        : unit === "percent" ? v.toFixed(1) + "%" : Math.round(v).toLocaleString("en-US");
-      ctx.forEach(c => {
-        const tr = b.insertRow();
-        const th = el("th", { scope: "row" }, c.label, el("span", { className: "moe", textContent: c.period }));
-        if (c.caveat) th.append(el("span", { className: "flag", textContent: c.caveat }));
-        tr.append(th);
-        [c.county, c.state].forEach(e => {
-          const td = el("td", {}, e ? fmt(e.value, c.unit) : "Not available");
-          if (e && e.note) td.append(el("span", { className: "flag", textContent: e.note }));
-          tr.append(td);
-        });
-        const st = el("td", {}, `${c.source.publisher}, ${c.source.dataset}, `);
-        c.source.tables.forEach(x => st.append(el("a", { href: x.url, target: "_blank", rel: "noopener", textContent: x.table_id })));
-        if (c.source.original_source) st.append(el("span", { className: "moe", textContent: "Original data: " + c.source.original_source.replace(/^Source:\s*/, "") }));
-        st.append(el("span", { className: "moe", textContent: `${c.source.vintage ? c.source.vintage + ". " : ""}Downloaded ${c.source.retrieved_at}.` }));
-        tr.append(st);
-      });
-      return el("details", {}, el("summary", { textContent: "County and state context (not figures for this district)" }),
-        el("div", { className: "inner" },
-          el("p", { className: "muted small", textContent: "These sources publish figures for counties (or islands) and the state only, not for legislative districts. They describe the county this district is in, not the district itself, and cover different years from the district figures above. No margin of error is published for them. SNAP counts are program records from the Hawaiʻi Department of Human Services: how many people the program actually served." }),
-          t));
-    }
-
-    // DOTAX tax areas that overlap the district. Whole-area figures, never district figures.
-    function renderTaxAreas(data, countyName) {
-      const ta = data.tax_areas;
-      if (!ta || !ta.areas.length) return null;
-      const money = v => v == null ? "Not available" : "$" + Math.round(v).toLocaleString("en-US");
-      const pct = v => v < 0.001 ? "under 0.1%" : (100 * v).toFixed(v < 0.1 ? 1 : 0) + "%";
-      const ctx = (data.county_context || []).find(c => c.indicator_id === "dotax_median_agi");
-      const t = el("table");
-      const h = t.createTHead().insertRow();
-      ["Tax area", ta.label, "Resident tax returns", "Share of this district's land in the area", "Share of the area's land in this district"]
-        .forEach(x => h.append(el("th", { scope: "col", textContent: x })));
-      const b = t.createTBody();
-      ta.areas.forEach(a => {
-        const tr = b.insertRow();
-        const th = el("th", { scope: "row", textContent: a.name });
-        if (a.relation !== "overlaps") th.append(el("span", { className: "flag", textContent: "Touches the edge of the district only (under 1% of its land)" }));
-        tr.append(th, el("td", { textContent: money(a.median_agi) }),
-          el("td", { textContent: a.returns == null ? "Not available" : Math.round(a.returns).toLocaleString("en-US") }),
-          el("td", { textContent: pct(a.share_of_district_land) }), el("td", { textContent: pct(a.share_of_area_land_in_district) }));
-      });
-      if (ctx) {
-        [[ctx.county, countyName || "County"], [ctx.state, "State"]].forEach(([e, name]) => {
-          if (!e) return;
-          const tr = b.insertRow();
-          tr.append(el("th", { scope: "row", textContent: `For comparison: ${name}` }), el("td", { textContent: money(e.value) }),
-            el("td", { textContent: "" }), el("td", { textContent: "" }), el("td", { textContent: "" }));
-        });
-      }
-      const src = el("p", { className: "muted small" }, `Source: ${ta.source.publisher}, ${ta.source.dataset}, `);
-      ta.source.tables.forEach((x, i) => { if (i) src.append(", "); src.append(el("a", { href: x.url, target: "_blank", rel: "noopener", textContent: x.table_id })); });
-      src.append(`. ${ta.source.vintage ? ta.source.vintage + ". " : ""}Downloaded ${ta.source.retrieved_at}. Matched to districts with: ${ta.overlap_source}`);
-      const notes = [ta.applies_to,
-        "Land area is only a rough guide to where people live: an area can cover much of a district's land but few of its residents.",
-        ta.caveat];
-      if (ta.district_land_in_no_tax_area >= 0.01)
-        notes.push(`${pct(ta.district_land_in_no_tax_area)} of this district's land is outside every ZIP code area that DOTAX lists.`);
-      return el("details", {}, el("summary", { textContent: "Income by tax area (areas that overlap this district)" }),
-        el("div", { className: "inner" }, ...notes.map(n => el("p", { className: "muted small", textContent: n })), t, src));
-    }
-
+    // ---------- summary ----------
+    // The map page shows the headline figures; the report page (report.html) has every view.
     function renderProfile(data) {
       const comps = data.comparisons;
-      const keyComps = KEY_METRICS.map(id => comps.find(c => c.metric_id === id)).filter(Boolean);
+      const keyComps = presetById("overview").metrics.map(id => comps.find(c => c.metric_id === id)).filter(Boolean);
       const pop = data.facts.find(f => f.indicator_id === "pop_total");
       const county = comps[0] && comps[0].county ? shortCounty(comps[0].county.name) : "";
 
@@ -424,7 +201,9 @@
         el("div", { className: "inner" }, el("p", { className: "muted", textContent:
           "Coming soon. This section will list state, county and federal programs, with how to apply. Final eligibility is always decided by the program's agency." })));
       const actions = el("div", { className: "actions" },
-        el("button", { className: "btn", type: "button", textContent: "Print or save as PDF", onclick: () => window.print() }),
+        el("a", { className: "btn", href: reportUrl(data.geo_id), target: "_blank", rel: "noopener" },
+          "Open full report ↗", el("span", { className: "sr-only", textContent: " (opens in a new tab)" })),
+        el("button", { className: "btn secondary", type: "button", textContent: "Print or save as PDF", onclick: () => window.print() }),
         el("button", { className: "btn secondary", type: "button", textContent: "Copy link to this district",
           onclick: e => { navigator.clipboard && navigator.clipboard.writeText(location.href); e.target.textContent = "Link copied"; } }));
 
@@ -433,71 +212,39 @@
       $("main").replaceChildren(
         el("h2", { className: "district", textContent: data.name }),
         el("p", { className: "sub", textContent: county ? `${county} · ${popLine}` : popLine }),
-        ...[facts, details, taxAreas, context, programs, actions].filter(Boolean));
+        ...[facts, actions, details, taxAreas, context, programs].filter(Boolean));
     }
+
     // ---------- research assistant ----------
+    // Answers stay short; each one links to the report view that holds the full picture.
     const chat = { history: [], busy: false, n: 0 };
 
-    // Minimal, safe Markdown: paragraphs, lists, pipe tables, **bold**, and [S#] citations as
-    // links to the answer's source list. Builds DOM nodes; never inserts HTML from the answer.
-    function inline(text, answerId) {
-      const out = [];
-      text.split(/(\*\*[^*]+\*\*|\[[^\]]*\bS\d+\b[^\]]*\])/g).forEach(part => {
-        if (!part) return;
-        if (part.startsWith("**") && part.endsWith("**")) out.push(el("strong", { textContent: part.slice(2, -2) }));
-        else if (/^\[[^\]]*\bS\d+\b[^\]]*\]$/.test(part)) {
-          const sup = el("sup");
-          (part.match(/S\d+/g) || []).forEach((sid, i) => {
-            if (i) sup.append(",");
-            sup.append(el("a", { href: `#src-${answerId}-${sid}`, textContent: sid.slice(1), title: "Source " + sid.slice(1) }));
-          });
-          out.push(sup);
-        } else out.push(document.createTextNode(part));
-      });
-      return out;
-    }
-    function renderMarkdown(md, answerId) {
-      const frag = document.createDocumentFragment();
-      const lines = md.replace(/\r/g, "").split("\n");
-      let i = 0;
-      while (i < lines.length) {
-        const line = lines[i];
-        if (!line.trim()) { i++; continue; }
-        if (/^\s*\|/.test(line)) {                       // pipe table
-          const rows = [];
-          while (i < lines.length && /^\s*\|/.test(lines[i])) rows.push(lines[i++]);
-          const cells = r => r.trim().replace(/^\||\|$/g, "").split("|").map(c => c.trim());
-          const t = el("table"); const body = el("tbody");
-          rows.filter(r => !/^\s*\|?\s*:?-{2,}/.test(r)).forEach((r, k) => {
-            const tr = document.createElement("tr");
-            cells(r).forEach(c => tr.append(el(k === 0 ? "th" : "td", {}, ...inline(c, answerId))));
-            (k === 0 ? t.createTHead() : body).append(tr);
-          });
-          t.append(body); frag.append(t); continue;
-        }
-        if (/^\s*([-*]|\d+\.)\s+/.test(line)) {          // list
-          const ordered = /^\s*\d+\./.test(line);
-          const list = el(ordered ? "ol" : "ul");
-          while (i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i]))
-            list.append(el("li", {}, ...inline(lines[i++].replace(/^\s*([-*]|\d+\.)\s+/, ""), answerId)));
-          frag.append(list); continue;
-        }
-        const para = [];
-        while (i < lines.length && lines[i].trim() && !/^\s*(\||[-*]\s|\d+\.\s)/.test(lines[i]))
-          para.push(lines[i++].replace(/^#+\s*/, ""));
-        const p = el("p", {}, ...inline(para.join(" "), answerId));
-        if (/^#+\s/.test(line)) p.style.fontWeight = "600";
-        frag.append(p);
-      }
-      return frag;
-    }
-
     function chatContext() {
-      $("chat-ctx").textContent = state.districtId
-        ? `Selected: ${state.districtId.startsWith("HD") ? "House" : "Senate"} District ${state.districtId.split("-")[1]}`
-        : "No district selected";
+      $("chat-ctx").textContent = state.districtId ? `Selected: ${districtLabel(state.districtId)}` : "No district selected";
     }
     function openChat() { $("chat").hidden = false; chatContext(); }
+
+    function reportCard(question, trace) {
+      const id = districtFor(trace, state.districtId);
+      if (!id) return null;
+      const preset = presetById(presetFor(question, trace));
+      return el("a", { className: "report-card", href: reportUrl(id, preset.id, question), target: "_blank", rel: "noopener" },
+        el("div", {}, el("strong", { textContent: "Open full report" }),
+          el("span", { className: "meta", textContent: `${districtLabel(id)} · ${preset.label} · opens in a new tab` })),
+        el("span", { className: "go", textContent: "↗", ariaHidden: "true" }));
+    }
+
+    function sourcesBlock(sources, id) {
+      const ol = el("ol");
+      sources.forEach(s => {
+        const li = el("li", { id: `src-${id}-${s.id}`, value: s.id.slice(1) },
+          `${s.publisher}, ${s.dataset}, ${s.period}. ${s.geography}. `);
+        (s.tables || []).forEach((t, k) => { if (k) li.append(", "); li.append(el("a", { href: t.url, target: "_blank", rel: "noopener", textContent: t.table_id })); });
+        if (s.note) li.append(el("span", { textContent: ` ${s.note.replace(/^Source:\s*/, "")}` }));
+        ol.append(li);
+      });
+      return el("details", { className: "sources" }, el("summary", { textContent: `Sources (${sources.length})` }), ol);
+    }
 
     async function ask(question) {
       question = (question || "").trim();
@@ -516,17 +263,9 @@
         if (!r.ok) throw new Error(data.detail || `The assistant returned an error (${r.status}).`);
         const id = ++chat.n;
         const box = el("div", { className: "msg" }, renderMarkdown(data.answer || "(No answer.)", id));
-        if (data.sources && data.sources.length) {
-          const ol = el("ol");
-          data.sources.forEach(s => {
-            const li = el("li", { id: `src-${id}-${s.id}`, value: s.id.slice(1) },
-              `${s.publisher}, ${s.dataset}, ${s.period}. ${s.geography}. `);
-            (s.tables || []).forEach((t, k) => { if (k) li.append(", "); li.append(el("a", { href: t.url, target: "_blank", rel: "noopener", textContent: t.table_id })); });
-            if (s.note) li.append(el("span", { textContent: ` ${s.note.replace(/^Source:\s*/, "")}` }));
-            ol.append(li);
-          });
-          box.append(el("div", { className: "sources" }, el("strong", { textContent: "Sources" }), ol));
-        }
+        const card = reportCard(question, data.trace || []);
+        if (card) box.append(card);
+        if (data.sources && data.sources.length) box.append(sourcesBlock(data.sources, id));
         if (data.trace && data.trace.length) {
           box.append(el("details", {}, el("summary", { textContent: `What the assistant looked up (${data.trace.length})` }),
             el("pre", { textContent: data.trace.map(t => `${t.tool}(${JSON.stringify(t.input)})${t.error ? "  → error" : ""}`).join("\n") })));
@@ -542,6 +281,14 @@
       }
     }
 
+    // A citation number opens its (collapsed) source list before jumping to the source.
+    $("chat-log").addEventListener("click", e => {
+      const a = e.target.closest("sup a");
+      if (!a) return;
+      const target = document.getElementById(a.getAttribute("href").slice(1));
+      const box = target && target.closest("details");
+      if (box) box.open = true;
+    });
     $("ask-form").addEventListener("submit", e => { e.preventDefault(); const q = $("ask-input").value; $("ask-input").value = ""; ask(q); });
     $("chat-form").addEventListener("submit", e => { e.preventDefault(); const q = $("chat-input").value; $("chat-input").value = ""; ask(q); });
     $("chat-input").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("chat-form").requestSubmit(); } });
@@ -549,7 +296,7 @@
     $("chat-clear").addEventListener("click", () => { chat.history = []; $("chat-log").replaceChildren(); $("chat-input").focus(); });
 
     // Open every section when printing so the page prints as a complete one-pager.
-    window.addEventListener("beforeprint", () => document.querySelectorAll("details").forEach(d => d.open = true));
+    window.addEventListener("beforeprint", () => document.querySelectorAll("#main details").forEach(d => d.open = true));
 
     // ---------- selection ----------
     const ringsOf = g => g.type === "Polygon" ? g.coordinates : g.coordinates.flat(1);
@@ -579,6 +326,8 @@
       state.districtId = id || null;
       $("district").value = id || "";
       chatContext();
+      $("report-link").hidden = !id;
+      if (id) $("report-link").href = reportUrl(id);
       const url = new URL(location.href);
       id ? url.searchParams.set("d", id) : url.searchParams.delete("d");
       history.replaceState(null, "", url);

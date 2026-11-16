@@ -3,3 +3,5 @@ data/
 *.duckdb
 __pycache__/
 .venv/
+# Playwright screenshots and logs from UI checks
+.playwright-mcp/
