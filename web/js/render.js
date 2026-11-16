@@ -1,6 +1,6 @@
 // DOM builders for district figures, shared by the map page and the report page.
 // Every value is inserted with textContent (via el()), never as HTML.
-import { fmtMetric, fmtMoe, diffText, shortCounty, shortGeo } from "./format.js";
+import { fmtMetric, fmtMoe, diffText, shortCounty, shortGeo, compareEstimates } from "./format.js";
 
 export const $ = id => document.getElementById(id);
 
@@ -69,7 +69,10 @@ export function comparisonTable(comps, countyName, { groupRows = true } = {}) {
       }
     }
     const tr = body.insertRow();
-    tr.append(el("th", { scope: "row", textContent: c.label }));
+    const src = el("span", { className: "moe" });
+    tableLinks(c.source, src);
+    src.append(` · ACS 5-year ${c.source.year}`);
+    tr.append(el("th", { scope: "row" }, c.label, src));
     const v = (e, withMoe) => {
       const td = el("td", {}, fmtMetric(e && e.value, c.format));
       if (withMoe && e && e.value != null) td.append(el("span", { className: "moe", textContent: fmtMoe(e.moe, c.format) }));
@@ -87,18 +90,107 @@ export function comparisonTable(comps, countyName, { groupRows = true } = {}) {
   return el("div", { className: "table-wrap" }, t);
 }
 
+// Two districts side by side: one row per measure with both values and margins of error, the
+// difference tested against both margins of error, the state for reference, and the source.
+// `a` and `b` are { id, name, comparisons } from /api/districts/{id}. Explicit ARIA roles keep
+// the table semantics when narrow screens restyle rows as stacked cards.
+export function pairTable(metricIds, a, b) {
+  const byId = (d, id) => d.comparisons.find(c => c.metric_id === id);
+  const t = el("table", { className: "pair" });
+  t.setAttribute("role", "table");
+  const cols = ["Measure", a.name, b.name, `Difference, ${a.id} compared with ${b.id}`, "State"];
+  const head = t.createTHead().insertRow();
+  head.setAttribute("role", "row");
+  // District codes never break at their hyphen.
+  const nb = id => el("span", { style: "white-space:nowrap", textContent: id });
+  const heads = [cols[0], cols[1], cols[2], el("span", {}, "Difference, ", nb(a.id), " compared with ", nb(b.id)), cols[4]];
+  heads.forEach(h => { const th = el("th", { scope: "col" }, h); th.setAttribute("role", "columnheader"); head.append(th); });
+  const body = t.createTBody();
+  const cell = (label, ...kids) => {
+    const td = el("td", {}, ...kids);
+    td.setAttribute("role", "cell");
+    td.dataset.label = label;
+    return td;
+  };
+  const value = (e, c) => {
+    if (!e || e.value == null) return [el("span", { className: "val", textContent: "Not available" }),
+      el("span", { className: "flag", textContent: "Not published for this district" })];
+    const out = [el("span", { className: "val", textContent: fmtMetric(e.value, c.format) }),
+      el("span", { className: "moe", textContent: fmtMoe(e.moe, c.format) })];
+    if (e.low_reliability) out.push(el("span", { className: "flag", textContent: "Low reliability: large margin of error. Treat with caution." }));
+    return out;
+  };
+  metricIds.forEach(id => {
+    const ca = byId(a, id), cb = byId(b, id);
+    const c = ca || cb;
+    const tr = body.insertRow();
+    tr.setAttribute("role", "row");
+    const th = el("th", { scope: "row" }, el("span", { className: "measure", textContent: c ? c.label : id }));
+    th.setAttribute("role", "rowheader");
+    tr.append(th);
+    if (!c) {
+      tr.append(cell(a.id, "Not available"), cell(b.id, "Not available"), cell("Difference", "not available"), cell("State", ""));
+      th.append(el("span", { className: "flag", textContent: "Not in this tool's data yet" }));
+      return;
+    }
+    // Both districts come from the same ACS release; name both geographies when the chambers differ.
+    const geos = [...new Set([ca, cb].filter(Boolean).map(x => shortGeo(x.source.geography)))];
+    const src = srcLine({ ...c.source, geography: geos.join(" and ") });
+    th.append(src);
+    const diff = ca && cb ? compareEstimates(ca.district, cb.district) : null;
+    const d = diffText(diff, c.format);
+    const same = d.text === "about the same" || d.text === "not available";
+    const text = same ? d.text : `${diff.within_margin_of_error ? "about " : ""}${d.text} in ${a.id}`;
+    const diffCell = cell("Difference", el("span", { className: diff && diff.within_margin_of_error === false ? "diff real" : "diff", textContent: text }));
+    if (d.flag) diffCell.append(el("span", { className: "flag", textContent: d.flag }));
+    tr.append(cell(a.id, ...value(ca && ca.district, c)), cell(b.id, ...value(cb && cb.district, c)), diffCell,
+      cell("State", fmtMetric(c.state && c.state.value, c.format)));
+  });
+  return el("div", { className: "table-wrap" }, t);
+}
+
 // Short county name, or "" when the district's county is not known.
 export const countyOf = data => {
   const c = data.comparisons[0] && data.comparisons[0].county;
   return c && c.name ? shortCounty(c.name) : "";
 };
 
-// Every figure behind a profile: all comparisons plus every published count, with sources.
+// The API's broad "District profile" group, split by topic for reading. Display only: any
+// measure not listed here falls into "Other measures", so nothing is ever dropped.
+const PROFILE_TOPICS = [
+  ["People and households", ["share_65_plus", "under_18_share", "kupuna_alone_share", "households_with_children_share",
+    "single_parent_share", "disability_rate", "limited_english_share"]],
+  ["Income and work", ["median_household_income", "poverty_rate", "kupuna_poverty_rate", "income_under_50k_share",
+    "income_200k_plus_share", "social_security_share", "unemployment_rate"]],
+  ["Housing", ["median_gross_rent", "rent_burden_rate", "owner_cost_burden_rate"]],
+];
+
+// Source data appendix: every measure (by topic, each section closed) and every published count,
+// so a reader can check any figure against its Census table. Reference material, not a narrative.
 export function renderDetails(data) {
-  const wrap = el("div");
+  const county = countyOf(data);
+  const wrap = el("div", { className: "source-data" });
   wrap.append(el("p", { className: "muted small", textContent:
-    "Percentages are calculated from published counts. Margins of error use the Census Bureau's method for proportions. A difference inside its margin of error may not be a real difference." }),
-    comparisonTable(data.comparisons, countyOf(data)));
+    "For checking. Every measure for this district with its county and state, and the published Census counts behind each percentage. Percentages are calculated from those counts; margins of error use the Census Bureau's method for proportions. A difference inside its margin of error may not be a real difference." }));
+
+  const sections = [];
+  const placed = new Set();
+  PROFILE_TOPICS.forEach(([title, ids]) => {
+    const comps = ids.map(id => data.comparisons.find(c => c.metric_id === id)).filter(Boolean);
+    comps.forEach(c => placed.add(c.metric_id));
+    sections.push([title, comps]);
+  });
+  const rest = data.comparisons.filter(c => !placed.has(c.metric_id));
+  [...new Set(rest.map(c => c.group))].forEach(g =>
+    sections.push([g === "District profile" ? "Other measures" : g, rest.filter(c => c.group === g)]));
+  sections.filter(([, comps]) => comps.length).forEach(([title, comps]) => {
+    const note = comps[0].group !== "District profile" && comps[0].group_note;
+    const strip = comps.map(c => ({ ...c, label: c.label.replace(/^Employed residents working in:\s*/, "") }));
+    wrap.append(el("details", { className: "sub-details" },
+      el("summary", {}, title, el("span", { className: "count", textContent: ` ${comps.length} measures` })),
+      el("div", { className: "inner" }, note ? el("p", { className: "muted small", textContent: note }) : null,
+        comparisonTable(strip, county, { groupRows: false }))));
+  });
 
   const t2 = el("table");
   const h2 = t2.createTHead().insertRow();
@@ -122,11 +214,14 @@ export function renderDetails(data) {
     tr.append(vt, st);
   });
   if (data.facts.length) {
-    wrap.append(el("h3", { className: "subhead", textContent: "Every figure behind this profile" }),
-      el("p", { className: "muted small", textContent:
-        "All figures: " + data.facts[0].source.publisher + ", " + data.facts[0].source.dataset + ". Geography: " + data.facts[0].source.geography +
-        ". Reported directly for this geography; not estimated or apportioned by us." }),
-      el("div", { className: "table-wrap" }, t2));
+    wrap.append(el("details", { className: "sub-details" },
+      el("summary", {}, "Published counts behind the percentages",
+        el("span", { className: "count", textContent: ` ${data.facts.length} figures, for checking` })),
+      el("div", { className: "inner" },
+        el("p", { className: "muted small", textContent:
+          "All figures: " + data.facts[0].source.publisher + ", " + data.facts[0].source.dataset + ". Geography: " + data.facts[0].source.geography +
+          ". Reported directly for this geography; not estimated or apportioned by us." }),
+        el("div", { className: "table-wrap" }, t2))));
   }
   return wrap;
 }

@@ -31,7 +31,7 @@ Seth Colby's kickoff video ("Seth").
 - [x] Employment by industry [Calculations]: ACS C24050, 13 industries as shares of employed residents, compared with county and state, and selectable on the map. These are jobs held by residents, not jobs located in the district.
 - [ ] Other indicators DBEDT/READ prioritizes [Calculations]. Ask the champion (Slack #c_dbedt_agent) which.
 - [ ] Team decision on the headline statistics (`KEY_METRICS` in `web/index.html`). Seth: fewer, well-chosen figures rank higher.
-- [ ] Compare two districts side by side [Seth]
+- [x] Compare two districts side by side [Seth]: "Compare with" picker on the report page (`/report.html?d=HD-47&vs=HD-24`, `pairTable` in `web/js/render.js`); each difference is tested against both margins of error (same rule as the county comparison), works across chambers with an overlap note
 - [ ] Detail finer than the district (e.g. North Shore vs Waialua) [Seth]
 - [~] Check a high-income district (e.g. Kahala) reads sensibly, not only struggling ones [Seth]
 
@@ -60,7 +60,7 @@ Seth Colby's kickoff video ("Seth").
 
 - [~] Print / save as PDF button. Works through the browser; layout not reviewed.
   - [ ] Review the printed page: sources visible, no cut-off tables, ʻokina correct
-  - [ ] Include date generated and data period on the printout
+  - [x] Include date generated and data period on the printout (report page, single and two-district)
 
 ## 6. Data sources
 

@@ -6,55 +6,104 @@
   <title>District report · Know Your District</title>
   <link rel="stylesheet" href="/css/base.css">
   <style>
-    .bar { background: var(--card); border-bottom: 1px solid var(--border); padding: 0.6rem 1.5rem;
-           display: flex; flex-wrap: wrap; align-items: end; gap: 0.6rem 1.25rem; }
-    .brand { font-weight: 700; font-size: 1.1rem; color: var(--accent-dark); text-decoration: none; margin-right: auto; align-self: center; }
-    .bar select { min-width: 12rem; }
+    /* Carbon UI shell (dark 48px) above a white control bar */
+    .shell { background: var(--shell); min-height: 3rem; display: flex; align-items: center; padding: 0 1.5rem; }
+    .brand { font-size: 0.875rem; font-weight: 600; letter-spacing: 0.1px; color: #f4f4f4; text-decoration: none; }
+    .brand span { font-weight: 400; color: #c6c6c6; }
+    .brand:hover { color: #fff; }
+    .bar { background: var(--bg); border-bottom: 1px solid var(--border); padding: 0.75rem 1.5rem 1rem;
+           display: flex; flex-wrap: wrap; align-items: end; gap: 1rem 1.5rem; }
+    .bar #back { margin-right: auto; padding-left: 0; }
+    .bar select { min-width: 14rem; }
 
-    main { max-width: 72rem; margin: 0 auto; padding: 1.25rem 1.5rem 3rem; }
-    .from-q { background: var(--accent-soft); border-left: 4px solid var(--accent); border-radius: 4px;
-              padding: 0.5rem 0.8rem; margin: 0 0 1rem; font-size: 0.88rem; }
+    main { max-width: 74rem; margin: 0 auto; padding: 2rem 1.5rem 3rem; }
+    /* Carbon inline notification (info, low contrast) */
+    .from-q, .pair-note { background: var(--info-bg); border-left: 3px solid var(--info-border); color: var(--text);
+              padding: 0.75rem 1rem 0.75rem 2.75rem; margin: 0 0 1rem; font-size: 0.875rem; position: relative; }
+    .from-q::before, .pair-note::before { content: ""; position: absolute; left: 1rem; top: 0.875rem; width: 1rem; height: 1rem;
+              background: var(--info-border); -webkit-mask: var(--i-info) no-repeat center / contain; mask: var(--i-info) no-repeat center / contain; }
     .from-q[hidden] { display: none; }
-    h1 { margin: 0; font-size: 2rem; line-height: 1.15; }
-    .sub { margin: 0.2rem 0 1rem; color: var(--muted); }
+    h1 { margin: 0; font-size: 2rem; font-weight: 400; line-height: 1.25; }
+    .sub { margin: 0.375rem 0 1.5rem; color: var(--muted); font-size: 0.875rem; }
 
-    /* Preset tabs: wrap on narrow screens instead of scrolling sideways. */
-    .tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
-    .tabs [role="tab"] { font: inherit; font-size: 0.9rem; padding: 0.4rem 0.9rem; border-radius: 999px;
-                         border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; }
-    .tabs [role="tab"]:hover { border-color: var(--accent); }
-    .tabs [role="tab"][aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+    /* Carbon line tabs: wrap on narrow screens instead of scrolling sideways */
+    .tabs { display: flex; flex-wrap: wrap; margin: 0 0 1.5rem; }
+    .tabs [role="tab"] { font: inherit; font-size: 0.875rem; letter-spacing: 0.16px; min-height: 2.5rem; padding: 0 1rem;
+                         border: 0; border-bottom: 2px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; }
+    .tabs [role="tab"]:hover { color: var(--text); border-bottom-color: var(--border-strong); }
+    .tabs [role="tab"][aria-selected="true"] { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); }
 
-    .blurb { margin: 0 0 0.4rem; font-size: 1.05rem; }
-    .notes { margin: 0 0 0.9rem; }
-    .notes p { margin: 0.15rem 0; }
-    .block { margin-top: 1.5rem; }
-    .block > h2 { font-size: 1.1rem; margin: 0 0 0.4rem; }
-    .block > .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.8rem 1rem; }
-    #panel:focus-visible { outline: 3px solid var(--accent); outline-offset: 6px; }
+    .blurb { margin: 0 0 0.5rem; font-size: 1rem; }
+    .notes { margin: 0 0 1rem; }
+    .notes p { margin: 0.25rem 0; }
+    .block { margin-top: 2.5rem; }
+    .block > h2 { font-size: 1.25rem; font-weight: 400; margin: 0 0 0.75rem; }
+    .block > .card { background: var(--layer); padding: 1rem; font-size: 0.875rem; }
+    #panel:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+    #all { margin-top: 2.5rem; }
+    #all > summary { font-weight: 600; }
     .print-only { display: none; }
 
+    /* Two-district comparison */
+    .pair-note[hidden], #pair[hidden], #all[hidden] { display: none; }
+    #pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; margin: 0 0 2rem; }
+    .pcard { background: var(--layer); padding: 1rem; border-top: 3px solid var(--accent); }
+    .pcard.b { border-top-color: var(--text); }
+    .pcard h2 { margin: 0 0 0.375rem; font-size: 1.25rem; font-weight: 400; }
+    .pcard p { margin: 0.125rem 0; font-size: 0.875rem; }
+    .pcard a { display: inline-block; margin-top: 0.5rem; font-size: 0.875rem; }
+    table.pair th[scope="row"] { width: 30%; min-width: 12rem; }
+    table.pair td { width: 16%; }
+    table.pair td:nth-child(4) { width: 26%; }
+    table.pair td:last-child { width: 12%; }
+    table.pair .measure { display: block; font-weight: 600; }
+    table.pair th .src { margin-top: 0.25rem; font-weight: normal; }
+    table.pair .val { display: block; font-weight: 600; font-size: 1rem; font-variant-numeric: tabular-nums; }
+    table.pair .diff { display: block; color: var(--muted); }
+    table.pair .diff.real { color: var(--text); font-weight: 600; }
+
     @media (max-width: 600px) {
-      .bar { padding: 0.6rem 1rem; }
+      .shell { padding: 0 1rem; }
+      .bar { padding: 0.75rem 1rem 1rem; }
       .bar .field, .bar select { width: 100%; }
-      main { padding: 1rem; }
-      h1 { font-size: 1.6rem; }
+      main { padding: 1.5rem 1rem; }
+      h1 { font-size: 1.75rem; }
       .facts { grid-template-columns: 1fr; }
+      #pair { grid-template-columns: 1fr; }
+      .actions .btn { flex: 1 1 100%; }
+    }
+    /* Narrow screens: each measure becomes a tile; the column name moves in front of each value. */
+    @media screen and (max-width: 600px) {
+      table.pair tbody tr:hover { background: var(--layer); }
+      table.pair thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+      table.pair, table.pair tbody, table.pair tr, table.pair th, table.pair td { display: block; }
+      table.pair tr { background: var(--layer); padding: 1rem; margin-bottom: 1px; }
+      table.pair th, table.pair td { border-top: 0; padding: 0.25rem 0; }
+      table.pair th[scope="row"] { min-width: 0; padding-bottom: 0.5rem; }
+      table.pair th[scope="row"], table.pair td, table.pair td:nth-child(4), table.pair td:last-child { width: auto; }
+      table.pair td { display: grid; grid-template-columns: 5.5rem 1fr; column-gap: 0.5rem; }
+      table.pair td::before { content: attr(data-label); grid-row: 1 / span 4; font-size: 0.75rem; letter-spacing: 0.32px; color: var(--muted); }
     }
     @media print {
-      .bar, .tabs, .actions, .from-q { display: none !important; }
+      .shell, .bar, .tabs, .actions, .from-q { display: none !important; }
       .print-only { display: block; }
       main { max-width: none; padding: 0; }
+      #pair { grid-template-columns: 1fr 1fr; }
+      table.pair tr { break-inside: avoid; }
     }
   </style>
 </head>
 <body>
+  <div class="shell"><a class="brand" href="/">Know Your District <span>· Hawaiʻi legislative districts</span></a></div>
   <header class="bar">
-    <a class="brand" href="/">Know Your District</a>
-    <a class="btn secondary small" id="back" href="/">← Back to map</a>
+    <a class="btn ghost i-back" id="back" href="/">Back to map</a>
     <div class="field">
       <label for="district">District</label>
       <select id="district"><option value="">Loading…</option></select>
+    </div>
+    <div class="field">
+      <label for="vs">Compare with</label>
+      <select id="vs"><option value="">Loading…</option></select>
     </div>
   </header>
 
@@ -63,16 +112,18 @@
     <h1 id="title">District report</h1>
     <p class="sub" id="sub"></p>
     <div id="plan"></div>
+    <p class="pair-note" id="pair-note" hidden></p>
+    <div id="pair" hidden></div>
     <p class="print-only muted" id="print-view"></p>
     <div class="tabs" role="tablist" aria-label="Report views" id="tabs"></div>
     <section id="panel" role="tabpanel" tabindex="0" aria-live="polite"></section>
     <details id="all">
-      <summary>All figures and sources for this district</summary>
+      <summary>Source data: every figure and how to check it</summary>
       <div class="inner" id="all-inner"></div>
     </details>
     <div class="actions">
-      <button class="btn" type="button" id="print">Print or save as PDF</button>
-      <button class="btn secondary" type="button" id="copy">Copy link to this report</button>
+      <button class="btn i-print" type="button" id="print">Print or save as PDF</button>
+      <button class="btn secondary i-copy" type="button" id="copy">Copy link to this report</button>
     </div>
   </main>
 
@@ -82,12 +133,16 @@
   </footer>
 
   <script type="module">
-    import { $, el, renderKeyFact, missingFact, comparisonTable, renderDetails, contextBody, taxAreasBody, programsBody, planLine, countyOf } from "/js/render.js";
-    import { fmtCount, fmtMoe } from "/js/format.js";
+    import { $, el, renderKeyFact, missingFact, comparisonTable, renderDetails, contextBody, taxAreasBody, programsBody, planLine, countyOf, pairTable, reportUrl } from "/js/render.js";
+    import { fmtCount, fmtMoe, fmtToday } from "/js/format.js";
     import { PRESETS, presetById } from "/js/presets.js";
 
     const params = new URL(location.href).searchParams;
-    const state = { id: (params.get("d") || "").toUpperCase(), view: presetById(params.get("view")).id, data: null };
+    const state = {
+      id: (params.get("d") || "").toUpperCase(), vs: (params.get("vs") || "").toUpperCase(),
+      view: presetById(params.get("view")).id, data: null, dataVs: null, list: [],
+    };
+    const comparing = () => !!(state.data && state.dataVs);
 
     const question = (params.get("q") || "").trim();
     if (question) { $("from-q").hidden = false; $("from-q").textContent = `Opened from the assistant for your question: “${question}”`; }
@@ -95,6 +150,7 @@
     function syncUrl() {
       const u = new URL(location.href);
       state.id ? u.searchParams.set("d", state.id) : u.searchParams.delete("d");
+      state.id && state.vs ? u.searchParams.set("vs", state.vs) : u.searchParams.delete("vs");
       state.view !== "overview" ? u.searchParams.set("view", state.view) : u.searchParams.delete("view");
       history.replaceState(null, "", u);
       $("back").href = state.id ? "/?d=" + encodeURIComponent(state.id) : "/";
@@ -152,50 +208,133 @@
         body || el("p", { className: "muted", textContent: "Not available for this district in this tool's data." }));
     }
 
+    // A section in comparison mode. Metric groups compare side by side; tax areas, county context
+    // and programs describe one district or its county, so they link to each district's own report.
+    function renderPairSection(s, a, b) {
+      let body;
+      if (s.type === "group") {
+        const comps = a.comparisons.filter(c => c.group === s.group);
+        const strip = x => ({ ...x, comparisons: x.comparisons.map(c => ({ ...c, label: c.label.replace(/^Employed residents working in:\s*/, "") })) });
+        body = comps.length ? el("div", {},
+          comps[0].group_note ? el("p", { className: "muted small", textContent: comps[0].group_note }) : null,
+          pairTable(comps.map(c => c.metric_id), strip(a), strip(b))) : null;
+      } else if (s.type === "note") {
+        body = el("div", { className: "card" }, el("p", { className: "muted", style: "margin:0", textContent: s.text }));
+      } else {
+        const what = s.type === "taxAreas" ? "Tax areas overlap each district differently"
+          : s.type === "programs" ? "Program details are the same for every district"
+          : "These figures describe each district's county, not the district";
+        const link = d => el("a", { href: reportUrl(d.geo_id, state.view), textContent: d.name });
+        body = el("div", { className: "card" }, el("p", { className: "muted", style: "margin:0" },
+          `${what}, so they are not compared here. See them in each district's report: `, link(a), " and ", link(b), "."));
+      }
+      return el("section", { className: "block" }, el("h2", { textContent: s.title }),
+        body || el("p", { className: "muted", textContent: "Not available for these districts in this tool's data." }));
+    }
+
+    function printLine(label) {
+      const data = state.data;
+      const year = data && data.comparisons[0] ? data.comparisons[0].source.year : "";
+      $("print-view").textContent = [`Generated ${fmtToday()}`, year && `Data: Census ACS 5-year ${year}`, `View: ${label}`].filter(Boolean).join(" · ");
+    }
+
     function renderPanel() {
       const data = state.data;
       if (!data) return;
       const p = presetById(state.view);
+      const notes = el("div", { className: "notes" }, ...(p.notes || []).map(n => el("p", { className: "muted small", textContent: n })));
+      printLine(p.label);
+      if (comparing()) {
+        const a = { ...data, id: data.geo_id }, b = { ...state.dataVs, id: state.dataVs.geo_id };
+        $("panel").replaceChildren(
+          el("p", { className: "blurb", textContent: `The ${p.label.toLowerCase()} figures for both districts. Each difference is tested against both districts' margins of error.` }),
+          notes, pairTable(p.metrics, a, b), ...p.sections.map(s => renderPairSection(s, a, b)));
+        document.title = `${data.geo_id} compared with ${state.dataVs.geo_id} · ${p.label} · Know Your District`;
+        return;
+      }
       const county = countyOf(data);
       const facts = el("div", { className: "facts" });
       p.metrics.forEach(id => {
         const c = data.comparisons.find(x => x.metric_id === id);
         facts.append(c ? renderKeyFact(c) : missingFact(id));
       });
-      const notes = el("div", { className: "notes" }, ...(p.notes || []).map(n => el("p", { className: "muted small", textContent: n })));
       $("panel").replaceChildren(el("p", { className: "blurb", textContent: p.blurb }), notes, facts,
         ...p.sections.map(s => renderSection(s, data, county)));
-      $("print-view").textContent = `View: ${p.label}`;
       document.title = `${data.name} · ${p.label} · Know Your District`;
     }
 
     // ---------- data ----------
-    async function loadDistrict(id) {
-      state.id = id; state.data = null;
+    const popLine = data => {
+      const pop = data.facts.find(f => f.indicator_id === "pop_total");
+      return pop && pop.value_status === "ok"
+        ? `About ${fmtCount(pop.value)} residents (${fmtMoe(pop.moe, "count")})` : "Population not available";
+    };
+
+    async function fetchDistrict(id) {
+      const res = await fetch("/api/districts/" + encodeURIComponent(id));
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+      return res.json();
+    }
+
+    function pairCard(data, cls) {
+      const card = el("article", { className: "pcard " + cls }, el("h2", { textContent: data.name }),
+        el("p", { textContent: countyOf(data) || "County not known" }), el("p", { textContent: popLine(data) }));
+      if (data.plan) card.append(el("p", { className: "muted", textContent:
+        `Official permanent residents (2021 Reapportionment Plan): ${data.plan.permanent_residents.toLocaleString("en-US")}` }));
+      card.append(el("a", { href: reportUrl(data.geo_id, state.view), textContent: "Open this district's full report" }));
+      return card;
+    }
+
+    // Fill the "Compare with" list: every district except the one chosen.
+    function fillVsOptions() {
+      const sel = $("vs");
+      sel.replaceChildren(new Option("None", ""));
+      [["house", "House"], ["senate", "Senate"]].forEach(([type, label]) => {
+        const g = el("optgroup", { label });
+        state.list.filter(d => d.geo_type === type && d.geo_id !== state.id).forEach(d => g.append(new Option(d.name, d.geo_id)));
+        sel.append(g);
+      });
+      sel.disabled = !state.id;
+      sel.value = state.vs || "";
+    }
+
+    async function load() {
+      const { id, vs } = state;
+      state.data = null; state.dataVs = null;
       $("district").value = id || "";
+      fillVsOptions();
       syncUrl();
+      $("pair").hidden = true; $("pair-note").hidden = true;
       if (!id) {
         $("title").textContent = "Choose a district";
         $("sub").textContent = "Pick a House or Senate district above to see its report.";
-        $("panel").replaceChildren(); $("all-inner").replaceChildren();
+        $("plan").replaceChildren(); $("panel").replaceChildren(); $("all-inner").replaceChildren();
         return;
       }
       $("panel").replaceChildren(el("p", { className: "muted", textContent: "Loading…" }));
       try {
-        const res = await fetch("/api/districts/" + encodeURIComponent(id));
-        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
-        const data = await res.json();
-        if (state.id !== id) return; // user already moved on
-        state.data = data;
-        const county = countyOf(data);
-        const pop = data.facts.find(f => f.indicator_id === "pop_total");
-        const popLine = pop && pop.value_status === "ok"
-          ? `About ${fmtCount(pop.value)} residents (${fmtMoe(pop.moe, "count")})` : "Population not available";
+        const [data, dataVs] = await Promise.all([fetchDistrict(id), vs ? fetchDistrict(vs) : null]);
+        if (state.id !== id || state.vs !== vs) return; // user already moved on
+        state.data = data; state.dataVs = dataVs;
         const year = data.comparisons[0] ? data.comparisons[0].source.year : "";
-        $("title").textContent = data.name;
-        $("sub").textContent = [county, popLine, year && `Census ACS 5-year ${year}`].filter(Boolean).join(" · ");
-        $("plan").replaceChildren(...[planLine(data)].filter(Boolean));
-        $("all-inner").replaceChildren(renderDetails(data));
+        if (dataVs) {
+          $("title").textContent = `${data.name} compared with ${dataVs.name}`;
+          $("sub").textContent = [year && `Census ACS 5-year ${year}`, "Every difference is tested against both margins of error"].filter(Boolean).join(" · ");
+          $("plan").replaceChildren();
+          $("pair").replaceChildren(pairCard(data, "a"), pairCard(dataVs, "b"));
+          $("pair").hidden = false;
+          if (data.geo_type !== dataVs.geo_type) {
+            $("pair-note").textContent = "House and Senate districts overlap and differ in size. Rates and medians can be compared, but the same residents may be counted in both, so the margin-of-error test is only approximate.";
+            $("pair-note").hidden = false;
+          }
+          $("all").hidden = true;
+        } else {
+          $("title").textContent = data.name;
+          $("sub").textContent = [countyOf(data), popLine(data), year && `Census ACS 5-year ${year}`].filter(Boolean).join(" · ");
+          $("plan").replaceChildren(...[planLine(data)].filter(Boolean));
+          $("all-inner").replaceChildren(renderDetails(data));
+          $("all").hidden = false;
+        }
         renderPanel();
       } catch (err) {
         $("title").textContent = "District report";
@@ -208,23 +347,30 @@
       try {
         const res = await fetch("/api/districts");
         if (!res.ok) throw new Error("Data service unavailable");
-        const list = await res.json();
+        state.list = await res.json();
         const sel = $("district");
         sel.replaceChildren(new Option("Choose…", ""));
         [["house", "House"], ["senate", "Senate"]].forEach(([type, label]) => {
           const g = el("optgroup", { label });
-          list.filter(d => d.geo_type === type).forEach(d => g.append(new Option(d.name, d.geo_id)));
+          state.list.filter(d => d.geo_type === type).forEach(d => g.append(new Option(d.name, d.geo_id)));
           sel.append(g);
         });
-        if (state.id && !list.some(d => d.geo_id === state.id)) state.id = "";
+        const known = id => state.list.some(d => d.geo_id === id);
+        if (state.id && !known(state.id)) state.id = "";
+        if (!state.id || !known(state.vs) || state.vs === state.id) state.vs = "";
       } catch (err) {
         $("panel").replaceChildren(el("p", { className: "error", textContent: "Could not load. " + err.message }));
         return;
       }
-      loadDistrict(state.id);
+      load();
     }
 
-    $("district").addEventListener("change", e => loadDistrict(e.target.value));
+    $("district").addEventListener("change", e => {
+      state.id = e.target.value;
+      if (!state.id || state.vs === state.id) state.vs = "";
+      load();
+    });
+    $("vs").addEventListener("change", e => { state.vs = e.target.value; load(); });
     $("print").addEventListener("click", () => window.print());
     $("copy").addEventListener("click", e => {
       const u = new URL(location.href);
