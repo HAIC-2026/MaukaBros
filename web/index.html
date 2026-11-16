@@ -9,85 +9,100 @@
   <script src="https://js.arcgis.com/4.31/"></script>
   <link rel="stylesheet" href="/css/base.css">
   <style>
-    :root { --hdr: 8rem; }
-    header.top { position: sticky; top: 0; z-index: 10; background: var(--card);
-                 border-bottom: 1px solid var(--border); padding: 0.6rem 1.5rem 0.75rem; }
-    .toprow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.5rem; }
-    header.top h1 { margin: 0; font-size: 1.35rem; color: var(--accent-dark); }
-    .controls { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; align-items: end; margin-top: 0.4rem; }
+    :root { --hdr: 8.75rem; }
+    /* Carbon UI shell: dark 48px bar with the product name and the assistant search */
+    header.top { position: sticky; top: 0; z-index: 10; background: var(--bg); border-bottom: 1px solid var(--border); }
+    .toprow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 2rem; background: var(--shell);
+              min-height: 3rem; padding: 0.25rem 1rem 0.25rem 1.5rem; }
+    header.top h1 { margin: 0; font-size: 0.875rem; font-weight: 600; letter-spacing: 0.1px; color: #f4f4f4; white-space: nowrap; }
+    header.top h1 span { font-weight: 400; color: #c6c6c6; }
+    .controls { display: flex; flex-wrap: wrap; gap: 1rem 1.5rem; align-items: end; padding: 0.75rem 1.5rem 1rem; }
     select { min-width: 12rem; }
     .controls .field { min-width: 0; max-width: 100%; }
     #metric { width: 22rem; max-width: 100%; } /* long option labels would otherwise widen the page */
-    .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
-    .seg button { font: inherit; padding: 0.45rem 0.9rem; border: 0; background: var(--card); color: var(--text); cursor: pointer; }
-    .seg button + button { border-left: 1px solid var(--border); }
-    .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; font-weight: 600; }
-    .ask { display: flex; gap: 0.4rem; flex: 1 1 22rem; min-width: 14rem; }
-    .ask input { flex: 1; min-width: 0; background: var(--input); }
+    /* Carbon content switcher */
+    .seg { display: inline-flex; border: 1px solid var(--text); }
+    .seg button { font: inherit; font-size: 0.875rem; min-height: 2.375rem; padding: 0 1rem; border: 0; background: var(--bg);
+                  color: var(--muted); cursor: pointer; }
+    .seg button + button { border-left: 1px solid var(--border-strong); }
+    .seg button:hover { background: var(--layer-hover); color: var(--text); }
+    .seg button[aria-pressed="true"] { background: var(--text); color: #fff; }
+    /* Assistant search on the dark shell (Carbon g100 field) */
+    .ask { display: flex; flex: 1 1 22rem; min-width: 14rem; max-width: 48rem; margin-left: auto; }
+    .ask input { flex: 1; min-width: 0; background: #262626; color: #f4f4f4; border-bottom-color: #6f6f6f; }
+    .ask input:hover { background: #333333; }
+    .ask input::placeholder { color: #a8a8a8; }
     #report-link[hidden] { display: none; }
 
-    .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 1.5rem;
-              padding: 1.25rem 1.5rem 3rem; }
-    .col-map { position: sticky; top: calc(var(--hdr) + 0.75rem); align-self: start;
-               height: calc(100vh - var(--hdr) - 1.5rem); min-height: 26rem;
+    /* Profile gets the wider column so tiles have room; the map stays large and sticky. */
+    .layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 3rem;
+              padding: 2rem 2rem 4rem; max-width: 120rem; margin: 0 auto; }
+    .col-map { position: sticky; top: calc(var(--hdr) + 1rem); align-self: start;
+               height: calc(100vh - var(--hdr) - 2rem); min-height: 26rem;
                display: flex; flex-direction: column; gap: 0.5rem; }
-    .islands { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-    .islands button { font: inherit; font-size: 0.85rem; padding: 0.3rem 0.8rem; border-radius: 999px;
-                      border: 1px solid var(--border); background: var(--card); cursor: pointer; }
-    .islands button:hover { border-color: var(--accent); }
-    #viewDiv { flex: 1; min-height: 0; border: 1px solid var(--border); border-radius: 8px; background: #bcd9ea; }
-    .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 1rem; font-size: 0.82rem; }
+    .islands { display: flex; flex-wrap: wrap; gap: 0; }
+    .islands button { font: inherit; font-size: 0.875rem; min-height: 2rem; padding: 0 0.75rem; border: 0;
+                      border-bottom: 2px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; }
+    .islands button:hover { color: var(--text); border-bottom-color: var(--border-strong); }
+    #viewDiv { flex: 1; min-height: 0; border: 1px solid var(--border); background: #bcd9ea; overflow: hidden; }
+    .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1rem; font-size: 0.75rem; letter-spacing: 0.32px; }
     .legend .title { font-weight: 600; }
-    .legend .item { display: inline-flex; align-items: center; gap: 0.35rem; }
-    .legend .sw { width: 1.1rem; height: 0.8rem; border: 1px solid rgba(0,0,0,0.25); display: inline-block; }
-    .mapnote { margin: 0; font-size: 0.78rem; color: var(--muted); }
-    .hover { margin: 0; font-size: 0.85rem; min-height: 1.3rem; font-weight: 600; }
+    .legend .item { display: inline-flex; align-items: center; gap: 0.375rem; }
+    .legend .sw { width: 1rem; height: 0.75rem; border: 1px solid rgba(0,0,0,0.25); display: inline-block; }
+    .mapnote { margin: 0; font-size: 0.75rem; letter-spacing: 0.32px; color: var(--muted); }
+    .hover { margin: 0; font-size: 0.875rem; min-height: 1.3rem; font-weight: 600; }
 
-    h2.district { margin: 0; font-size: 2rem; line-height: 1.15; }
-    .sub { margin: 0.2rem 0 1rem; color: var(--muted); font-size: 1rem; }
-    .empty { padding: 3rem 1rem; color: var(--muted); }
-    .empty h2 { color: var(--text); font-size: 1.6rem; margin: 0 0 0.5rem; }
+    h2.district { margin: 0; font-size: 2rem; font-weight: 400; line-height: 1.25; }
+    .sub { margin: 0.5rem 0 1rem; color: var(--muted); font-size: 1rem; }
+    .empty { padding: 2rem; color: var(--muted); background: var(--layer); border-left: 3px solid var(--accent); }
+    .empty h2 { color: var(--text); font-size: 1.5rem; font-weight: 400; margin: 0 0 0.5rem; }
 
     /* Research assistant panel: short answers here, the full picture on the report page. */
     .chat { position: fixed; right: 1rem; bottom: 1rem; z-index: 20; width: min(34rem, calc(100vw - 2rem));
-            max-height: calc(100vh - 2rem); display: flex; flex-direction: column; background: var(--card);
-            border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,0.18); }
+            max-height: calc(100vh - 2rem); display: flex; flex-direction: column; background: var(--bg);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); }
     .chat[hidden] { display: none; }
     .chat-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
-                 padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--border); }
-    .chat-head h2 { margin: 0; font-size: 1rem; color: var(--accent-dark); }
-    .chat-head .ctx { font-size: 0.78rem; color: var(--muted); }
-    .chat-log { overflow-y: auto; padding: 0.8rem 0.9rem; flex: 1; min-height: 8rem; }
-    .msg { margin: 0 0 0.9rem; }
-    .msg.user { background: var(--input); border-radius: 8px; padding: 0.5rem 0.7rem; }
-    .msg p, .msg ul, .msg ol { margin: 0.35rem 0; }
-    .msg table { margin: 0.4rem 0; }
-    .msg sup a { text-decoration: none; font-size: 0.72rem; font-weight: 600; }
-    .msg details { margin-top: 0.4rem; font-size: 0.76rem; }
-    .msg details > summary { padding: 0.35rem 0.6rem; font-weight: 600; }
-    .msg details ol { padding: 0 0.6rem 0.5rem 2.2rem; margin: 0; color: var(--muted); }
-    .msg details pre { white-space: pre-wrap; margin: 0; padding: 0 0.6rem 0.5rem; font-size: 0.72rem; }
-    .report-card { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem;
-                   margin-top: 0.6rem; padding: 0.6rem 0.8rem; border: 1px solid var(--accent); border-radius: 8px;
-                   background: var(--accent-soft); color: var(--text); text-decoration: none; }
-    .report-card:hover { background: #d4ebe9; }
-    .report-card strong { display: block; color: var(--accent-dark); }
-    .report-card .meta { font-size: 0.8rem; color: var(--muted); }
-    .report-card .go { font-size: 1.2rem; color: var(--accent-dark); }
-    .chat-form { display: flex; gap: 0.4rem; padding: 0.6rem 0.9rem; border-top: 1px solid var(--border); }
-    .chat-form textarea { flex: 1; font: inherit; resize: vertical; min-height: 2.6rem; max-height: 10rem;
-                          padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; }
-    .chat-note { margin: 0; padding: 0 0.9rem 0.6rem; font-size: 0.72rem; color: var(--muted); }
+                 min-height: 3rem; padding: 0.25rem 0.5rem 0.25rem 1rem; background: var(--shell); color: #f4f4f4; }
+    .chat-head h2 { margin: 0; font-size: 0.875rem; font-weight: 600; }
+    .chat-head .ctx { font-size: 0.75rem; color: #c6c6c6; }
+    .chat-head .btn.ghost { color: #f4f4f4; }
+    .chat-head .btn.ghost:hover { background: #333333; color: #fff; }
+    .chat-log { overflow-y: auto; padding: 1rem; flex: 1; min-height: 8rem; font-size: 0.875rem; }
+    .msg { margin: 0 0 1rem; }
+    .msg.user { background: var(--layer); border-left: 3px solid var(--accent); padding: 0.5rem 0.75rem;
+                width: fit-content; max-width: 85%; margin-left: auto; }
+    .msg p, .msg ul, .msg ol { margin: 0.375rem 0; }
+    .msg table { margin: 0.5rem 0; }
+    .msg sup a { text-decoration: none; font-size: 0.75rem; font-weight: 600; }
+    .msg details { margin-top: 0.5rem; font-size: 0.75rem; }
+    .msg details > summary { padding: 0.375rem 0.5rem; min-height: 2rem; font-weight: 600; }
+    .msg details ol { padding: 0 0.5rem 0.5rem 2.25rem; margin: 0; color: var(--muted); }
+    .msg details pre { white-space: pre-wrap; margin: 0; padding: 0 0.5rem 0.5rem; font-size: 0.75rem; }
+    /* Carbon clickable tile */
+    .report-card { display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+                   margin-top: 0.75rem; padding: 0.75rem 1rem; background: var(--layer); color: var(--text); text-decoration: none; }
+    .report-card:hover { background: var(--layer-hover); color: var(--text); }
+    .report-card strong { display: block; color: var(--accent); font-weight: 600; }
+    .report-card .meta { font-size: 0.75rem; color: var(--muted); }
+    .report-card .go { font-size: 0; width: 1rem; height: 1rem; flex: none; background: var(--accent);
+                       -webkit-mask: var(--i-launch) no-repeat center / contain; mask: var(--i-launch) no-repeat center / contain; }
+    .chat-form { display: flex; gap: 0; align-items: stretch; border-top: 1px solid var(--border); }
+    .chat-form textarea { flex: 1; resize: vertical; min-height: 3rem; max-height: 10rem; }
+    .chat-form .btn { min-height: 3rem; }
+    .chat-note { margin: 0; padding: 0.5rem 1rem 0.75rem; font-size: 0.75rem; letter-spacing: 0.32px; color: var(--muted); background: var(--layer); }
     .thinking { color: var(--muted); font-style: italic; }
 
     @media (max-width: 900px) {
       .layout { grid-template-columns: minmax(0, 1fr); padding: 1rem; }
       .col-map { position: static; height: 70vh; order: -1; }
-      header.top { position: static; padding: 0.6rem 1rem 0.75rem; }
+      header.top { position: static; }
+      .toprow { padding: 0.5rem 1rem; }
+      .controls { padding: 0.75rem 1rem 1rem; }
     }
     @media (max-width: 600px) {
       .controls .field, .controls select, #metric, #report-link { width: 100%; }
-      #report-link { justify-content: center; }
+      .ask { margin-left: 0; }
     }
     @media print {
       header.top, .col-map, .actions, .chat { display: none !important; }
@@ -98,11 +113,11 @@
 <body>
   <header class="top" id="hdr">
     <div class="toprow">
-      <h1>Know Your District</h1>
+      <h1>Know Your District <span>· Hawaiʻi legislative districts</span></h1>
       <form class="ask" id="ask-form" aria-label="Ask the research assistant">
         <label for="ask-input" class="sr-only">Ask a question about a district</label>
         <input id="ask-input" type="text" autocomplete="off" placeholder='Ask a question, e.g. "How many kūpuna in my district live on fixed incomes?"'>
-        <button class="btn secondary" type="submit">Ask</button>
+        <button class="btn i-chat" type="submit">Ask</button>
       </form>
     </div>
     <div class="controls">
@@ -121,7 +136,7 @@
         <label for="metric">Color the map by</label>
         <select id="metric"><option>Loading...</option></select>
       </div>
-      <a class="btn secondary" id="report-link" href="/report.html" target="_blank" rel="noopener" hidden>Full report ↗<span class="sr-only"> (opens in a new tab)</span></a>
+      <a class="btn secondary i-launch" id="report-link" href="/report.html" target="_blank" rel="noopener" hidden>Full report<span class="sr-only"> (opens in a new tab)</span></a>
     </div>
   </header>
 
@@ -146,8 +161,8 @@
     <div class="chat-head">
       <div><h2>Research assistant</h2><div class="ctx" id="chat-ctx"></div></div>
       <div style="display:flex;gap:0.4rem">
-        <button class="btn secondary small" type="button" id="chat-clear">New conversation</button>
-        <button class="btn secondary small" type="button" id="chat-close" aria-label="Close the assistant">Close</button>
+        <button class="btn ghost small" type="button" id="chat-clear">New conversation</button>
+        <button class="btn ghost small" type="button" id="chat-close" aria-label="Close the assistant">Close</button>
       </div>
     </div>
     <div class="chat-log" id="chat-log" aria-live="polite"></div>
@@ -166,11 +181,11 @@
 
   <script type="module">
     import { fmtMetric, fmtCount, fmtMoe, shortCounty, districtLabel } from "/js/format.js";
-    import { $, el, tableLinks, renderKeyFact, renderDetails, renderContext, renderTaxAreas, renderPrograms, planLine, reportUrl } from "/js/render.js";
+    import { $, el, tableLinks, renderKeyFact, renderContext, renderTaxAreas, renderPrograms, planLine, reportUrl } from "/js/render.js";
     import { presetById, presetFor, districtFor } from "/js/presets.js";
     import { renderMarkdown } from "/js/markdown.js";
 
-    const COLORS = ["#e6f2f1", "#a8d5d1", "#5fb3ac", "#1f8a83", "#0b4f4b"];
+    const COLORS = ["#defbe6", "#6fdc8c", "#24a148", "#0e6027", "#022d0d"]; // Carbon green 10, 30, 50, 70, 90
     const STATE_EXTENT = { xmin: -160.5, ymin: 18.8, xmax: -154.6, ymax: 22.4 };
     const AREAS = [ // quick zoom buttons; county ids come from the boundary file
       { label: "Statewide", county: null },
@@ -196,13 +211,12 @@
       const facts = el("div", { className: "facts" });
       keyComps.forEach(c => facts.append(renderKeyFact(c)));
 
-      const details = el("details", {}, el("summary", { textContent: "See all figures and sources" }), el("div", { className: "inner" }, renderDetails(data)));
       const programs = renderPrograms(data);
       const actions = el("div", { className: "actions" },
-        el("a", { className: "btn", href: reportUrl(data.geo_id), target: "_blank", rel: "noopener" },
-          "Open full report ↗", el("span", { className: "sr-only", textContent: " (opens in a new tab)" })),
-        el("button", { className: "btn secondary", type: "button", textContent: "Print or save as PDF", onclick: () => window.print() }),
-        el("button", { className: "btn secondary", type: "button", textContent: "Copy link to this district",
+        el("a", { className: "btn i-launch", href: reportUrl(data.geo_id), target: "_blank", rel: "noopener" },
+          "Open full report", el("span", { className: "sr-only", textContent: " (opens in a new tab)" })),
+        el("button", { className: "btn secondary i-print", type: "button", textContent: "Print or save as PDF", onclick: () => window.print() }),
+        el("button", { className: "btn secondary i-copy", type: "button", textContent: "Copy link to this district",
           onclick: e => { navigator.clipboard && navigator.clipboard.writeText(location.href); e.target.textContent = "Link copied"; } }));
 
       const context = renderContext(data, county);
@@ -210,7 +224,7 @@
       $("main").replaceChildren(
         el("h2", { className: "district", textContent: data.name }),
         el("p", { className: "sub", textContent: county ? `${county} · ${popLine}` : popLine }),
-        ...[planLine(data), facts, actions, details, taxAreas, context, programs].filter(Boolean));
+        ...[planLine(data), facts, actions, taxAreas, context, programs].filter(Boolean));
     }
 
     // ---------- research assistant ----------

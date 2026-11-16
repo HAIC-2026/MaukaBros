@@ -16,6 +16,23 @@ export const shortGeo = g => g.split(" (")[0];
 export const districtLabel = id => id
   ? `${id.startsWith("HD") ? "House" : "Senate"} District ${id.split("-")[1]}` : "";
 
+// Difference between two estimates, in the same shape as the API's `difference` object
+// (api/main.py compare()): within the margin of error when |A - B| <= sqrt(MOE_A^2 + MOE_B^2).
+export function compareEstimates(a, b) {
+  if (!a || !b || a.value == null || b.value == null) return null;
+  const diff = a.value - b.value;
+  const moe = a.moe != null && b.moe != null ? Math.sqrt(a.moe ** 2 + b.moe ** 2) : null;
+  return {
+    absolute: diff,
+    relative: b.value ? diff / b.value : null,
+    moe,
+    within_margin_of_error: moe == null ? null : Math.abs(diff) <= moe,
+  };
+}
+
+// "16 November 2026": the date a printout was made.
+export const fmtToday = () => new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
 // Plain-language difference between a district and a reference area, with a margin-of-error flag.
 export function diffText(diff, f) {
   if (!diff) return { text: "not available", flag: "", short: "" };
