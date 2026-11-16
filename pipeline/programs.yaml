@@ -1,36 +1,79 @@
-# Program inventory: existing state, county, and federal programs the agent can point to.
+# Program inventory: existing state and federal programs the assistant can point to.
 #
 # RULES
-#   - Every value comes from the official page listed in `sources`, fetched on `checked_on`.
-#   - Nothing is filled in from memory. A field the page did not state is null.
-#   - Eligibility is informational only; the administering agency decides (brief, Business Rules).
-#   - Thresholds change every year. `valid_for` records the period the page said they apply to.
-#   - `related_indicators` is OUR mapping to ids in indicators.yaml, not a claim from the source.
-#
-# Fields
-#   id, name, level (federal | state | county), administering_agency
-#   eligibility:      rules quoted from the page (short quotes)
-#   income_standards: tables copied from the page, with valid_for
-#   how_to_apply:     steps/URLs/phone numbers the page lists
-#   documents_needed: what the page says to bring, or null if it does not say
-#   sources:          official URLs used, each with checked_on
+#   - Every fact comes from an official page or document saved by hand in pipeline/raw/programs/
+#     (listed with its fingerprint in pipeline/raw/manifest.yaml). Nothing is filled in from memory.
+#   - Each fact has `text` (what we show, in plain words) and `quote` (the exact words in the saved
+#     file). validation/validate.py (group P) checks every quote, and every number in every income
+#     table, against the file's text. A fact that cannot be quoted is left out.
+#   - Program information is informational only: final eligibility is always decided by the
+#     administering agency (brief, Business Rules). Show that note with every program.
+#   - `related_measures` is OUR link to district measures (api/main.py MAP_METRICS); it is not a
+#     claim from the source. `uptake` names program-use figures we hold.
+#   - Rules change. `valid_for` is the period the document gives; `checked_on` is when the document
+#     was saved. Re-save the documents and update both when rules change (see CHECKLIST.md).
+
+checked_on: "2026-11-16"
+note_on_eligibility: "Informational only. Final eligibility is always decided by the agency that runs the program."
+
+poverty_guidelines:
+  source_file: programs/hhs_poverty_guidelines_2026.pdf
+  url: https://aspe.hhs.gov/sites/default/files/documents/b1bfa16b20ae9b89d525bc35de7c1643/detailed-guidelines-2026.pdf
+  publisher: U.S. Department of Health and Human Services, Office of the Assistant Secretary for Planning and Evaluation (ASPE)
+  title: "2026 Poverty Guidelines: Hawaii"
+  unit: dollars per year
+  quote: "Each individual program--e.g., SNAP, Medicaid--determines how to round various multiples of the poverty guidelines, what income is to be included, and how the eligibility unit is defined."
+  # household size -> {percent of the guideline: dollars per year}, as printed in the Hawaii table
+  by_household_size:
+    1: {100: 18360, 125: 22950, 130: 23868, 133: 24418.80, 138: 25336.80, 150: 27540, 185: 33966, 200: 36720}
+    2: {100: 24890, 125: 31112.50, 130: 32357, 133: 33103.70, 138: 34348.20, 150: 37335, 185: 46046.50, 200: 49780}
+    3: {100: 31420, 125: 39275, 130: 40846, 133: 41788.60, 138: 43359.60, 150: 47130, 185: 58127, 200: 62840}
+    4: {100: 37950, 125: 47437.50, 130: 49335, 133: 50473.50, 138: 52371, 150: 56925, 185: 70207.50, 200: 75900}
+    5: {100: 44480, 125: 55600, 130: 57824, 133: 59158.40, 138: 61382.40, 150: 66720, 185: 82288, 200: 88960}
+    6: {100: 51010, 125: 63762.50, 130: 66313, 133: 67843.30, 138: 70393.80, 150: 76515, 185: 94368.50, 200: 102020}
+    7: {100: 57540, 125: 71925, 130: 74802, 133: 76528.20, 138: 79405.20, 150: 86310, 185: 106449, 200: 115080}
+    8: {100: 64070, 125: 80087.50, 130: 83291, 133: 85213.10, 138: 88416.60, 150: 96105, 185: 118529.50, 200: 128140}
 
 programs:
-  - id: snap_hi
+  - id: snap
     name: Supplemental Nutrition Assistance Program (SNAP)
-    level: state
-    administering_agency: Hawaiʻi Department of Human Services (DHS), Benefit, Employment & Support Services Division
-    related_indicators:
-      [snap_households, pop_below_poverty, households_income_under_50k]
-    eligibility:
-      - "U.S. citizens and some aliens who are admitted for permanent residency may qualify."
-      - "Net monthly income must be 100 percent or less of the Federal poverty guidelines."
-      - "Most able-bodied adult applicants must meet certain work requirements."
-      - "All household members must provide a Social Security number or apply for one."
-    income_standards:
-      valid_for: "Effective 10/1/2026 (as titled on the DHS page)"
-      gross_monthly_by_household_size:
-        # household size: [130% FPL, 200% FPL (BBCE, label as shown on the page)]
+    agency: Hawaiʻi Department of Human Services (DHS), Benefit, Employment & Support Services Division (BESSD)
+    url: https://humanservices.hawaii.gov/bessd/snap/
+    file: programs/snap_dhs_page.pdf
+    serves: Low-income households, for food.
+    related_measures: [snap_share, poor_households_without_snap_share, under_125pct_poverty_share, under_200pct_poverty_share, poverty_rate]
+    uptake: [snap_cases_monthly, snap_people_monthly]
+    facts:
+      - topic: eligibility
+        text: U.S. citizens and some lawful permanent residents may qualify; households must prove their circumstances.
+        quote: "U.S. citizens and some aliens who are admitted for permanent residency may qualify."
+      - topic: eligibility
+        text: Under broad-based categorical eligibility (which most households receive), the gross income limit is 200% of the federal poverty level and there is no asset limit.
+        quote: "Under BBCE, the gross income limit is 200% FPL and there is an unlimited asset standard."
+      - topic: eligibility
+        text: Households where everyone receives TANF or SSI cash assistance qualify with no income or asset limit.
+        quote: "There is no gross income limit, no net income limit and no asset limit."
+      - topic: eligibility
+        text: Households with an elderly or disabled member face only the net income test.
+        quote: "Households with an elderly or disabled member are subject only to the net income test."
+      - topic: eligibility
+        text: Most able-bodied adults must meet work requirements, and every household member needs a Social Security number (or must apply for one).
+        quote: "Most able-bodied adult applicants must meet certain work requirements."
+      - topic: apply
+        text: Apply online, or mail or drop off a paper application at a processing center. DHS then contacts the applicant for an interview.
+        quote: "There are 3 ways to submit your application:"
+      - topic: contact
+        text: "Public Assistance Information Line (toll free): 1-855-643-1643"
+        quote: "Public Assistance Toll Free Information Line at 1-855-643-1643."
+      - topic: note
+        text: An intake worker makes the final determination of eligibility.
+        quote: "An intake worker will make the final determination of"
+    income_limits:
+      valid_for: "Effective 10/1/2026"
+      description: Gross monthly income, by household size. Standard limit 130% of the federal poverty level; 200% under broad-based categorical eligibility (BBCE).
+      unit: dollars per month
+      columns: ["130% FPL", "200% FPL (BBCE)"]
+      by_household_size:
         1: [1989, 3060]
         2: [2697, 4150]
         3: [3404, 5238]
@@ -39,68 +82,192 @@ programs:
         6: [5527, 8502]
         7: [6234, 9590]
         8: [6941, 10680]
-        each_additional: [708, 1090]
-      net_monthly_100pct_fpl_by_household_size:
-        1: 1530
-        2: 2075
-        3: 2619
-        4: 3163
-        5: 3707
-        6: 4251
-        7: 4795
-        8: 5340
-        each_additional: 545
-    how_to_apply:
-      - "Apply online: https://pais.dhs.hawaii.gov/PAIS/#!/"
-      - "Paper application (DHS 1240, PDF): https://humanservices.hawaii.gov/bessd/files/2025/03/DHS-1240-App-for-Financial-SNAP-Assistance-REV-12-2024-031325.pdf"
-      - "Mail or drop off a paper form at a processing center: https://humanservices.hawaii.gov/processing-centers-and-first-to-work-units/"
-      - "Public Assistance Information Line (toll free): 1-855-643-1643"
-      - "Interpreter request: 1-888-764-7586"
-    documents_needed: null # The page says to gather "all required paperwork" but does not list it.
-    sources:
-      - url: https://humanservices.hawaii.gov/bessd/snap/
-        checked_on: 2026-11-07
 
-  - id: eitc_federal
-    name: Earned Income Tax Credit (EITC)
-    level: federal
-    administering_agency: Internal Revenue Service (IRS)
-    related_indicators:
-      [median_household_income, households_income_under_50k, pop_below_poverty]
-    eligibility:
-      - "Investment income limit: $11,950 or less"
-    income_standards:
-      valid_for: "Tax year 2025 (as stated on the IRS page)"
-      # AGI limit and maximum credit by number of qualifying children
+  - id: med_quest
+    name: Med-QUEST (Hawaiʻi Medicaid)
+    agency: Hawaiʻi Department of Human Services, Med-QUEST Division
+    url: https://medquest.hawaii.gov/en/members-applicants/get-started/how-to-apply
+    file: programs/medquest_how_to_apply.pdf
+    serves: Free or low-cost health coverage for people with low income, including children, pregnant women, parents and adults.
+    related_measures: [low_income_uninsured_rate, no_insurance_rate, medicaid_share, under_200pct_poverty_share]
+    uptake: [medquest_managed_care]
+    facts:
+      - topic: eligibility
+        file: programs/medquest_2026_income_standards.pdf
+        text: For income-based (MAGI) coverage, assets do not count.
+        quote: "ASSETS ARE EXEMPT FOR INDIVIDUALS SUBJECT TO MAGI METHODOLOGY"
+      - topic: eligibility
+        file: programs/medquest_2026_income_standards.pdf
+        text: A 5% income disregard can be added to the highest income standard a person qualifies for, so the effective limits are 5 points higher than the base standard (e.g. adults 138% instead of 133%).
+        quote: "The 5% income disregard is ONLY added to the highest income standard the individual qualifies for and ONLY if it will make them eligible."
+      - topic: apply
+        text: "Apply online at https://medical.mybenefits.hawaii.gov, by phone, or by mail or fax using form DHS 1100."
+        quote: "Apply Faster Online at https://medical.mybenefits.hawaii.gov"
+      - topic: contact
+        text: "Med-QUEST Customer Service: 1-800-316-8005 (toll free); TTY 1-855-889-4325 or 711."
+        quote: "1-800-316-8005 toll-free TTY users, call 1-855-889-4325 toll-free or"
+      - topic: documents
+        text: "Application form: DHS 1100 \"Application for Health Coverage and Help Paying Costs\". People needing long-term care or with a disability need additional forms (DHS 1100B and others)."
+        quote: "DHS 1100 \"Application for Health Coverage and Help Paying Costs\""
+      - topic: change
+        file: programs/medquest_2027_adult_changes.pdf
+        text: "Starting January 1, 2027, adults 19-64 who are not blind, disabled or pregnant must renew every six months and show they work or volunteer at least 80 hours a month, earn at least $580 a month, or are enrolled at least half time in school."
+        quote: "These changes only impact adults between 19-64 who are not Blind,"
+    income_limits:
+      file: programs/medquest_2026_income_standards.pdf
+      valid_for: "2026 MAGI income standards, effective 01/13/2026"
+      description: Monthly income, by household size, including the 5% disregard (the chart's maximum MAGI standard).
+      unit: dollars per month
+      columns: ["Adults 19-64 (138% FPL)", "Parents/caretakers (105% FPL)", "Pregnant women and infants under 1 (196% FPL)", "Children under 19, CHIP (313% FPL)"]
+      by_household_size:
+        1: [2112, 1607, 2999, 4789]
+        2: [2863, 2178, 4066, 6493]
+        3: [3614, 2750, 5132, 8196]
+        4: [4365, 3321, 6199, 9899]
+        5: [5116, 3892, 7266, 11602]
+        6: [5867, 4464, 8332, 13306]
+        7: [6618, 5035, 9399, 15009]
+        8: [7369, 5607, 10465, 16712]
+
+  - id: hawaii_eitc
+    name: Hawaiʻi Earned Income Tax Credit (EITC)
+    agency: Hawaiʻi Department of Taxation (DOTAX)
+    url: https://tax.hawaii.gov/geninfo/
+    file: programs/dotax_eitc.pdf
+    serves: Working people with low to moderate income. Refundable, so it is paid even when no tax is owed, but only if it is claimed on a tax return.
+    related_measures: [income_under_50k_share, poverty_rate]
+    uptake: [dotax_eitc_claims]
+    tax_area_uptake: eitc
+    facts:
+      - topic: eligibility
+        text: The Hawaiʻi EITC is 40% of the person's federal EITC, so a federal return must be filed first.
+        quote: "A federal return must"
+      - topic: eligibility
+        text: Earned income under the federal AGI limits, and investment income below $11,950 (tax year 2025).
+        quote: "Earned Income under Federal AGI limits. Investment Income below $11,950."
+      - topic: apply
+        text: "Claim it by filing a federal income tax return and a Hawaiʻi income tax return (N-11 or N-15)."
+        quote: "Hawai'i income tax return (N-11/N-15)"
+      - topic: note
+        text: Limits change every year; check the IRS rules before filing.
+        quote: "Limits and rules change annually, visit IRS website to confirm"
+    income_limits:
+      valid_for: "2025 tax year"
+      description: Maximum credit and maximum federal adjusted gross income, by number of children or relatives claimed.
+      unit: dollars per year
+      columns: ["Max Hawaiʻi EITC", "Max federal AGI, single", "Max federal AGI, married filing jointly"]
       by_children:
-        0:
-          {
-            limit_single_hoh_mfs_qss: 19104,
-            limit_married_joint: 26214,
-            max_credit: 649,
-          }
-        1:
-          {
-            limit_single_hoh_mfs_qss: 50434,
-            limit_married_joint: 57554,
-            max_credit: 4328,
-          }
-        2:
-          {
-            limit_single_hoh_mfs_qss: 57310,
-            limit_married_joint: 64430,
-            max_credit: 7152,
-          }
-        3_or_more:
-          {
-            limit_single_hoh_mfs_qss: 61555,
-            limit_married_joint: 68675,
-            max_credit: 8046,
-          }
-    how_to_apply: null # Not stated on the table page; to be filled from a fetched IRS page.
-    documents_needed: null
-    notes: "Age, residency, SSN, and relationship tests were not on the table page and are not recorded here yet."
-    sources:
-      - url: https://www.irs.gov/credits-deductions/individuals/earned-income-tax-credit/earned-income-and-earned-income-tax-credit-eitc-tables
-        checked_on: 2026-11-07
-wait my
+        "0": [260, 19104, 26214]
+        "1": [1731, 50434, 57554]
+        "2": [2861, 57310, 64430]
+        "3 or more": [3218, 61555, 68675]
+
+  - id: food_excise_credit
+    name: Hawaiʻi Refundable Food/Excise Tax Credit
+    agency: Hawaiʻi Department of Taxation (DOTAX)
+    url: https://tax.hawaii.gov/geninfo/
+    file: programs/dotax_food_excise_credit.pdf
+    serves: People with low to moderate income, including people with no income who file a return to claim it.
+    related_measures: [income_under_50k_share, poverty_rate]
+    uptake: [dotax_food_excise_claims]
+    tax_area_uptake: food_excise
+    facts:
+      - topic: eligibility
+        text: Federal AGI must be under $40,000 if filing single, or under $60,000 for other filing statuses.
+        quote: "Federal AGI of less than $40,000 if filing single or"
+      - topic: eligibility
+        text: Each person counted must have been in Hawaiʻi more than 9 months of the year and not be claimed as someone else's dependent.
+        quote: "9 months during the"
+      - topic: apply
+        text: "Claim it with a Hawaiʻi income tax return (N-11 or N-15) and Form N-311, within 12 months after the end of the tax year."
+        quote: "Refundable Food/Excise Tax Credit Form (N-311)"
+      - topic: note
+        text: People without income are encouraged to file a return to claim this credit.
+        quote: "Individuals without income are encouraged to file a return and claim this credit"
+    income_limits:
+      valid_for: "DOTAX flyer dated May 2024 (the flyer does not state a tax year)"
+      description: Credit per qualified exemption by federal AGI (multiply by the number of exemptions; the table shows 1 to 5). AGI from $40,000 applies only to filing statuses other than single.
+      unit: dollars per year
+      columns: ["Credit, 1 exemption", "Credit, 4 exemptions"]
+      by_federal_agi:
+        "Under $15,000": [220, 880]
+        "$15,000 under $20,000": [200, 800]
+        "$20,000 under $25,000": [170, 680]
+        "$25,000 under $30,000": [140, 560]
+        "$30,000 under $40,000": [110, 440]
+        "$40,000 under $50,000": [90, 360]
+        "$50,000 under $60,000": [70, 280]
+
+  - id: wic
+    name: WIC (Special Supplemental Nutrition Program for Women, Infants and Children)
+    agency: Hawaiʻi Department of Health, WIC Services Branch
+    url: https://health.hawaii.gov/wic/program_details/
+    file: programs/wic_program_details.pdf
+    serves: Pregnant, breastfeeding and postpartum women, and children under 5, for food and nutrition support.
+    related_measures: [households_with_children_share, single_parent_share, under_200pct_poverty_share]
+    facts:
+      - topic: eligibility
+        text: Pregnant, breastfeeding or postpartum women, or children under 5 with nutritional needs, who meet federal income guidelines and live in Hawaiʻi.
+        quote: "To qualify for Hawaii WIC services you must be either a pregnant, breastfeeding, or postpartum"
+      - topic: eligibility
+        text: People with proof of Med-QUEST, TANF or SNAP (food stamps) benefits meet the income requirement.
+        quote: "Individuals with proof of Quest or TANF benefit documents or food stamps meet"
+      - topic: apply
+        text: Call the nearest WIC clinic to set up an appointment.
+        quote: "call and set up an appointment with the WIC clinic nearest you"
+      - topic: documents
+        text: "Bring proof of income for everyone who works in the household (pay stub or Leave and Earnings Statement), proof of identity, proof of Hawaiʻi residence, the children who need WIC, and their immunization records."
+        quote: "Bring proof of income for everyone who works in the household"
+
+  - id: kupuna_care
+    name: Kūpuna Care
+    agency: Hawaiʻi Executive Office on Aging (Department of Health), with the county offices on aging
+    url: https://health.hawaii.gov/eoa/
+    file: programs/eoa_annual_report_sfy2024.pdf
+    serves: "Adults 60 and older who need help with daily activities, to keep living at home: adult day care, transportation, case management, attendant care, chore, homemaker, personal care and home-delivered meals."
+    related_measures: [share_65_plus, kupuna_poverty_rate, kupuna_alone_share]
+    uptake_note: "5,520 people were served statewide in state fiscal year 2024 (EOA annual report)."
+    facts:
+      - topic: eligibility
+        text: "Age 60 or older, a U.S. citizen or qualified alien, not living in an institution, not enrolled in a comparable home and community-based program, and needing help with two or more daily activities (such as eating, dressing or bathing) or household tasks (such as meals, shopping or managing medication)."
+        quote: "must be 60+ years of age or older, a U.S. citizen (or qualified alien)"
+      - topic: apply
+        text: "Eligibility is decided through an assessment by the Aging and Disability Resource Center (ADRC). Start by calling the county office on aging."
+        quote: "KC utilizes the ADRC holistic assessment to determine initial eligibility for core services."
+      - topic: contact
+        file: programs/eoa_page.pdf
+        text: "County offices on aging: Honolulu (808) 768-7700; Hawaiʻi (808) 961-8626; Maui, Molokaʻi and Lānaʻi (808) 270-7774; Kauaʻi (808) 241-4470."
+        quote: "Honolulu: (808)768-7700"
+      - topic: uptake
+        text: 5,520 people were served by Kūpuna Care statewide in state fiscal year 2024.
+        quote: "In SFY 2024, 5,520 participants were served by KC."
+
+  - id: ssi
+    name: Supplemental Security Income (SSI)
+    agency: U.S. Social Security Administration (SSA)
+    url: https://www.ssa.gov/pubs/EN-05-11108.pdf
+    file: programs/ssa_ssi_hawaii_2026.pdf
+    serves: People 65 or older, and people of any age who are blind or have disabilities, with little income and few resources.
+    related_measures: [share_65_plus, kupuna_poverty_rate, disability_rate, social_security_share]
+    facts:
+      - topic: eligibility
+        text: For people 65 or older, and people of any age (including children) who are blind or have disabilities.
+        quote: "SSI is for people who are 65 or older"
+      - topic: eligibility
+        text: Resources must be under $2,000 for a single person or $3,000 for a married couple; the home and usually one car do not count.
+        quote: "the things you own must be less than $2,000"
+      - topic: eligibility
+        text: People who get SSI can usually get Medicaid, and may get SNAP.
+        quote: "If you get SSI payments, you can usually get"
+      - topic: apply
+        text: Apply online at ssa.gov or call 1-800-772-1213 (TTY 1-800-325-0778).
+        quote: "call us toll-free at 1-800-772-1213"
+    income_limits:
+      valid_for: "2026"
+      description: Maximum combined federal and state monthly payment (payments are lower for people with other income).
+      unit: dollars per month
+      columns: ["Eligible person", "Eligible couple"]
+      by_living_arrangement:
+        "Independent living": [994.00, 1491.00]
+        "Living in someone else's household": [662.67, 994.00]
+        "Adult foster care home": [1823.00, 3486.00]

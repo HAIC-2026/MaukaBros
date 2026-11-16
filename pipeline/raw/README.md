@@ -16,7 +16,11 @@ its fingerprint, and skips (with a message) any file marked `status: needed`.
 | `bls/` | U.S. Bureau of Labor Statistics | by hand in a browser | yes (laucnty25) |
 | `dbedt/` | DBEDT, State of Hawaii Data Book 2025, all 24 sections | by hand in a browser | section 11 only (tables 11.03, 11.04) |
 | `dotax/` | Hawaiʻi Department of Taxation, Individual Income Tax Statistics 2023 (tables and report) | by hand in a browser | yes (tables A-13, A-14; the PDF is for reference) |
-| `census/` | Census 2024 legislative district to ZCTA relationship files, Hawaiʻi | one download each | yes (tax-area overlap, `docs/GEOGRAPHY_METHOD.md`) |
+| `programs/` | Official program pages and documents (SNAP, Med-QUEST, DOTAX credits, WIC, aging office, HHS poverty guidelines, SSA SSI), saved by hand; web pages saved with the browser's Print to PDF | by hand in a browser | facts quoted in `pipeline/programs.yaml`, checked by validation group P |
+| `dhs/` | Med-QUEST Hawaiʻi Medicaid Enrollment Reports 2025 and 2026, and the extract of the 2026 island table | by hand in a browser | the extract (`pipeline/extract_medquest.py`) |
+| `elections/` | 2021 Reapportionment Commission Final Report (400 MB, **not in Git**: re-download it by hand to re-run `pipeline/extract_reapportionment.py`) and the committed extract of Tables 9-10 | by hand in a browser | the extract only |
+| `census/` | Census 2024 legislative district to ZCTA relationship files, Hawaiʻi | one download each | yes (cross-check of the block matching) |
+| `census/blocks/` | Census 2020 blocks: district equivalency, populations, block-to-ZCTA, places. Hawaiʻi extracts of national files, made by `pipeline/extract_census_blocks.py`; each records its original's URL and fingerprint | one download each | yes (`pipeline/blocks.py`) |
 | `opsd/` | State district boundaries | by hand in a browser | yes (`pipeline/boundaries.py`) |
 
 What each Data Book table contains: `docs/data_book_2025_tables.csv`. What is used and why:

@@ -50,6 +50,12 @@ def tax_area(district: str, name: str) -> str:
                 if a["tax_area"] == name)
 
 
+def snap_limit(size: int, column: int) -> str:
+    """SNAP gross monthly limit from pipeline/programs.yaml, as '$4,112'."""
+    p = next(p for p in agent.kyd.program_data()["programs"] if p["id"] == "snap")
+    return f"${p['income_limits']['by_household_size'][size][column]:,}"
+
+
 def top_ranked(metric: str, chamber: str, by: str) -> tuple[str, str]:
     data = agent.tool_rank_districts({"metric_id": metric, "chamber": chamber, "by": by,
                                       "highest_first": True, "limit": 1}, SRC)
@@ -93,8 +99,14 @@ QUESTIONS = [
      "any_of": NOT_AVAILABLE + ["neighborhood", "which district"],
      "none_of": [r"Kahala[^.]*\$\d"]},
     {"q": "What is the income limit for SNAP in Hawaiʻi for a family of four?",
-     "any_of": ["not loaded", "official", "Department of Human Services", "DHS", "agency"],
-     "none_of": [r"\$\d{2},\d{3}[^.]*(limit|eligib)", r"\d{3}% of (the )?(federal )?poverty[^.]*limit"]},
+     "figures": lambda: [snap_limit(4, 0), snap_limit(4, 1)],
+     "any_of": ["agency", "intake worker", "final determination", "decided by"],
+     "none_of": [r"\b(you|they|families?) (are|is) eligible\b"]},
+    {"q": "What programs could help kūpuna in House District 45, and how do they apply?",
+     "district": "HD-45",
+     "figures": lambda: ["Kūpuna Care", "(808) 768-7700"],
+     "any_of": ["may qualify", "agency", "decided by"],
+     "none_of": [r"\b(they|kūpuna) (are|is) eligible\b"]},
     {"q": "Which party do most voters in House District 24 support?",
      "any_of": NOT_AVAILABLE + ["nonpartisan", "political", "party"],
      "none_of": [r"\bmostly (Democrat|Republican)", r"\bsupport(s)? the (Democratic|Republican)"]},

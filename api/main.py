@@ -117,17 +117,109 @@ def get_district(geo_id: str) -> dict:
     comparisons = build_comparisons(geo_id, district[0]["geo_type"]) if is_district else []
     context = build_context(district_county(geo_id)) if is_district else []
     tax_areas = build_tax_areas(geo_id) if is_district else None
+    plan = district_plan(geo_id) if is_district else None
+    programs = build_programs(comparisons, context) if is_district else []
     return {**district[0], "facts": facts, "comparisons": comparisons, "county_context": context,
-            "tax_areas": tax_areas}
+            "tax_areas": tax_areas, "plan": plan, "programs": programs}
+
+
+# --- Programs (pipeline/programs.yaml, checked by validation group P) ------------------------
+_programs: dict | None = None
+
+
+def program_data() -> dict:
+    global _programs
+    if _programs is None:
+        import yaml
+        _programs = yaml.safe_load((ROOT / "pipeline" / "programs.yaml").read_text(encoding="utf-8"))
+    return _programs
+
+
+@app.get("/api/programs")
+def list_programs() -> dict:
+    return program_data()
+
+
+def build_programs(comparisons: list[dict], context: list[dict]) -> list[dict]:
+    """Each program with the district figures it relates to (our link, not the agency's) and the
+    county program-use figures we hold. Eligibility is always the agency's decision."""
+    data = program_data()
+    comp = {c["metric_id"]: c for c in comparisons}
+    ctx = {c["indicator_id"]: c for c in context}
+    out = []
+    for p in data["programs"]:
+        here = []
+        for m in p.get("related_measures", []):
+            c = comp.get(m)
+            if c and c["district"]["value"] is not None:
+                here.append({"metric_id": m, "label": c["label"], "format": c["format"],
+                             "district": c["district"]["value"],
+                             "low_reliability": c["district"].get("low_reliability", False),
+                             "state": c["state"].get("value"),
+                             "county": c["county"].get("value") if c.get("county") else None})
+        uptake = [{"label": ctx[u]["label"], "period": ctx[u]["period"],
+                   "county": ctx[u]["county"]["value"] if ctx[u].get("county") else None,
+                   "state": ctx[u]["state"]["value"] if ctx[u].get("state") else None,
+                   "unit": ctx[u]["unit"]} for u in p.get("uptake", []) if u in ctx]
+        out.append({**{k: v for k, v in p.items() if k not in ("related_measures", "uptake")},
+                    "district_measures": here[:3], "uptake": uptake,
+                    "checked_on": data["checked_on"], "note": data["note_on_eligibility"]})
+    return out
+
+
+def share(part: float | None, whole: float | None) -> float | None:
+    return part / whole if part is not None and whole else None
+
+
+def credit_context() -> dict | None:
+    """State shares and the source for DOTAX Table A-7 (returns claiming each credit)."""
+    st = query("SELECT * FROM tax_area_credit WHERE area_id = 'STATE-TOTAL'")
+    src = query("SELECT publisher, dataset, url, retrieved_at FROM source "
+                "WHERE source_id = 'dotax_tax_credits'")
+    if not st or not src:
+        return None
+    s = src[0]
+    return {
+        "period": "Tax year 2023",
+        "state_eitc_share": share(st[0]["eitc"], st[0]["returns"]),
+        "state_food_excise_share": share(st[0]["food_excise"], st[0]["returns"]),
+        "note": "Share of resident income tax returns (Form N-11) in the area that claimed each "
+                "refundable credit. A credit is received only if it is claimed on a tax return. "
+                "Returns are counted by DOTAX's own processing for this report, so return counts "
+                "differ slightly from the income report's.",
+        "source": {"publisher": s["publisher"], "dataset": s["dataset"], "url": s["url"],
+                   "retrieved_at": s["retrieved_at"].date().isoformat(),
+                   "tables": [{"table_id": "Table A-7", "url": s["url"]}]},
+    }
+
+
+def district_plan(geo_id: str) -> dict | None:
+    rows = query("""SELECT p.*, s.publisher, s.dataset, s.url, s.retrieved_at
+                    FROM district_plan p, source s
+                    WHERE p.geo_id = ? AND s.source_id = 'reapportionment_2021'""", [geo_id])
+    if not rows:
+        return None
+    r = rows[0]
+    return {"permanent_residents": r["permanent_residents"],
+            "statewide_target": r["statewide_target"],
+            "note": "Official permanent-resident population the district was drawn on: the 2020 "
+                    "Census count minus non-permanent military members, their dependents and "
+                    "non-resident students. It differs from the ACS population estimate.",
+            "source": {"publisher": r["publisher"], "dataset": r["dataset"], "url": r["url"],
+                       "retrieved_at": r["retrieved_at"].date().isoformat(),
+                       "page": f"PDF page {r['report_pdf_page']}"}}
 
 
 def build_tax_areas(geo_id: str) -> dict | None:
     """DOTAX tax areas that overlap the district (docs/GEOGRAPHY_METHOD.md). Each area's figures
     are DOTAX's figures for the whole area, never a district figure."""
     rows = query("""
-        SELECT a.name, a.returns, a.median_agi, t.relation, t.district_share, t.area_share
+        SELECT a.name, a.returns, a.median_agi, t.relation, t.district_share, t.area_share,
+               t.district_land_share, c.returns AS credit_returns, c.eitc, c.food_excise
         FROM tax_area_district t JOIN tax_area a USING (area_id)
-        WHERE t.geo_id = ? ORDER BY t.relation, t.district_share DESC""", [geo_id])
+        LEFT JOIN tax_area_credit c USING (area_id)
+        WHERE t.geo_id = ? ORDER BY t.relation, t.district_share DESC, t.district_land_share DESC""",
+                 [geo_id])
     if not rows:
         return None
     src = query("""SELECT s.publisher, s.dataset, s.url, s.vintage, s.retrieved_at, i.table_id,
@@ -139,20 +231,25 @@ def build_tax_areas(geo_id: str) -> dict | None:
         "period": "Tax year 2023",
         "areas": [{"name": r["name"], "relation": r["relation"], "returns": r["returns"],
                    "median_agi": r["median_agi"],
-                   "share_of_district_land": r["district_share"],
-                   "share_of_area_land_in_district": r["area_share"]} for r in rows],
-        "district_land_in_no_tax_area": max(0.0, 1 - sum(r["district_share"] for r in rows)),
+                   "eitc_share": share(r["eitc"], r["credit_returns"]),
+                   "food_excise_share": share(r["food_excise"], r["credit_returns"]),
+                   "share_of_district_residents": r["district_share"],
+                   "share_of_area_residents_in_district": r["area_share"],
+                   "share_of_district_land": r["district_land_share"]} for r in rows],
+        "district_residents_in_no_tax_area": max(0.0, 1 - sum(r["district_share"] for r in rows)),
         "applies_to": "Each figure is for the whole tax area, as published by DOTAX, not for "
-                      "this district. Areas are matched to the district by land overlap; no "
-                      "figure is split or estimated.",
+                      "this district. Areas are matched to the district by where 2020 Census "
+                      "residents live (Census blocks); no figure is split or estimated.",
         "caveat": src["caveat"],
         "source": {"publisher": src["publisher"], "dataset": src["dataset"], "url": src["url"],
                    "vintage": src["vintage"], "retrieved_at": src["retrieved_at"].date().isoformat(),
                    "tables": [{"table_id": "Table A-13", "url": src["table_url"]},
                               {"table_id": "Table A-14 (ZIP codes in each area)",
                                "url": src["table_url"]}]},
-        "overlap_source": "U.S. Census Bureau, 2024 State Legislative District to 2020 ZIP Code "
-                          "Tabulation Area relationship files (land area of each overlap).",
+        "credits": credit_context(),
+        "overlap_source": "U.S. Census Bureau: 2020 Census block populations (TIGER/Line 2020), "
+                          "2024 State Legislative District block equivalency files, and the 2020 "
+                          "ZCTA-to-block relationship file.",
     }
 
 
@@ -170,7 +267,8 @@ def build_context(county_id: str | None) -> list[dict]:
         JOIN source s USING (source_id)
         JOIN geography g USING (geo_id)
         WHERE c.geo_id IN ({",".join("?" * len(geos))})
-        ORDER BY CASE c.source_id WHEN 'dbedt_databook' THEN 1 WHEN 'dotax_individual_income' THEN 2
+        ORDER BY CASE c.source_id WHEN 'dbedt_databook' THEN 0 WHEN 'dhs_medquest' THEN 1
+                 WHEN 'dotax_tax_credits' THEN 1.5 WHEN 'dotax_individual_income' THEN 2
                  WHEN 'bea_cainc1' THEN 3 ELSE 4 END,
                  c.indicator_id
     """, geos)
@@ -338,9 +436,11 @@ METRIC_GROUPS = {
     "Program need and uptake": (
         "Income compared with the federal poverty line, and whether residents say they receive "
         "help. These are not eligibility counts: each program has its own rules, and final "
-        "eligibility is always decided by the agency. Survey answers count fewer SNAP households "
-        "than DHS program records (see County and state context), so the share of households "
-        "not receiving SNAP is likely overstated."),
+        "eligibility is always decided by the agency. Survey answers under-count program use: "
+        "statewide the survey finds about 68% of the SNAP households and 68% of the Med-QUEST "
+        "members in DHS records (see County and state context). So the shares receiving SNAP or "
+        "Medicaid are likely understated, and the share of households not receiving SNAP is "
+        "likely overstated."),
     "Ethnic background": (
         "Share of residents. \"Alone or in combination\" counts a person in every group they "
         "report, so the shares add up to more than 100%."),
@@ -431,6 +531,20 @@ def compare(metric_id: str, district_vals: dict, ref_vals: dict | None) -> dict 
     return out
 
 
+# An estimate is flagged as low reliability when its coefficient of variation is above 30%.
+# CV = standard error / estimate, and the ACS publishes 90% margins of error, so SE = MOE / 1.645.
+CV_THRESHOLD = 0.30
+
+
+def reliability(value: float | None, moe: float | None) -> dict:
+    if value is None or moe is None:
+        return {"cv": None, "low_reliability": False}
+    if value == 0:
+        return {"cv": None, "low_reliability": moe > 0}
+    cv = (moe / 1.645) / abs(value)
+    return {"cv": cv, "low_reliability": cv > CV_THRESHOLD}
+
+
 def build_comparisons(geo_id: str, geo_type: str) -> list[dict]:
     county_id = district_county(geo_id)
     ind_tables = {r["indicator_id"]: r["table_ids"]
@@ -452,7 +566,7 @@ def build_comparisons(geo_id: str, geo_type: str) -> list[dict]:
             "group_note": METRIC_GROUPS[metric.get("group", "District profile")],
             "source": {**src, "geography": GEOGRAPHY_LABELS[geo_type],
                        "tables": list(tables.values())},
-            "district": {"value": d_value, "moe": d_moe},
+            "district": {"value": d_value, "moe": d_moe, **reliability(d_value, d_moe)},
             "state": {"geo_id": "STATE-15", "name": names.get("STATE-15"),
                       **(compare(metric_id, vals.get(geo_id, {}), vals.get("STATE-15")) or {})},
             "county": ({"geo_id": county_id, "name": names.get(county_id),

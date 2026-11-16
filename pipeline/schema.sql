@@ -72,6 +72,26 @@ CREATE OR REPLACE TABLE tax_area (
     median_agi     DOUBLE             -- median Hawaiʻi AGI per return, dollars
 );
 
+-- DOTAX Tax Credits Claimed, Table A-7: resident returns claiming selected credits, by tax area.
+-- area_id is a tax_area id, or 'STATE-TOTAL' / 'OTHER-UNKNOWN' for the table's two other rows.
+CREATE OR REPLACE TABLE tax_area_credit (
+    area_id         TEXT PRIMARY KEY,
+    label_published TEXT NOT NULL,
+    returns         DOUBLE,           -- resident returns (Form N-11)
+    food_excise     DOUBLE,           -- returns claiming the refundable food/excise tax credit
+    renters         DOUBLE,           -- returns claiming the low-income household renters' credit
+    eitc            DOUBLE            -- returns claiming the Hawaiʻi earned income tax credit
+);
+
+-- 2021 Reapportionment Plan: each district's permanent-resident population (2020 Census base,
+-- excluding non-permanent military and students), from the Commission's Final Report.
+CREATE OR REPLACE TABLE district_plan (
+    geo_id           TEXT PRIMARY KEY REFERENCES geography (geo_id),
+    permanent_residents INTEGER NOT NULL,
+    statewide_target INTEGER NOT NULL,
+    report_pdf_page  INTEGER NOT NULL
+);
+
 CREATE OR REPLACE TABLE tax_area_zip (
     zip        TEXT PRIMARY KEY,
     area_id    TEXT NOT NULL REFERENCES tax_area (area_id),
@@ -88,14 +108,53 @@ CREATE OR REPLACE TABLE district_zcta (
     zcta_land     DOUBLE
 );
 
--- Which DOTAX tax areas overlap each district, from the two tables above. Area figures are shown
+-- 2020 Census blocks (pipeline/blocks.py): each lies in one House and one Senate district (2024
+-- plans), one ZCTA and at most one Census place. Populations are the weights for matching.
+CREATE OR REPLACE TABLE block (
+    block_geoid   TEXT PRIMARY KEY,
+    county_geo_id TEXT NOT NULL,
+    house_id      TEXT NOT NULL,
+    senate_id     TEXT NOT NULL,
+    zcta          TEXT,
+    place_fp      TEXT,
+    pop20         INTEGER NOT NULL,
+    housing20     INTEGER NOT NULL,
+    aland20       BIGINT NOT NULL
+);
+
+CREATE OR REPLACE TABLE place (
+    place_fp       TEXT PRIMARY KEY,
+    name           TEXT NOT NULL,     -- 'Kaneohe' (Census spelling, no ʻokina)
+    name_published TEXT NOT NULL      -- 'Kaneohe CDP'
+);
+
+-- Share of each place's / ZIP area's 2020 residents in each district.
+CREATE OR REPLACE TABLE place_district (
+    place_fp    TEXT NOT NULL,
+    geo_id      TEXT NOT NULL,
+    pop         INTEGER NOT NULL,
+    place_share DOUBLE NOT NULL,
+    PRIMARY KEY (place_fp, geo_id)
+);
+
+CREATE OR REPLACE TABLE zcta_district (
+    zcta       TEXT NOT NULL,
+    geo_id     TEXT NOT NULL,
+    pop        INTEGER NOT NULL,
+    zcta_share DOUBLE NOT NULL,
+    PRIMARY KEY (zcta, geo_id)
+);
+
+-- Which DOTAX tax areas overlap each district, by 2020 residents (blocks). Area figures are shown
 -- whole; these shares only describe the overlap and label it.
 CREATE OR REPLACE TABLE tax_area_district (
     geo_id         TEXT NOT NULL REFERENCES geography (geo_id),
     area_id        TEXT NOT NULL REFERENCES tax_area (area_id),
-    land_overlap   DOUBLE NOT NULL,   -- square meters
-    district_share DOUBLE NOT NULL,   -- share of the district's land in this tax area
-    area_share     DOUBLE NOT NULL,   -- share of the tax area's (ZCTA) land in this district
-    relation       TEXT NOT NULL,     -- 'overlaps' | 'touches the edge'
+    pop_overlap    INTEGER NOT NULL,  -- 2020 residents in both
+    district_share DOUBLE NOT NULL,   -- share of the district's 2020 residents in this tax area
+    area_share     DOUBLE,            -- share of the tax area's 2020 residents in this district
+    land_overlap   DOUBLE NOT NULL,   -- square meters, for reference
+    district_land_share DOUBLE NOT NULL,
+    relation       TEXT NOT NULL,     -- 'overlaps' (>= 1% of the district's residents) | 'touches the edge'
     PRIMARY KEY (geo_id, area_id)
 );

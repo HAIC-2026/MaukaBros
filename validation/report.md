@@ -1,6 +1,6 @@
 # Validation report
 
-Run on 2026-11-16 against ACS 5-year 2020-2024. 38 of 38 checks passed.
+Run on 2026-11-16 against ACS 5-year 2020-2024. 51 of 51 checks passed.
 
 | Result | Group | Check | Detail |
 |---|---|---|---|
@@ -33,6 +33,8 @@ Run on 2026-11-16 against ACS 5-year 2020-2024. 38 of 38 checks passed.
 | PASS | E context | snap_people_monthly: counties add up to the state (158,515 vs 158,516) |  |
 | PASS | E context | BLS unemployment rate equals unemployed / labor force in every county |  |
 | PASS | E context (info) | SNAP households, ACS survey 2020-2024 vs DHS average monthly cases FY2025: COUNTY-001 13,197 vs 21,475 (61%); COUNTY-003 34,575 vs 48,384 (71%); COUNTY-007 2,680 vs 4,266 (63%); COUNTY-009 5,781 vs 8,916 (65%); STATE-15 56,236 vs 83,041 (68%) |  |
+| PASS | E context | Med-QUEST managed care (April 2026): counties add up to the state (401,393 vs 401,393) |  |
+| PASS | E context (info) | Medicaid: residents reporting Medicaid/means-tested coverage (ACS 2020-2024) vs Med-QUEST managed-care members (April 2026): COUNTY-001 55,187 vs 84,921 (65%); COUNTY-003 171,271 vs 243,019 (70%); COUNTY-007 16,402 vs 23,073 (71%); COUNTY-009 30,634 vs 50,380 (61%); STATE-15 273,514 vs 401,393 (68%) |  |
 | PASS | E context | DOTAX: ZIP code returns (A-14) add up to each area (A-13), allowing up to 10 returns in unpublished ZIP codes | Wahiawā, Mililani: ZIPs 35,429 vs area 35,430 |
 | PASS | E context | DOTAX: area returns add up to each county total |  |
 | PASS | E context | DOTAX: counties add up to the Hawaiʻi-addresses total (623,965 vs 623,965), plus unidentified = all returns |  |
@@ -40,7 +42,18 @@ Run on 2026-11-16 against ACS 5-year 2020-2024. 38 of 38 checks passed.
 | PASS | F overlap | Census file: each district's overlap parts add up to its land area |  |
 | PASS | F overlap | Census files cover all 51 House and 25 Senate districts | 76 found |
 | PASS | F overlap | every district overlaps at least one DOTAX tax area |  |
-| PASS | F overlap | each tax area's land is fully shared out among House districts, and among Senate districts |  |
-| PASS | F overlap (info) | Seth's examples, share of each area's land by district: Molokaʻi: HD-13 100.0%, SD-7 100.0%; Oʻahu North Shore: SD-23 100.0%, HD-47 66.5%, HD-46 27.1%, HD-48 6.4% (check against the district map) |  |
+| PASS | F overlap | each tax area's 2020 residents are fully shared out among House districts, and among Senate districts |  |
+| PASS | F overlap (info) | Seth's examples, share of each area's 2020 residents by district: Molokaʻi: SD-7 100.0%, HD-13 100.0%; Oʻahu North Shore: SD-23 100.0%, HD-47 87.5%, HD-46 7.5%, HD-48 5.0% (check against the district map) |  |
+| PASS | E context | DOTAX credits A-7: tax areas plus Other/Unknown add up to the state total for returns, food/excise, renters' and EITC claims |  |
+| PASS | E context | DOTAX credits A-4: counties add up to the state for each credit |  |
+| PASS | E context | Reapportionment plan: 76 districts (76); House and Senate each add up to 1,348,054 permanent residents (1,348,054 / 1,348,054) |  |
+| PASS | P programs | all 11 program documents are saved and match their fingerprints in the manifest |  |
+| PASS | P programs | 7 programs: all 35 quotes appear in their saved documents and all 144 income-table numbers are printed in them |  |
+| PASS | H DBEDT | our figures equal DBEDT's published ACS district profiles: 1,064 estimates and 910 margins of error for 14 measures in all 76 districts (0 differences) |  |
+| PASS | G reliability (info) | 179 of 3344 district figures are flagged low reliability (CV over 30%); highest: HD-30 ind_agriculture_share CV 900%, HD-40 ind_agriculture_share CV 99%, HD-51 limited_english_share CV 96% |  |
+| PASS | G blocks | every one of 14,732 blocks is in a known House and Senate district; all 51 + 25 districts have blocks (51 + 25) |  |
+| PASS | G blocks | every populated block's district and ZIP area pairing appears in the Census district-to-ZCTA relationship files |  |
+| PASS | G blocks | each place's and each ZIP area's residents add up to 100% per chamber; no district's tax-area shares exceed 100% |  |
+| PASS | G blocks (info) | largest differences between 2020 Census and ACS 2020-2024 district population (blocks are only weights; expected to differ): HD-47 31,669 vs 28,120; HD-35 28,297 vs 25,206; HD-41 31,537 vs 34,730 |  |
 
 See validation/PROTOCOL.md for what these checks do and do not prove.
