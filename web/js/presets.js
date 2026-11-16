@@ -14,8 +14,8 @@ export const PRESETS = [
   {
     id: "overview", label: "Overview",
     blurb: "The headline figures for this district, each compared with its county and the state.",
-    // Six cards fill the grid evenly. The overall uninsured rate was dropped (3-6% in most districts);
-    // the low-income uninsured rate stays on the Program need view.
+    // Six cards fill the grid evenly. Health coverage is covered by the low-income uninsured rate
+    // on the Program need view.
     metrics: ["median_household_income", "poverty_rate", "share_65_plus", "rent_burden_rate",
               "snap_share", "unemployment_rate"],
     sections: [],

@@ -1,4 +1,4 @@
-# Know Your District: build checklist
+# District Insight: build checklist
 
 Status as of 2026-11-15. Source for each item: the HAIC use case brief (section named in brackets) or
 Seth Colby's kickoff video ("Seth").
@@ -125,8 +125,8 @@ Seth Colby's kickoff video ("Seth").
 
 - [ ] Commit the current work (many uncommitted changes on `api-and-preview`) and open a pull request
 - [x] Add `.env.example` (`build.py` points to it)
-- [ ] Write the README: what it is, how to run each step, data sources, limits
-- [ ] Remove the older `web/map.html` page, now covered by the main page
+- [x] Write the README: what it is, how to run each step, data sources, limits (live-site link still a placeholder)
+- [x] Remove the older `web/map.html` page, now covered by the main page (deleted 2026-11-16)
 - [ ] Agree the interface with Shade if they build the real front end (the API stays the same)
 - [ ] Decide how the demo runs (local, or hosted) and test it on a clean machine
 - [ ] Prepare the demo script: one rural, one urban, one high-income district
