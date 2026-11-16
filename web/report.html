@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>District report · Know Your District</title>
+  <link rel="stylesheet" href="/css/base.css">
+  <style>
+    .bar { background: var(--card); border-bottom: 1px solid var(--border); padding: 0.6rem 1.5rem;
+           display: flex; flex-wrap: wrap; align-items: end; gap: 0.6rem 1.25rem; }
+    .brand { font-weight: 700; font-size: 1.1rem; color: var(--accent-dark); text-decoration: none; margin-right: auto; align-self: center; }
+    .bar select { min-width: 12rem; }
+
+    main { max-width: 72rem; margin: 0 auto; padding: 1.25rem 1.5rem 3rem; }
+    .from-q { background: var(--accent-soft); border-left: 4px solid var(--accent); border-radius: 4px;
+              padding: 0.5rem 0.8rem; margin: 0 0 1rem; font-size: 0.88rem; }
+    .from-q[hidden] { display: none; }
+    h1 { margin: 0; font-size: 2rem; line-height: 1.15; }
+    .sub { margin: 0.2rem 0 1rem; color: var(--muted); }
+
+    /* Preset tabs: wrap on narrow screens instead of scrolling sideways. */
+    .tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0 0 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); }
+    .tabs [role="tab"] { font: inherit; font-size: 0.9rem; padding: 0.4rem 0.9rem; border-radius: 999px;
+                         border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; }
+    .tabs [role="tab"]:hover { border-color: var(--accent); }
+    .tabs [role="tab"][aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+    .blurb { margin: 0 0 0.4rem; font-size: 1.05rem; }
+    .notes { margin: 0 0 0.9rem; }
+    .notes p { margin: 0.15rem 0; }
+    .block { margin-top: 1.5rem; }
+    .block > h2 { font-size: 1.1rem; margin: 0 0 0.4rem; }
+    .block > .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.8rem 1rem; }
+    #panel:focus-visible { outline: 3px solid var(--accent); outline-offset: 6px; }
+    .print-only { display: none; }
+
+    @media (max-width: 600px) {
+      .bar { padding: 0.6rem 1rem; }
+      .bar .field, .bar select { width: 100%; }
+      main { padding: 1rem; }
+      h1 { font-size: 1.6rem; }
+      .facts { grid-template-columns: 1fr; }
+    }
+    @media print {
+      .bar, .tabs, .actions, .from-q { display: none !important; }
+      .print-only { display: block; }
+      main { max-width: none; padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <header class="bar">
+    <a class="brand" href="/">Know Your District</a>
+    <a class="btn secondary small" id="back" href="/">← Back to map</a>
+    <div class="field">
+      <label for="district">District</label>
+      <select id="district"><option value="">Loading…</option></select>
+    </div>
+  </header>
+
+  <main id="main">
+    <p class="from-q" id="from-q" hidden></p>
+    <h1 id="title">District report</h1>
+    <p class="sub" id="sub"></p>
+    <p class="print-only muted" id="print-view"></p>
+    <div class="tabs" role="tablist" aria-label="Report views" id="tabs"></div>
+    <section id="panel" role="tabpanel" tabindex="0" aria-live="polite"></section>
+    <details id="all">
+      <summary>All figures and sources for this district</summary>
+      <div class="inner" id="all-inner"></div>
+    </details>
+    <div class="actions">
+      <button class="btn" type="button" id="print">Print or save as PDF</button>
+      <button class="btn secondary" type="button" id="copy">Copy link to this report</button>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <p>This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.</p>
+    <p>Percentages and margins of error marked "calculated" or "about" are our own calculations from published Census figures. Informational only; not legal or eligibility advice. Final program eligibility is always decided by the program's agency.</p>
+  </footer>
+
+  <script type="module">
+    import { $, el, renderKeyFact, missingFact, comparisonTable, renderDetails, contextBody, taxAreasBody, countyOf } from "/js/render.js";
+    import { fmtCount, fmtMoe } from "/js/format.js";
+    import { PRESETS, presetById } from "/js/presets.js";
+
+    const params = new URL(location.href).searchParams;
+    const state = { id: (params.get("d") || "").toUpperCase(), view: presetById(params.get("view")).id, data: null };
+
+    const question = (params.get("q") || "").trim();
+    if (question) { $("from-q").hidden = false; $("from-q").textContent = `Opened from the assistant for your question: “${question}”`; }
+
+    function syncUrl() {
+      const u = new URL(location.href);
+      state.id ? u.searchParams.set("d", state.id) : u.searchParams.delete("d");
+      state.view !== "overview" ? u.searchParams.set("view", state.view) : u.searchParams.delete("view");
+      history.replaceState(null, "", u);
+      $("back").href = state.id ? "/?d=" + encodeURIComponent(state.id) : "/";
+    }
+
+    // ---------- tabs (WAI-ARIA tabs pattern, automatic activation) ----------
+    function buildTabs() {
+      $("tabs").replaceChildren(...PRESETS.map(p => el("button", {
+        type: "button", role: "tab", id: "tab-" + p.id, textContent: p.label,
+        onclick: () => selectView(p.id, false),
+      })));
+      $("panel").setAttribute("aria-labelledby", "tab-" + state.view);
+      markTabs();
+    }
+    function markTabs() {
+      PRESETS.forEach(p => {
+        const t = $("tab-" + p.id);
+        const on = p.id === state.view;
+        t.setAttribute("aria-selected", on);
+        t.setAttribute("aria-controls", "panel");
+        t.tabIndex = on ? 0 : -1;
+      });
+    }
+    $("tabs").addEventListener("keydown", e => {
+      const i = PRESETS.findIndex(p => p.id === state.view);
+      const next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: PRESETS.length - 1 }[e.key];
+      if (next === undefined) return;
+      e.preventDefault();
+      selectView(PRESETS[(next + PRESETS.length) % PRESETS.length].id, true);
+    });
+    function selectView(id, focusTab) {
+      state.view = id;
+      markTabs();
+      $("panel").setAttribute("aria-labelledby", "tab-" + id);
+      if (focusTab) $("tab-" + id).focus();
+      syncUrl();
+      renderPanel();
+    }
+
+    // ---------- panel ----------
+    function renderSection(s, data, county) {
+      let body = null;
+      if (s.type === "group") {
+        // The section heading already says what the rows are, so drop the repeated label prefix.
+        const comps = data.comparisons.filter(c => c.group === s.group)
+          .map(c => ({ ...c, label: c.label.replace(/^Employed residents working in:\s*/, "") }));
+        if (comps.length) body = el("div", {},
+          comps[0].group_note ? el("p", { className: "muted small", textContent: comps[0].group_note }) : null,
+          comparisonTable(comps, county, { groupRows: false }));
+      } else if (s.type === "taxAreas") body = taxAreasBody(data, county);
+      else if (s.type === "context") body = contextBody(data, county, s.ids);
+      else if (s.type === "note") body = el("div", { className: "card" }, el("p", { className: "muted", style: "margin:0", textContent: s.text }));
+      return el("section", { className: "block" }, el("h2", { textContent: s.title }),
+        body || el("p", { className: "muted", textContent: "Not available for this district in this tool's data." }));
+    }
+
+    function renderPanel() {
+      const data = state.data;
+      if (!data) return;
+      const p = presetById(state.view);
+      const county = countyOf(data);
+      const facts = el("div", { className: "facts" });
+      p.metrics.forEach(id => {
+        const c = data.comparisons.find(x => x.metric_id === id);
+        facts.append(c ? renderKeyFact(c) : missingFact(id));
+      });
+      const notes = el("div", { className: "notes" }, ...(p.notes || []).map(n => el("p", { className: "muted small", textContent: n })));
+      $("panel").replaceChildren(el("p", { className: "blurb", textContent: p.blurb }), notes, facts,
+        ...p.sections.map(s => renderSection(s, data, county)));
+      $("print-view").textContent = `View: ${p.label}`;
+      document.title = `${data.name} · ${p.label} · Know Your District`;
+    }
+
+    // ---------- data ----------
+    async function loadDistrict(id) {
+      state.id = id; state.data = null;
+      $("district").value = id || "";
+      syncUrl();
+      if (!id) {
+        $("title").textContent = "Choose a district";
+        $("sub").textContent = "Pick a House or Senate district above to see its report.";
+        $("panel").replaceChildren(); $("all-inner").replaceChildren();
+        return;
+      }
+      $("panel").replaceChildren(el("p", { className: "muted", textContent: "Loading…" }));
+      try {
+        const res = await fetch("/api/districts/" + encodeURIComponent(id));
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+        const data = await res.json();
+        if (state.id !== id) return; // user already moved on
+        state.data = data;
+        const county = countyOf(data);
+        const pop = data.facts.find(f => f.indicator_id === "pop_total");
+        const popLine = pop && pop.value_status === "ok"
+          ? `About ${fmtCount(pop.value)} residents (${fmtMoe(pop.moe, "count")})` : "Population not available";
+        const year = data.comparisons[0] ? data.comparisons[0].source.year : "";
+        $("title").textContent = data.name;
+        $("sub").textContent = [county, popLine, year && `Census ACS 5-year ${year}`].filter(Boolean).join(" · ");
+        $("all-inner").replaceChildren(renderDetails(data));
+        renderPanel();
+      } catch (err) {
+        $("title").textContent = "District report";
+        $("panel").replaceChildren(el("p", { className: "error", textContent: "Could not load this district. " + err.message }));
+      }
+    }
+
+    async function init() {
+      buildTabs();
+      try {
+        const res = await fetch("/api/districts");
+        if (!res.ok) throw new Error("Data service unavailable");
+        const list = await res.json();
+        const sel = $("district");
+        sel.replaceChildren(new Option("Choose…", ""));
+        [["house", "House"], ["senate", "Senate"]].forEach(([type, label]) => {
+          const g = el("optgroup", { label });
+          list.filter(d => d.geo_type === type).forEach(d => g.append(new Option(d.name, d.geo_id)));
+          sel.append(g);
+        });
+        if (state.id && !list.some(d => d.geo_id === state.id)) state.id = "";
+      } catch (err) {
+        $("panel").replaceChildren(el("p", { className: "error", textContent: "Could not load. " + err.message }));
+        return;
+      }
+      loadDistrict(state.id);
+    }
+
+    $("district").addEventListener("change", e => loadDistrict(e.target.value));
+    $("print").addEventListener("click", () => window.print());
+    $("copy").addEventListener("click", e => {
+      const u = new URL(location.href);
+      u.searchParams.delete("q"); // the question was the sender's; the report stands alone
+      if (navigator.clipboard) navigator.clipboard.writeText(u.href).then(() => { e.target.textContent = "Link copied"; });
+    });
+    window.addEventListener("beforeprint", () => document.querySelectorAll("details").forEach(d => d.open = true));
+    init();
+  </script>
+</body>
+</html>
