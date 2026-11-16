@@ -24,6 +24,11 @@ by county, island, ZIP code, census tract or its own areas. So the app shows:
 | Unemployment rate (BLS LAUS) | County | 2025 | `bls/laucnty25.xlsx` | 11-month average: October 2025 not collected (federal shutdown). No state total in this file |
 | SNAP cases and people served (Data Book 11.03-11.04; original data: Hawaiʻi DHS) | Island / county, state | FY2025 (July 2024-June 2025) | `dbedt/DB2025_section11.xlsx` | Program records, i.e. actual uptake |
 | Median income on resident tax returns (DOTAX A-13) | County, state | Tax year 2023 | `dotax/2023indinc_tables.xlsx` | Per return, not per household; Hawaiʻi ZIP codes only |
+| Med-QUEST (Medicaid) managed-care members (Hawaiʻi Medicaid Enrollment Report 2026) | County (Maui County = Maui + Molokaʻi + Lānaʻi), state | April 2026 (latest month at least 6 months old) | `dhs/medquest_managed_care_by_island_2026.csv` (extract of the report PDF) | Program records; excludes about 9,000 Medicaid-only members; counts change for up to 6 months |
+| Hawaiʻi EITC, food/excise credit and renters' credit claims (DOTAX Tax Credits Claimed, A-4) | County, state | Tax year 2023 | `dotax/2023credit_tables.xlsx` | Claims on individual returns, not people; Oʻahu includes nonresidents with out-of-state addresses |
+| Share of resident returns claiming the Hawaiʻi EITC and food/excise credit (DOTAX A-7) | 26 tax areas, shown with the tax areas | Tax year 2023 | same | Program use: a credit is received only if claimed; whole-area figures |
+| Official permanent-resident population (2021 Reapportionment Plan, Tables 9-10) | District | 2020 Census base | `elections/reapportionment_2021_district_population.csv` (extract of the 400 MB report, not in Git) | Excludes non-permanent military and students, so it differs from the ACS population |
+| 2020 Census blocks (weights only) | Block | 2020 | `census/blocks/` | Used only to match tax areas, places and ZIP areas to districts by residents; never shown as figures |
 | DOTAX tax areas (A-13) and their ZIP codes (A-14) | 26 sub-county areas, listed for each district they overlap | Tax year 2023 | same, plus `census/tab20_sld*202420_zcta520_st15.txt` | Whole-area figures, not the district's; matched by land overlap (`GEOGRAPHY_METHOD.md`) |
 
 BEA personal income and population, and BLS labor force and unemployed, are still read from the

@@ -17,7 +17,7 @@ Seth Colby's kickoff video ("Seth").
   - [~] Stays nonpartisan: instructed; test question 12 [Business Rules]
   - [~] Test set: 15 questions with expected figures looked up from the database (`validation/test_agent.py`, report `validation/agent_report.md`). **Run it once a key is set (about 15 model calls)** [Model Validation]
   - [ ] Questions are sent to Anthropic's API. They contain no resident data, but note it in the privacy statement
-- [~] Find a district by place name: DOTAX tax-area names (e.g. North Shore, Molokaʻi, Kona) through the assistant's find_district. No neighborhood or address lookup yet [Basic Flow 1; Seth]
+- [~] Find a district by place name: ZIP codes, 163 Census places (towns/CDPs) and DOTAX tax areas, each with the share of residents per district, through the assistant's find_district. No neighborhood (e.g. Kahala) or address lookup yet [Basic Flow 1; Seth]
 - [x] Choose a district by chamber and number (House 51, Senate 25)
 
 ## 2. District profile (data on screen)
@@ -37,10 +37,11 @@ Seth Colby's kickoff video ("Seth").
 
 ## 3. Programs and outreach (other group)
 
-- [ ] Program inventory with eligibility, how to apply, documents needed **(other group; `pipeline/programs.yaml` has 2 of many)**
-- [ ] Programs section on the page shows real recommendations (placeholder now) **(other group)**
-- [ ] Each recommendation links to the official program page [Business Rules]
-- [ ] "Final eligibility is decided by the agency" note shown next to every recommendation [Business Rules]
+- [x] Program inventory (`pipeline/programs.yaml`): SNAP, Med-QUEST, Hawaiʻi EITC, food/excise tax credit, WIC, Kūpuna Care, SSI, plus the 2026 HHS poverty guidelines for Hawaiʻi. Eligibility, income limits, how to apply, documents to bring, contacts. Every fact quoted from an official document saved by hand in `pipeline/raw/programs/`; validation group P checks all 35 quotes and 144 numbers against the files
+- [x] Programs section on each district page, with the district's related figures and county program records; assistant tool `get_programs`
+- [x] Each program links to its official page [Business Rules]
+- [x] "Final eligibility is decided by the agency" note shown with every program and in the assistant's rules [Business Rules]
+- [ ] Keep program information current: re-save the documents when rules change (SNAP each October, Med-QUEST each January, HHS guidelines each January, tax credits each tax year), update `checked_on`, run `python pipeline/programs.py` [Assumptions; winning criteria]
 - [~] Estimate of residents likely eligible for a program [Calculations]: need-side figures by district built; method in `docs/ELIGIBILITY_METHOD.md`. Still needs program income rules from official sources (program group) to pick the cut point
 - [x] Program uptake counts where published, to show the outreach gap [Calculations]: SNAP by county (DHS), SNAP and Medicaid by district (ACS, self-reported)
 - [~] At least one population + program example where outreach could raise uptake [Success Scenario]: households below poverty not receiving SNAP (statewide 62%, ~31,700; largest HD-24, SD-12). Labeled likely overstated (ACS counts 68% of DHS SNAP cases). Confirm the SNAP income rule before the demo
@@ -67,7 +68,13 @@ Seth Colby's kickoff video ("Seth").
 - [x] BEA county personal income [Data Set]: CAINC1 2024, saved file, shown as "County and state context" (Maui figure includes Kalawao, labeled). Refresh after BEA's 2026-12-02 release.
 - [x] BLS county unemployment [Data Set]: 2025 labor force, unemployed, rate by county, shown as county context with BLS's 11-month-average footnote (October 2025 not collected)
 - [~] DBEDT/READ Data Book 2025 [Data Set; Seth: primary source]: all 24 sections saved; Table 1.06 (2025 population) and 11.03-11.05 (SNAP uptake by island) in use. Catalogue of all 833 tables in `docs/data_book_2025_tables.csv`; candidates in `docs/DATA_SOURCES.md`. **Ask READ which others they want**
-- [~] DOTAX income [Seth]: A-13 and A-14 loaded. County and state median income on tax returns shown as context; 26 tax areas and 121 ZIP codes stored. Census 2024 district-to-ZCTA files saved. District overlap built (1% threshold): each district page lists the tax areas that overlap it, with whole-area figures and land shares [Assumptions; Seth: finer than district]. **Hand-check a few districts against the map**
+- [~] DOTAX income [Seth]: A-13 and A-14 loaded. County and state median income on tax returns shown as context; 26 tax areas and 121 ZIP codes stored. District overlap built from 2020 Census blocks, by residents (1% threshold): each district page lists the tax areas its residents live in, with whole-area figures [Assumptions; Seth: finer than district]. **Hand-check a few districts against the map**
+- [x] Census 2020 blocks loaded (2024 district equivalency, block populations, block-to-ZCTA, places): population-weighted tax-area, place and ZIP matching; independent cross-check against the Census district-to-ZCTA files passes
+- [x] Low-reliability flag (CV over 30%) on the page and in the assistant's data: 179 of 3,344 district figures
+- [x] DOTAX tax credits 2023: Hawaiʻi EITC, food/excise and renters' credit claims by county (A-4) and share of returns claiming them by tax area (A-7), shown with the tax areas
+- [x] Official permanent-resident population per district (2021 Reapportionment Commission report, Tables 9-10), shown under the district name; both chambers add to the report's 1,348,054
+- [x] Cross-check against DBEDT's published ACS district profiles: 1,064 estimates and 910 margins of error, 14 measures, all 76 districts, 0 differences (validation group H)
+- [x] Med-QUEST managed-care enrollment by county and state, April 2026 (Hawaiʻi Medicaid Enrollment Report 2026, downloaded by hand; latest month at least six months old). Survey Medicaid coverage is 68% of these records, so it is labeled as likely understated
 - [x] Recommended data set applied (`docs/DATA_SOURCES.md`): kept ACS, SNAP 11.03-11.04, BLS rate, BEA per capita; added DOTAX; dropped Data Book 1.06 and 11.05; skipped the other Data Book candidates
 - [x] ACS additions: Medicaid/means-tested coverage (C27007) and Social Security income (B19055), by district, on the page and the map
 - [x] ACS additions (2026-11-16, definitions checked in the Census API): program need (B22003 poor households without SNAP, C17002 under 125%/200% of poverty, C27016 uninsured under 138%), kūpuna poverty (B17020, age 60+), young families (B11005), homeowner cost burden (B25091), ethnic background (B02008, B02011, B02018 Filipino and Japanese, B03002 Hispanic and two or more races). 63 indicators, all published for every district
@@ -89,7 +96,7 @@ Seth Colby's kickoff video ("Seth").
 
 ## 7. Accuracy and validation [Model Validation; Seth: accuracy is the main judging axis]
 
-- [x] `validation/validate.py`: 38 checks pass (cross-check against ACS subject tables, internal consistency incl. industries, provenance, mapping, county/state context incl. BEA, BLS, SNAP and DOTAX ZIP/area/county totals, and the tax-area overlap)
+- [x] `validation/validate.py`: 51 checks pass (cross-check against ACS subject tables, internal consistency incl. industries, provenance, mapping, county/state context incl. BEA, BLS, SNAP and DOTAX ZIP/area/county totals, and the tax-area overlap)
 - [x] Written protocol, `validation/PROTOCOL.md`
 - [ ] Subject-matter expert (DBEDT/READ) fills in `validation/spot_check_sample.csv`
 - [ ] Run `validate.py` again after every data rebuild and before each demo

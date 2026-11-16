@@ -15,7 +15,8 @@ from pathlib import Path
 
 import duckdb
 import yaml
-from context import OVERLAP_THRESHOLD, load_district_zcta
+from blocks import build_overlaps, load_blocks
+from context import load_district_zcta
 from context import load_all as load_context
 from fetch_acs import CHAMBERS, HAWAII, cache_path, moe_var
 
@@ -112,7 +113,8 @@ def build() -> None:
     con = duckdb.connect(str(DB_PATH))
     # Drop dependents first so the schema can be rebuilt.
     for table in ("fact", "context_fact", "context_indicator", "tax_area_district",
-                  "district_zcta", "tax_area_zip", "tax_area"):
+                  "district_zcta", "tax_area_zip", "tax_area_credit", "tax_area",
+                  "place_district", "zcta_district", "place", "block", "district_plan"):
         con.execute(f"DROP TABLE IF EXISTS {table}")
     con.execute((HERE / "schema.sql").read_text(encoding="utf-8"))
     con.execute(
@@ -132,50 +134,37 @@ def build() -> None:
         con.execute("INSERT INTO source VALUES (?, ?, ?, ?, ?, ?, ?)",
                     [sid, pub, dataset, url, year,
                      datetime.fromisoformat(retrieved.replace("Z", "+00:00")), vintage])
-        con.executemany("INSERT INTO context_indicator VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                        ctx["indicators"])
-        con.executemany("INSERT INTO context_fact VALUES (?, ?, ?, ?, ?, ?, ?)", ctx["facts"])
-        print(f"Loaded {len(ctx['facts'])} context figures from {sid}")
+        if ctx.get("indicators"):
+            con.executemany("INSERT INTO context_indicator VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                            ctx["indicators"])
+        if ctx.get("facts"):
+            con.executemany("INSERT INTO context_fact VALUES (?, ?, ?, ?, ?, ?, ?)", ctx["facts"])
+            print(f"Loaded {len(ctx['facts'])} context figures from {sid}")
+        if "credit_areas" in ctx:
+            con.executemany("INSERT INTO tax_area_credit VALUES (?, ?, ?, ?, ?, ?)",
+                            ctx["credit_areas"])
+            for label, key in (("State Total", "STATE-TOTAL"), ("Other/Unknown", "OTHER-UNKNOWN")):
+                v = ctx["credit_totals"][label]
+                con.execute("INSERT INTO tax_area_credit VALUES (?, ?, ?, ?, ?, ?)",
+                            [key, label, v["returns"], v["food_excise"], v["renters"], v["eitc"]])
+            print(f"Loaded tax-credit claims for {len(ctx['credit_areas'])} DOTAX areas")
+        if "district_plan" in ctx:
+            con.executemany("INSERT INTO district_plan VALUES (?, ?, ?, ?)", ctx["district_plan"])
+            print(f"Loaded permanent-resident population for {len(ctx['district_plan'])} districts")
         if "tax_areas" in ctx:
             con.executemany("INSERT INTO tax_area VALUES (?, ?, ?, ?, ?, ?)", ctx["tax_areas"])
             con.executemany("INSERT INTO tax_area_zip VALUES (?, ?, ?, ?)", ctx["tax_area_zips"])
             print(f"Loaded {len(ctx['tax_areas'])} DOTAX areas and "
                   f"{len(ctx['tax_area_zips'])} ZIP codes")
-            build_tax_area_overlap(con)
+
+    # Census district-to-ZCTA land overlaps: kept as an independent cross-check of the blocks.
+    con.executemany("INSERT INTO district_zcta VALUES (?, ?, ?, ?, ?)", load_district_zcta())
+    # 2020 blocks: population-weighted tax area, place and ZIP matching (pipeline/blocks.py).
+    load_blocks(con)
+    build_overlaps(con)
 
     check(con, len(indicators))
     con.close()
-
-
-def build_tax_area_overlap(con: duckdb.DuckDBPyConnection) -> None:
-    """Which DOTAX tax areas overlap each district (docs/GEOGRAPHY_METHOD.md). A tax area is the
-    ZCTAs of its ZIP codes (DOTAX Table A-14); overlap land comes from the Census relationship
-    files. Nothing is apportioned: these shares only describe and label the overlap."""
-    con.executemany("INSERT INTO district_zcta VALUES (?, ?, ?, ?, ?)", load_district_zcta())
-    con.execute(f"""
-        INSERT INTO tax_area_district
-        WITH area_land AS (   -- each tax area's land: its ZCTAs, counted once
-            SELECT z.area_id, sum(zl.zcta_land) AS land
-            FROM (SELECT DISTINCT zcta, zcta_land FROM district_zcta WHERE zcta IS NOT NULL) zl
-            JOIN tax_area_zip z ON z.zip = zl.zcta
-            GROUP BY z.area_id),
-        overlap AS (
-            SELECT d.geo_id, z.area_id, sum(d.land_part) AS land,
-                   any_value(d.district_land) AS district_land
-            FROM district_zcta d JOIN tax_area_zip z ON z.zip = d.zcta
-            GROUP BY d.geo_id, z.area_id)
-        SELECT o.geo_id, o.area_id, o.land, o.land / o.district_land, o.land / a.land,
-               CASE WHEN o.land / o.district_land >= {OVERLAP_THRESHOLD} THEN 'overlaps'
-                    ELSE 'touches the edge' END
-        FROM overlap o JOIN area_land a USING (area_id)
-        WHERE o.land > 0
-    """)
-    n = con.execute("SELECT count(*), count(*) FILTER (WHERE relation = 'overlaps') "
-                    "FROM tax_area_district").fetchone()
-    unmatched = con.execute("""SELECT count(DISTINCT zcta) FROM district_zcta d
-        WHERE zcta IS NOT NULL AND zcta NOT IN (SELECT zip FROM tax_area_zip)""").fetchone()[0]
-    print(f"Tax area overlap: {n[0]} district-area pairs ({n[1]} overlap, {n[0] - n[1]} touch the "
-          f"edge). {unmatched} ZCTAs have no ZIP code in DOTAX Table A-14.")
 
 
 def check(con: duckdb.DuckDBPyConnection, n_indicators: int) -> None:

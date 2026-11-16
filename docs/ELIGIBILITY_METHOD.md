@@ -18,8 +18,13 @@ published for every House and Senate district.
 | Residents age 60 and older below the poverty level | B17020 | Kūpuna on low fixed incomes (60+, because of the table's age groups) |
 | Households receiving SNAP | B22003 | SNAP uptake, as people report it in the survey |
 
-Uptake from program records is available by county only: SNAP households and people served
-(DHS, Data Book 11.03-11.04).
+Uptake from program records:
+- By county: SNAP households and people served (DHS, Data Book 11.03-11.04, FY2025);
+  Med-QUEST managed-care members (Hawaiʻi Medicaid Enrollment Report 2026, April 2026);
+  Hawaiʻi EITC, food/excise and renters' credit claims (DOTAX, tax year 2023).
+- By DOTAX tax area (matched to districts by residents): the share of resident tax returns
+  claiming the Hawaiʻi EITC and the food/excise credit (DOTAX Table A-7). For example, 22.7% on
+  the Waiʻanae Coast against 12.4% statewide.
 
 ## What these figures are not
 
@@ -27,11 +32,13 @@ Uptake from program records is available by county only: SNAP households and peo
   program has its own rules (household size, other income tests, assets, residency, student or
   work rules). Final eligibility is always decided by the administering agency, and the page says
   so wherever these figures appear.
-- **Survey answers under-count SNAP.** Statewide, the ACS shows 56,236 households receiving SNAP
-  (2020-2024), against 83,041 average monthly cases in DHS records (FY2025): 68%. The measures
-  and periods differ, but a gap this size means the share of poor households "not receiving SNAP"
-  is likely **overstated**. It is labeled that way, and the comparison is printed by
-  `validation/validate.py` on every run.
+- **Survey answers under-count program use.** Statewide, the ACS shows 56,236 households
+  receiving SNAP (2020-2024), against 83,041 average monthly cases in DHS records (FY2025): 68%.
+  For Medicaid, 273,514 residents report Medicaid or means-tested coverage, against 401,393
+  Med-QUEST managed-care members in April 2026: also 68% (61-71% by county). The measures and
+  periods differ, but gaps this size mean survey shares receiving SNAP or Medicaid are likely
+  **understated**, and the share of poor households "not receiving SNAP" is likely
+  **overstated**. Both comparisons are printed by `validation/validate.py` on every run.
 - **Periods differ.** The ACS covers 2020-2024; DHS records cover FY2025.
 
 ## The example the brief asks for (one population + program)

@@ -197,9 +197,61 @@ sources:
       - "Tables are by ZIP code and area, not legislative district. Needs a ZIP-to-district crosswalk with a written method before any figure is shown for a district."
       - "The XLSX says \"s\" denotes cells \"suppressed to prevent potential disclosure of confidential taxpayer information\". Read the PDF's notes on how ZIP/area is assigned, and how PO-box ZIP codes and the 20,666 \"Other/Unidentified\" returns are treated."
 
+  - id: dotax_tax_credits
+    publisher: Hawaiʻi Department of Taxation (DOTAX)
+    used_for: "IN USE: Tax Credits Claimed by Hawaiʻi Taxpayers, Tax Year 2023 (XLSX and PDF, downloaded by hand 2026-11-16). Table A-4 claim counts by tax district as county context (Hawaiʻi EITC, refundable food/excise credit, renters' credit); Table A-7 share of resident returns claiming each credit, by DOTAX tax area."
+    terms_url: https://portal.ehawaii.gov/page/terms-of-use/ # see hawaii_gov_terms
+    checked_on: 2026-11-15
+    quotes: {}
+    related:
+      - url: https://tax.hawaii.gov/stats/a5_1annual/a5_4credits/
+        note: "Page the files were downloaded from."
+    open_questions:
+      - "Same Hawaiʻi.gov terms questions as the other DBEDT/DOTAX files (storing and showing figures; non-commercial use)."
+
+  - id: reapportionment_2021
+    publisher: State of Hawaiʻi 2021 Reapportionment Commission (Office of Elections)
+    used_for: "IN USE: 2021 Reapportionment Commission Final Report and Reapportionment Plan (February 25, 2022), Tables 9-10: each district's permanent-resident population. Report downloaded by hand 2026-11-16 (400 MB, not in Git); extract in pipeline/raw/elections/."
+    terms_url: https://portal.ehawaii.gov/page/terms-of-use/ # see hawaii_gov_terms (elections.hawaii.gov)
+    checked_on: 2026-11-15
+    quotes: {}
+    related:
+      - url: https://elections.hawaii.gov/about-us/boards-and-commissions/reapportionment/
+        note: "Page the report was downloaded from."
+    open_questions:
+      - "Same Hawaiʻi.gov terms questions as the other state files."
+
+  - id: dbedt_acs
+    publisher: Hawaiʻi DBEDT Research & Economic Analysis Division (republishing U.S. Census Bureau ACS)
+    used_for: "CROSS-CHECK ONLY: ACS 2020-2024 5-year Data Profiles for House and Senate districts (XLSX, downloaded by hand 2026-11-16). Compared with our stored figures in validation/validate.py group H; no figure is shown from them."
+    terms_url: https://portal.ehawaii.gov/page/terms-of-use/ # see hawaii_gov_terms
+    checked_on: 2026-11-15
+    quotes: {}
+    related:
+      - url: https://census.hawaii.gov/acs/acs-2024/
+        note: "Page the files were downloaded from."
+
+  - id: program_documents
+    publisher: "Program agencies: Hawaiʻi DHS (BESSD, Med-QUEST), DOTAX, DOH (WIC, Executive Office on Aging); U.S. HHS (ASPE), U.S. Social Security Administration"
+    used_for: "IN USE: program facts in pipeline/programs.yaml, each quoted from an official page or document saved by hand 2026-11-16 in pipeline/raw/programs/ (hawaii.gov pages saved with the browser; HHS and SSA also saved by hand because their sites refuse scripted downloads)."
+    terms_url: https://portal.ehawaii.gov/page/terms-of-use/ # hawaii.gov documents; see hawaii_gov_terms. HHS and SSA terms not read.
+    checked_on: 2026-11-16
+    quotes: {}
+    open_questions:
+      - "Same Hawaiʻi.gov terms questions as the other state files. Confirm HHS and SSA reuse terms for their publications."
+
+  - id: census_blocks
+    publisher: U.S. Census Bureau
+    used_for: "IN USE: 2020 Census block files (2024 SLD block equivalency files, TIGER/Line 2020 block attributes, 2020 ZCTA-to-block relationship file, 2020 block assignment file, 2020 place gazetteer), each downloaded once 2026-11-16 and stored as Hawaiʻi extracts or whole files in pipeline/raw/census/blocks/. Used only as weights for matching tax areas, places and ZIP areas to districts."
+    terms_url: null # see census_tiger and census_data_api; no separate terms page was read for these files
+    checked_on: 2026-11-16
+    quotes: {}
+    open_questions:
+      - "No terms page specific to these reference files was read. Confirm the Census Bureau's terms for TIGER/Line and relationship files (see the census_tiger entry)."
+
   - id: dhs_snap_and_medquest
     publisher: Hawaiʻi Department of Human Services (DHS), including Med-QUEST Division
-    used_for: "PLANNED: program uptake (SNAP and Medicaid/QUEST enrollment by county or island) for the outreach-gap estimate. Nothing downloaded yet."
+    used_for: "IN USE (source id dhs_medquest): Hawaiʻi Medicaid Enrollment Report 2026 (report date 11/06/2026), Managed Care By Island, downloaded by hand from the Med-QUEST reports page 2026-11-16 (the 2025 report kept for reference). County and state managed-care members for April 2026 as county context. SNAP uptake comes from DHS via the Data Book (dbedt_databook)."
     terms_url: https://portal.ehawaii.gov/page/terms-of-use/ # assumed hawaii.gov; footer link not checked
     checked_on: null
     quotes: {}

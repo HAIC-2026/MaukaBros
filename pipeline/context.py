@@ -442,6 +442,101 @@ def load_dotax() -> dict:
     }
 
 
+# --- DOTAX Tax Credits Claimed by Hawaiʻi Taxpayers, tax year 2023 -----------------------------
+# Table A-4: number of credits claimed on individual returns, by tax district (county).
+# Table A-7: resident returns (Form N-11) claiming selected credits, by the same DOTAX geographic
+# areas as the income report (Table A-13), so they attach to the tax areas already matched to
+# districts. These are program-use figures: refundable credits people qualify for but must claim.
+CREDITS_PAGE = "https://tax.hawaii.gov/stats/a5_1annual/a5_4credits/"
+CREDIT_ROWS = {  # A-4 row label -> (indicator id, label)
+    "Earned Income Tax Credit": ("dotax_eitc_claims", "Hawaiʻi earned income tax credit claims"),
+    "Refundable Food/Excise Tax Credit": ("dotax_food_excise_claims",
+                                          "Refundable food/excise tax credit claims"),
+    "Tax Credit for Low-Income Household Renters": ("dotax_renters_claims",
+                                                    "Low-income household renters' credit claims"),
+}
+A4_DISTRICTS = {"STATE": "STATE-15", "OAHU*": "COUNTY-003", "MAUI": "COUNTY-009",
+                "HAWAII": "COUNTY-001", "KAUAI": "COUNTY-007"}
+A7_COLUMNS = {"Number of Returns": "returns", "Refundable Food/Excise Tax Credit": "food_excise",
+              "Tax Credit for Low-Income Household Renters": "renters",
+              "Earned Income Tax Credit": "eitc"}
+A7_ALIASES = {"puna to kau": "puna-kau"}  # A-7 spelling -> A-13 spelling (both plain)
+
+
+def plain_name(s: str) -> str:
+    import unicodedata
+    s = unicodedata.normalize("NFD", text(s).lower().replace("ʻ", "").replace("'", ""))
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return A7_ALIASES.get(s, s)
+
+
+def load_dotax_credits(area_ids: dict[str, str]) -> dict:
+    """area_ids: plain A-13 area name -> tax_area id (from load_dotax)."""
+    path, entry = saved_file("dotax/2023credit_tables.xlsx")
+    pdf_path, pdf_entry = saved_file("dotax/2023credit.pdf")
+
+    what = "DOTAX credits table A-4"
+    rows = sheet_rows(path, "A-4")
+    title = " ".join(text(r[0]) for r in rows[:3] if r and r[0])
+    if "BY TYPE OF CREDIT AND TAX DISTRICT - 2023" not in title.upper():
+        raise SystemExit(f"{what}: unexpected title {title!r}")
+    h = next(i for i, r in enumerate(rows) if r and any(text(v) == "STATE" for v in r))
+    cols = {lab: column(rows[h], lab, what) for lab in A4_DISTRICTS}
+    facts, indicators = [], []
+    for label, (ind_id, ind_label) in CREDIT_ROWS.items():
+        r = rows[next(i for i, r in enumerate(rows) if r and text(r[0]) == label)]
+        for col_label, geo_id in A4_DISTRICTS.items():
+            v = number(r[cols[col_label]], what) if text(r[cols[col_label]]) != "d" else None
+            note = ("Includes credits claimed by nonresidents with an out-of-state address "
+                    "(DOTAX note)." if geo_id == "COUNTY-003" else
+                    "DOTAX tax district 2: Maui and Kalawao counties." if geo_id == "COUNTY-009"
+                    else None)
+            facts.append((geo_id, ind_id, "dotax_tax_credits", "Tax year 2023", v,
+                          "ok" if v is not None else "suppressed", note))
+        facts.append(("COUNTY-005", ind_id, "dotax_tax_credits", "Tax year 2023", None,
+                      "not_published", "DOTAX does not report Kalawao County separately."))
+        indicators.append((ind_id, ind_label, "claims", "Table A-4", entry["url"],
+                           f"{title}", None,
+                           "Number of claims on individual income tax returns (residents and "
+                           "nonresidents), not people or households. A credit must be claimed on a "
+                           "tax return to be received."))
+
+    what = "DOTAX credits table A-7"
+    rows = sheet_rows(path, "A-7")
+    title = " ".join(text(r[0]) for r in rows[:3] if r and r[0])
+    if "BY GEOGRAPHICAL AREAS - 2023" not in title.upper():
+        raise SystemExit(f"{what}: unexpected title {title!r}")
+    h = next(i for i, r in enumerate(rows) if r and any(text(v) == "Number of Returns" for v in r))
+    cols = {key: column(rows[h], lab, what) for lab, key in A7_COLUMNS.items()}
+    areas, totals, seen = [], {}, set()
+    for r in rows[h + 1:]:
+        label = text(r[0]) if r else ""
+        if not label or label.startswith("Notes") or all(v is None for v in r[1:5]):
+            continue
+        vals = {k: (number(r[c], what) if text(r[c]) != "d" else None) for k, c in cols.items()}
+        if label in ("State Total", "Other/Unknown"):
+            totals[label] = vals
+            continue
+        area_id = area_ids.get(plain_name(label))
+        if area_id is None:
+            raise SystemExit(f"{what}: area {label!r} does not match any income-report area")
+        seen.add(area_id)
+        areas.append((area_id, label, vals["returns"], vals["food_excise"], vals["renters"],
+                      vals["eitc"]))
+    if seen != set(area_ids.values()) or set(totals) != {"State Total", "Other/Unknown"}:
+        raise SystemExit(f"{what}: areas missing: {sorted(set(area_ids.values()) - seen)}")
+    return {
+        "source": ("dotax_tax_credits", "Hawaiʻi Department of Taxation (DOTAX)",
+                   "Tax Credits Claimed by Hawaiʻi Taxpayers, Tax Year 2023", CREDITS_PAGE,
+                   "Tax year 2023",
+                   max(str(entry["downloaded_on"]), str(pdf_entry["downloaded_on"])), None),
+        "indicators": indicators,
+        "facts": facts,
+        "credit_areas": areas,
+        "credit_totals": totals,
+    }
+
+
 # --- Census 2024 state legislative district to 2020 ZCTA relationship files (Hawaiʻi) ----------
 # One row per district-ZCTA pair, with the land area of the overlap. Rows with no ZCTA are the
 # part of the district (mostly water and uninhabited land) outside every ZCTA. Used only to list
@@ -450,8 +545,9 @@ DISTRICT_ZCTA_FILES = {
     "house": ("census/tab20_sldl202420_zcta520_st15.txt", "SLDL2024_20", "HD"),
     "senate": ("census/tab20_sldu202420_zcta520_st15.txt", "SLDU2024_20", "SD"),
 }
-# A tax area covering less than this share of a district's land is labeled "touches the edge"
-# rather than "overlaps". Team decision 2026-11-16. It changes only the label, never a figure.
+# A tax area holding less than this share of a district's 2020 residents is labeled "touches the
+# edge" rather than "overlaps" (pipeline/blocks.py). Team decision 2026-11-16. It changes only the
+# label, never a figure.
 OVERLAP_THRESHOLD = 0.01
 
 
@@ -478,8 +574,82 @@ def load_district_zcta() -> list[tuple]:
     return out
 
 
+
+
+MEDQUEST_PAGE = "https://medquest.hawaii.gov/"
+MEDQUEST_ISLANDS = {"Oahu": "COUNTY-003", "Hawaii": "COUNTY-001", "Kauai": "COUNTY-007"}
+MAUI_COUNTY_ISLANDS = ("Maui", "Molokai", "Lanai")
+
+
+def load_medquest() -> dict:
+    """Med-QUEST (Medicaid) managed-care enrollment by island, Hawaiʻi Medicaid Enrollment Report
+    2026 (extract by pipeline/extract_medquest.py). Uses the latest month that ended at least six
+    months before the report date: the report says counts change for up to six months."""
+    import datetime as dt
+
+    path, entry = saved_file("dhs/medquest_managed_care_by_island_2026.csv")
+    pdf_path, pdf_entry = saved_file("dhs/Website Enrollment Report 2026 20261106.pdf")
+    with path.open(encoding="utf-8", newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    report = dt.datetime.strptime(rows[0]["report_date"], "%m/%d/%Y").date()
+    k = report.year * 12 + report.month - 1 - 6                 # six months before the report date
+    six_months_back = dt.date(k // 12, k % 12 + 1, 1)
+
+    def month_end(m: str) -> dt.date:
+        first = dt.datetime.strptime(m, "%b-%y").date()
+        nxt = first.year * 12 + first.month                       # first day of the next month
+        return dt.date(nxt // 12, nxt % 12 + 1, 1) - dt.timedelta(days=1)
+
+    cutoff = six_months_back.replace(day=min(report.day, 28))
+    settled = [m for m in dict.fromkeys(r["month"] for r in rows) if month_end(m) <= cutoff]
+    if not settled:
+        raise SystemExit("Med-QUEST report: no month is six months old yet")
+    month = settled[-1]
+    v = {r["area"]: int(r["managed_care_enrollment"]) for r in rows if r["month"] == month}
+    label = dt.datetime.strptime(month, "%b-%y").strftime("%B %Y")
+    facts = [(geo, "medquest_managed_care", "dhs_medquest", label, float(v[isl]), "ok",
+              f"Reported by Med-QUEST for the island of {isl.replace('Oahu', 'Oʻahu').replace('Hawaii', 'Hawaiʻi').replace('Kauai', 'Kauaʻi')}.")
+             for isl, geo in MEDQUEST_ISLANDS.items()]
+    facts.append(("COUNTY-009", "medquest_managed_care", "dhs_medquest", label,
+                  float(sum(v[i] for i in MAUI_COUNTY_ISLANDS)), "ok",
+                  "Sum of the Med-QUEST figures for Maui, Molokaʻi and Lānaʻi (calculated)."))
+    facts.append(("STATE-15", "medquest_managed_care", "dhs_medquest", label, float(v["TOTAL"]),
+                  "ok", "Report total, Medicaid managed care."))
+    facts.append(("COUNTY-005", "medquest_managed_care", "dhs_medquest", label, None,
+                  "not_published", "Med-QUEST does not report Kalawao County separately."))
+    return {
+        "source": ("dhs_medquest", "Hawaiʻi Department of Human Services, Med-QUEST Division",
+                   "Hawaiʻi Medicaid Enrollment Report (2026), Managed Care By Island",
+                   MEDQUEST_PAGE, label, str(pdf_entry["downloaded_on"]),
+                   f"Report dated {report:%B} {report.day}, {report.year}"),
+        "indicators": [("medquest_managed_care", "Med-QUEST (Medicaid) managed-care members",
+                        "people", "Managed Care By Island", pdf_entry["url"],
+                        "Hawaii Medicaid Enrollment Report (2026)", None,
+                        "Program records: people with a Med-QUEST health plan for at least part of "
+                        "the month. Excludes about 9,000 Medicaid-only members (fee-for-service and "
+                        "Medicare Savings). The report says counts change for up to six months, so "
+                        "the latest month at least six months old is used.")],
+        "facts": facts,
+    }
+
+
+def load_reapportionment() -> dict:
+    """Each district's permanent-resident population from the 2021 Reapportionment Commission
+    Final Report, Tables 9-10 (extract made by pipeline/extract_reapportionment.py)."""
+    path, entry = saved_file("elections/reapportionment_2021_district_population.csv")
+    with path.open(encoding="utf-8", newline="") as fh:
+        rows = [(f"{'HD' if r['chamber'] == 'house' else 'SD'}-{int(r['district'])}",
+                 int(r["permanent_resident_population"]), int(r["statewide_target"]),
+                 int(r["report_pdf_page"])) for r in csv.DictReader(fh)]
+    return {"source": ("reapportionment_2021", "State of Hawaiʻi 2021 Reapportionment Commission "
+                       "(Office of Elections)", "2021 Reapportionment Commission Final Report and "
+                       "Reapportionment Plan (February 25, 2022), Tables 9 and 10",
+                       entry["url"], "2020 Census base", str(entry["downloaded_on"]), None),
+            "district_plan": rows}
+
+
 LOADERS = {"bea_cainc1": load_bea, "bls_laus": load_bls, "dbedt_databook": load_data_book,
-           "dotax_individual_income": load_dotax}
+           "dotax_individual_income": load_dotax, "dhs_medquest": load_medquest}
 
 
 def load_all() -> list[dict]:
@@ -489,6 +659,18 @@ def load_all() -> list[dict]:
             out.append(loader())
         except MissingFile as exc:
             print(f"Skipping {source_id}: {exc}")
+            continue
+        if source_id == "dotax_individual_income":
+            ids = {plain_name(published): area_id
+                   for area_id, _, published, *_ in out[-1]["tax_areas"]}
+            try:
+                out.append(load_dotax_credits(ids))
+            except MissingFile as exc:
+                print(f"Skipping dotax_tax_credits: {exc}")
+    try:
+        out.append(load_reapportionment())
+    except MissingFile as exc:
+        print(f"Skipping reapportionment_2021: {exc}")
     pending = sorted({e["source_id"] for e in manifest() if e.get("status") == "needed"})
     if pending:
         print(f"Not downloaded yet (see pipeline/raw/manifest.yaml): {', '.join(pending)}")
