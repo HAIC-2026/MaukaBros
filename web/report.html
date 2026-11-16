@@ -62,6 +62,7 @@
     <p class="from-q" id="from-q" hidden></p>
     <h1 id="title">District report</h1>
     <p class="sub" id="sub"></p>
+    <div id="plan"></div>
     <p class="print-only muted" id="print-view"></p>
     <div class="tabs" role="tablist" aria-label="Report views" id="tabs"></div>
     <section id="panel" role="tabpanel" tabindex="0" aria-live="polite"></section>
@@ -81,7 +82,7 @@
   </footer>
 
   <script type="module">
-    import { $, el, renderKeyFact, missingFact, comparisonTable, renderDetails, contextBody, taxAreasBody, countyOf } from "/js/render.js";
+    import { $, el, renderKeyFact, missingFact, comparisonTable, renderDetails, contextBody, taxAreasBody, programsBody, planLine, countyOf } from "/js/render.js";
     import { fmtCount, fmtMoe } from "/js/format.js";
     import { PRESETS, presetById } from "/js/presets.js";
 
@@ -145,6 +146,7 @@
           comparisonTable(comps, county, { groupRows: false }));
       } else if (s.type === "taxAreas") body = taxAreasBody(data, county);
       else if (s.type === "context") body = contextBody(data, county, s.ids);
+      else if (s.type === "programs") body = programsBody(data);
       else if (s.type === "note") body = el("div", { className: "card" }, el("p", { className: "muted", style: "margin:0", textContent: s.text }));
       return el("section", { className: "block" }, el("h2", { textContent: s.title }),
         body || el("p", { className: "muted", textContent: "Not available for this district in this tool's data." }));
@@ -192,6 +194,7 @@
         const year = data.comparisons[0] ? data.comparisons[0].source.year : "";
         $("title").textContent = data.name;
         $("sub").textContent = [county, popLine, year && `Census ACS 5-year ${year}`].filter(Boolean).join(" · ");
+        $("plan").replaceChildren(...[planLine(data)].filter(Boolean));
         $("all-inner").replaceChildren(renderDetails(data));
         renderPanel();
       } catch (err) {

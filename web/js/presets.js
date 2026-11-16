@@ -4,6 +4,7 @@
 //     { type: "group", title, group }        comparison table for one metric group
 //     { type: "taxAreas", title }            DOTAX tax areas overlapping the district
 //     { type: "context", title, ids }        county/state figures (county_context indicator ids)
+//     { type: "programs", title }            program cards: who qualifies, limits, how to apply
 //     { type: "note", title, text }          plain text block
 //   keywords: words in a chat question that point to this view.
 //   groups:   metric groups (get_district_profile) that point to this view.
@@ -55,7 +56,9 @@ export const PRESETS = [
               "median_household_income", "income_under_50k_share"],
     // Not "hous": it would match "House District".
     keywords: ["housing", "rent", "home", "mortgage", "owner", "shelter", "homeless", "cost of living"],
-    sections: [],
+    sections: [
+      { type: "context", title: "Renters' tax credit claims (county and state)", ids: ["dotax_renters_claims"] },
+    ],
   },
   {
     id: "people", label: "Who lives here",
@@ -77,9 +80,9 @@ export const PRESETS = [
                "qualif", "benefit", "assist", "outreach", "uninsured", "insurance", "enroll", "uptake", "poverty", "low-income", "low income"],
     groups: ["Program need and uptake"],
     sections: [
-      { type: "context", title: "SNAP program records (county and state)", ids: ["snap_cases_monthly", "snap_people_monthly"] },
-      { type: "note", title: "Programs residents may qualify for",
-        text: "Coming soon: state, county and federal programs, with how to apply. Final eligibility is always decided by the program's agency." },
+      { type: "programs", title: "Programs residents may qualify for" },
+      { type: "context", title: "Program use: county and state records",
+        ids: ["snap_cases_monthly", "snap_people_monthly", "medquest_managed_care", "dotax_eitc_claims", "dotax_food_excise_claims", "dotax_renters_claims"] },
     ],
   },
 ];

@@ -29,6 +29,7 @@ export function renderKeyFact(c) {
   card.append(el("p", { className: "big", textContent: fmtMetric(c.district.value, c.format) }));
   card.append(el("p", { className: "moe", textContent: c.district.value != null ? fmtMoe(c.district.moe, c.format)
     : "The Census Bureau did not publish this figure for this district" }));
+  if (c.district.low_reliability) card.append(el("p", { className: "flag small", style: "margin:0 0 0.5rem", textContent: "Low reliability: large margin of error. Treat with caution." }));
   const vs = el("div", { className: "vs" });
   const line = (name, ref) => {
     const d = diffText(ref && ref.difference, c.format);
@@ -72,6 +73,7 @@ export function comparisonTable(comps, countyName, { groupRows = true } = {}) {
     const v = (e, withMoe) => {
       const td = el("td", {}, fmtMetric(e && e.value, c.format));
       if (withMoe && e && e.value != null) td.append(el("span", { className: "moe", textContent: fmtMoe(e.moe, c.format) }));
+      if (withMoe && e && e.low_reliability) td.append(el("span", { className: "flag", textContent: "Low reliability: the margin of error is large compared with the estimate. Treat with caution." }));
       return td;
     };
     const d = ref => {
@@ -157,8 +159,8 @@ export function contextBody(data, countyName, ids) {
     tr.append(st);
   });
   const notes = ["These sources publish figures for counties (or islands) and the state only, not for legislative districts. They describe the county this district is in, not the district itself, and cover different years from the district figures. No margin of error is published for them."];
-  if (ctx.some(c => c.indicator_id.startsWith("snap_")))
-    notes.push("SNAP counts are program records from the Hawaiʻi Department of Human Services: how many people the program actually served.");
+  if (ctx.some(c => /^(snap_|medquest_|dotax_.*_claims$)/.test(c.indicator_id)))
+    notes.push("SNAP and Med-QUEST counts are program records from the Hawaiʻi Department of Human Services, and tax-credit claims are DOTAX records: how many people actually used each program.");
   return el("div", {}, ...notes.map(n => el("p", { className: "muted small", textContent: n })), el("div", { className: "table-wrap" }, t));
 }
 
@@ -177,32 +179,40 @@ export function taxAreasBody(data, countyName) {
   const ctx = (data.county_context || []).find(c => c.indicator_id === "dotax_median_agi");
   const t = el("table");
   const h = t.createTHead().insertRow();
-  ["Tax area", ta.label, "Resident tax returns", "Share of this district's land in the area", "Share of the area's land in this district"]
+  ["Tax area", ta.label, "Resident tax returns", "Returns claiming the Hawaiʻi EITC", "Share of this district's residents in the area", "Share of the area's residents in this district"]
     .forEach(x => h.append(el("th", { scope: "col", textContent: x })));
   const b = t.createTBody();
   ta.areas.forEach(a => {
     const tr = b.insertRow();
     const th = el("th", { scope: "row", textContent: a.name });
-    if (a.relation !== "overlaps") th.append(el("span", { className: "flag", textContent: "Touches the edge of the district only (under 1% of its land)" }));
+    if (a.relation !== "overlaps") th.append(el("span", { className: "flag", textContent: "Touches the edge of the district only (under 1% of its residents)" }));
     tr.append(th, el("td", { textContent: money(a.median_agi) }),
       el("td", { textContent: a.returns == null ? "Not available" : Math.round(a.returns).toLocaleString("en-US") }),
-      el("td", { textContent: pct(a.share_of_district_land) }), el("td", { textContent: pct(a.share_of_area_land_in_district) }));
+      el("td", { textContent: a.eitc_share == null ? "Not available" : (100 * a.eitc_share).toFixed(1) + "%" }),
+      el("td", { textContent: a.share_of_district_residents ? pct(a.share_of_district_residents) : "none" }),
+      el("td", { textContent: a.share_of_area_residents_in_district ? pct(a.share_of_area_residents_in_district) : "none" }));
   });
   if (ctx) {
     [[ctx.county, countyName || "County"], [ctx.state, "State"]].forEach(([e, name]) => {
       if (!e) return;
+      const eitc = name === "State" && ta.credits && ta.credits.state_eitc_share != null ? (100 * ta.credits.state_eitc_share).toFixed(1) + "%" : "";
       b.insertRow().append(el("th", { scope: "row", textContent: `For comparison: ${name}` }), el("td", { textContent: money(e.value) }),
-        el("td"), el("td"), el("td"));
+        el("td"), el("td", { textContent: eitc }), el("td"), el("td"));
     });
   }
   const src = el("p", { className: "muted small" }, `Source: ${ta.source.publisher}, ${ta.source.dataset}, `);
   ta.source.tables.forEach((x, i) => { if (i) src.append(", "); src.append(el("a", { href: x.url, target: "_blank", rel: "noopener", textContent: x.table_id })); });
   src.append(`. ${ta.source.vintage ? ta.source.vintage + ". " : ""}Downloaded ${ta.source.retrieved_at}. Matched to districts with: ${ta.overlap_source}`);
+  if (ta.credits) {
+    src.append(el("br"), `EITC claims: ${ta.credits.source.publisher}, ${ta.credits.source.dataset}, `,
+      el("a", { href: ta.credits.source.url, target: "_blank", rel: "noopener", textContent: "Table A-7" }),
+      `. Downloaded ${ta.credits.source.retrieved_at}. ${ta.credits.note}`);
+  }
   const notes = [ta.applies_to,
-    "Land area is only a rough guide to where people live: an area can cover much of a district's land but few of its residents.",
+    "Residents are 2020 Census counts, used only to match areas to the district.",
     ta.caveat];
-  if (ta.district_land_in_no_tax_area >= 0.01)
-    notes.push(`${pct(ta.district_land_in_no_tax_area)} of this district's land is outside every ZIP code area that DOTAX lists.`);
+  if (ta.district_residents_in_no_tax_area >= 0.01)
+    notes.push(`${pct(ta.district_residents_in_no_tax_area)} of this district's 2020 residents live in ZIP code areas that DOTAX does not list.`);
   return el("div", {}, ...notes.filter(Boolean).map(n => el("p", { className: "muted small", textContent: n })),
     el("div", { className: "table-wrap" }, t), src);
 }
@@ -211,6 +221,87 @@ export function renderTaxAreas(data, countyName) {
   const body = taxAreasBody(data, countyName);
   return body && el("details", {}, el("summary", { textContent: "Income by tax area (areas that overlap this district)" }),
     el("div", { className: "inner" }, body));
+}
+
+// Programs (pipeline/programs.yaml). Every fact is quoted from a saved official document.
+export function programsBody(data) {
+  const progs = data.programs || [];
+  if (!progs.length) return null;
+  const inner = el("div", {},
+    el("p", { className: "muted small", textContent:
+      "Programs that serve groups found in this district. Figures under \"In this district\" are the district's own Census figures, chosen by us to show where each program may matter; they are not counts of eligible people. "
+      + (progs[0].note || "") }));
+  const val = (v, f) => v == null ? "Not available" : f === "dollars" ? "$" + Math.round(v).toLocaleString("en-US") : f === "percent" ? (100 * v).toFixed(1) + "%" : Math.round(v).toLocaleString("en-US");
+  const money = v => "$" + Number(v).toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 });
+  progs.forEach(p => {
+    const box = el("details", { className: "program" }, el("summary", {}, p.name, el("span", { className: "moe", textContent: p.serves })));
+    const body = el("div", { className: "inner" });
+    if (p.district_measures.length) {
+      const ul = el("ul");
+      p.district_measures.forEach(m => {
+        const li = el("li", {}, `${m.label}: `, el("strong", { textContent: val(m.district, m.format) }), ` (state ${val(m.state, m.format)})`);
+        if (m.low_reliability) li.append(el("span", { className: "flag", textContent: " Low reliability: treat with caution." }));
+        ul.append(li);
+      });
+      body.append(el("h4", { textContent: "In this district" }), ul);
+    }
+    if (p.uptake.length) {
+      const ul = el("ul");
+      p.uptake.forEach(u => ul.append(el("li", { textContent: `${u.label}, ${u.period}: county ${val(u.county)}, state ${val(u.state)} (program records)` })));
+      body.append(el("h4", { textContent: "Program use in the county" }), ul);
+    }
+    if (p.uptake_note) body.append(el("p", { className: "small", textContent: p.uptake_note }));
+    const section = (title, topics) => {
+      const fs = p.facts.filter(f => topics.includes(f.topic));
+      if (!fs.length) return;
+      const ul = el("ul");
+      fs.forEach(f => ul.append(el("li", { textContent: f.text })));
+      body.append(el("h4", { textContent: title }), ul);
+    };
+    section("Who may qualify", ["eligibility"]);
+    const lim = p.income_limits;
+    if (lim) {
+      const rowsKey = Object.keys(lim).find(k => k.startsWith("by_"));
+      const t = el("table");
+      const h = t.createTHead().insertRow();
+      [rowsKey === "by_household_size" ? "Household size" : rowsKey === "by_children" ? "Children claimed" : rowsKey === "by_federal_agi" ? "Federal AGI" : "", ...lim.columns]
+        .forEach(x => h.append(el("th", { scope: "col", textContent: x })));
+      const tb = t.createTBody();
+      Object.entries(lim[rowsKey]).slice(0, rowsKey === "by_household_size" ? 4 : 99).forEach(([k, vals]) => {
+        const tr = tb.insertRow();
+        tr.append(el("th", { scope: "row", textContent: k }));
+        vals.forEach(v => tr.append(el("td", { textContent: money(v) })));
+      });
+      body.append(el("h4", { textContent: "Income limits" }),
+        el("p", { className: "muted small", textContent: `${lim.description} ${lim.valid_for}.${rowsKey === "by_household_size" ? " Larger households: see the official source." : ""}` }),
+        el("div", { className: "table-wrap" }, t));
+    }
+    section("How to apply", ["apply", "contact"]);
+    section("What to bring", ["documents"]);
+    section("Coming changes", ["change"]);
+    body.append(el("p", { className: "src" }, `${p.agency}. `,
+      el("a", { href: p.url, target: "_blank", rel: "noopener", textContent: "Official information" }),
+      `. Saved ${p.checked_on}. ${p.note}`));
+    box.append(body);
+    inner.append(box);
+  });
+  return inner;
+}
+
+export function renderPrograms(data) {
+  const body = programsBody(data);
+  return el("details", {}, el("summary", { textContent: "Programs residents may qualify for" }),
+    el("div", { className: "inner" }, body || el("p", { className: "muted", textContent: "No program information is loaded for this district." })));
+}
+
+// Official permanent-resident population from the 2021 Reapportionment Plan, when available.
+export function planLine(data) {
+  if (!data.plan) return null;
+  return el("p", { className: "muted small plan" },
+    `Official permanent-resident population (2021 Reapportionment Plan, 2020 Census base): ${data.plan.permanent_residents.toLocaleString("en-US")}. `,
+    el("span", { textContent: data.plan.note + " " }),
+    el("a", { href: data.plan.source.url, target: "_blank", rel: "noopener", textContent: "Reapportionment Commission Final Report" }),
+    `, Tables 9-10 (${data.plan.source.page}).`);
 }
 
 export const reportUrl = (districtId, view, question) => {

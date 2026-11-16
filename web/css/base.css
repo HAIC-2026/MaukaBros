@@ -56,6 +56,14 @@ td .moe, td .flag, th .moe, th .flag { display: block; font-size: 0.74rem; font-
 .small { font-size: 0.82rem; }
 .subhead { margin: 1.2rem 0 0.4rem; font-size: 0.95rem; }
 .error { color: var(--error); }
+.plan { margin: -0.7rem 0 1rem; }
+
+/* Program cards (programsBody) */
+details.program { margin-top: 0.6rem; }
+details.program > summary .moe { display: block; font-weight: 400; font-size: 0.8rem; color: var(--muted); }
+details.program h4 { margin: 0.8rem 0 0.2rem; font-size: 0.88rem; }
+details.program ul { margin: 0.2rem 0; padding-left: 1.2rem; font-size: 0.88rem; }
+
 .actions { margin-top: 1rem; display: flex; gap: 0.6rem; flex-wrap: wrap; }
 
 .site-footer { padding: 1rem 1.5rem 2rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.8rem; }
