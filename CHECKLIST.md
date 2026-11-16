@@ -1,0 +1,124 @@
+# Know Your District: build checklist
+
+Status as of 2026-11-15. Source for each item: the HAIC use case brief (section named in brackets) or
+Seth Colby's kickoff video ("Seth").
+
+- `[x]` done   `[~]` partly done or not yet verified   `[ ]` not started
+- **(other group)** = owned by another team; this app only needs a place to show it
+
+## 1. Core product (the "agent")
+
+- [ ] **Chat agent that answers plain-language questions** [Basic Flow 1, 5; Desired platform]. The Ask box is a disabled placeholder.
+  - [ ] Decide who builds it and which model/API to use
+  - [ ] Answers use only data from the API (no figures from the model's memory) [Responsible AI]
+  - [ ] Every answer cites source, year, geography, and margin of error [Business Rules]
+  - [ ] Says "unavailable / uncertain" instead of guessing [Business Rules]
+  - [ ] Never identifies or infers anything about individual residents [Business Rules]
+  - [ ] Stays nonpartisan, no political commentary [Business Rules]
+  - [ ] Test set of questions with expected answers, run before each demo [Model Validation]
+- [x] Choose a district by chamber and number (House 51, Senate 25)
+- [ ] Find a district by place name or address (e.g. "North Shore", "Molokaʻi") [Basic Flow 1; Seth]
+
+## 2. District profile (data on screen)
+
+- [x] Population with margin of error
+- [x] Age including kūpuna, poverty, income, housing cost, SNAP, health insurance, disability, unemployment, language [Calculations]
+- [x] District compared with its county and the state, with the margin-of-error flag [Calculations; Seth]
+- [x] Every figure shows source, year, table link and geography [Business Rules]
+- [x] "Not available" shown when the source suppresses a value [Business Rules]
+- [x] Derived margins of error labeled "about" [Business Rules]
+- [x] Employment by industry [Calculations]: ACS C24050, 13 industries as shares of employed residents, compared with county and state, and selectable on the map. These are jobs held by residents, not jobs located in the district.
+- [ ] Other indicators DBEDT/READ prioritizes [Calculations]. Ask the champion (Slack #c_dbedt_agent) which.
+- [ ] Team decision on the headline statistics (`KEY_METRICS` in `web/index.html`). Seth: fewer, well-chosen figures rank higher.
+- [ ] Compare two districts side by side [Seth]
+- [ ] Detail finer than the district (e.g. North Shore vs Waialua) [Seth]
+- [~] Check a high-income district (e.g. Kahala) reads sensibly, not only struggling ones [Seth]
+
+## 3. Programs and outreach (other group)
+
+- [ ] Program inventory with eligibility, how to apply, documents needed **(other group; `pipeline/programs.yaml` has 2 of many)**
+- [ ] Programs section on the page shows real recommendations (placeholder now) **(other group)**
+- [ ] Each recommendation links to the official program page [Business Rules]
+- [ ] "Final eligibility is decided by the agency" note shown next to every recommendation [Business Rules]
+- [~] Estimate of residents likely eligible for a program [Calculations]: need-side figures by district built; method in `docs/ELIGIBILITY_METHOD.md`. Still needs program income rules from official sources (program group) to pick the cut point
+- [x] Program uptake counts where published, to show the outreach gap [Calculations]: SNAP by county (DHS), SNAP and Medicaid by district (ACS, self-reported)
+- [~] At least one population + program example where outreach could raise uptake [Success Scenario]: households below poverty not receiving SNAP (statewide 62%, ~31,700; largest HD-24, SD-12). Labeled likely overstated (ACS counts 68% of DHS SNAP cases). Confirm the SNAP income rule before the demo
+
+## 4. Map
+
+- [x] ArcGIS map of House and Senate districts, colored by a chosen measure
+- [x] Selected district outlined and zoomed to
+- [x] Legend, island zoom buttons, hover label
+- [~] **Click a district, hover, and the island buttons: not tested** (screenshots only). Please try in a browser.
+- [x] Official state boundaries (OPSD 2022) recorded with terms in `pipeline/boundaries.yaml`
+- [ ] Geometry overlap check: OPSD 2022 vs Census TIGER 2024 (believed identical, not verified)
+- [ ] Confirm ArcGIS use is allowed without an Esri key/licence for the submission (see section 6)
+
+## 5. Export
+
+- [~] Print / save as PDF button. Works through the browser; layout not reviewed.
+  - [ ] Review the printed page: sources visible, no cut-off tables, ʻokina correct
+  - [ ] Include date generated and data period on the printout
+
+## 6. Data sources
+
+- [x] ACS 5-year 2020-2024 by legislative district, county and state
+- [x] BEA county personal income [Data Set]: CAINC1 2024, saved file, shown as "County and state context" (Maui figure includes Kalawao, labeled). Refresh after BEA's 2026-12-02 release.
+- [x] BLS county unemployment [Data Set]: 2025 labor force, unemployed, rate by county, shown as county context with BLS's 11-month-average footnote (October 2025 not collected)
+- [~] DBEDT/READ Data Book 2025 [Data Set; Seth: primary source]: all 24 sections saved; Table 1.06 (2025 population) and 11.03-11.05 (SNAP uptake by island) in use. Catalogue of all 833 tables in `docs/data_book_2025_tables.csv`; candidates in `docs/DATA_SOURCES.md`. **Ask READ which others they want**
+- [~] DOTAX income [Seth]: A-13 and A-14 loaded. County and state median income on tax returns shown as context; 26 tax areas and 121 ZIP codes stored. Census 2024 district-to-ZCTA files saved. District overlap built (1% threshold): each district page lists the tax areas that overlap it, with whole-area figures and land shares [Assumptions; Seth: finer than district]. **Hand-check a few districts against the map**
+- [x] Recommended data set applied (`docs/DATA_SOURCES.md`): kept ACS, SNAP 11.03-11.04, BLS rate, BEA per capita; added DOTAX; dropped Data Book 1.06 and 11.05; skipped the other Data Book candidates
+- [x] ACS additions: Medicaid/means-tested coverage (C27007) and Social Security income (B19055), by district, on the page and the map
+- [x] ACS additions (2026-11-16, definitions checked in the Census API): program need (B22003 poor households without SNAP, C17002 under 125%/200% of poverty, C27016 uninsured under 138%), kūpuna poverty (B17020, age 60+), young families (B11005), homeowner cost burden (B25091), ethnic background (B02008, B02011, B02018 Filipino and Japanese, B03002 Hispanic and two or more races). 63 indicators, all published for every district
+- [~] Program uptake for the outreach gap [Calculations]: SNAP by island/county (DHS via Data Book 11.03-11.05) in use. Med-QUEST is optional (not named in the brief, deck or Seth's talk): candidate PDFs listed in `sources.yaml`
+- [~] **Answer the deck's design question in writing** (slide 5): `docs/GEOGRAPHY_METHOD.md` (three levels, all built; DOTAX areas listed by overlap, never split). Team to review
+- [ ] Sub-district detail: DBEDT Data Book Tables 1.14-1.16, 1.18 (Oʻahu neighborhoods, census tract, ZIP) or ACS by tract; needs a method for assigning areas to districts
+- [ ] UHERO: no terms page found; not used. Seth says most is repackaged READ data
+- [ ] datatrove.ai: page unreadable, no terms found; not used until the challenge team supplies terms [Special Requirements]
+- [x] Terms of use recorded for every source in use or planned: Census API, Census TIGER (reference), OPSD, Esri SDK, BEA, BLS, Hawaiʻi.gov (DBEDT, DOTAX), UHERO and datatrove.ai (none found), in `pipeline/sources.yaml` [Special Requirements]
+- [x] Every saved file listed in `pipeline/raw/manifest.yaml` with URL, date and SHA-256; the build refuses a changed file
+- [x] Census API required notice shown in the page footer
+- [x] Pipeline no longer downloads anything while building: Census data is saved once (`pipeline/fetch_acs.py` -> `pipeline/raw/acs/`), the state boundary file is read from a local copy
+- [ ] **Download the OPSD boundary file by hand** and save it as `pipeline/raw/opsd/legislative_districts_2022.shp.zip` (steps in `pipeline/raw/README.md`), then fill in `downloaded_on` / `downloaded_by` in `pipeline/boundaries.yaml`
+- [ ] Confirm with the challenge team that using the manually downloaded OPSD file is fine (the Hawaii.gov terms restrict automated access)
+- [ ] **Request the free HAIC ArcGIS Location Platform voucher and Hub identity** at https://esri-haic-histategis.hub.arcgis.com/ (challenge team's Slack answer), then load the SDK with our own API key. Read Esri's product-specific terms (not read yet).
+- [ ] Confirm a state-run challenge entry counts as non-commercial under the Hawaii.gov terms
+- [ ] Ask the challenge team: is storing and showing DBEDT/DOTAX figures fine under the Hawaiʻi.gov Terms of Use (commercial-use and automated-access clauses)?
+- [ ] Keep program information current: decide the refresh process and owner [Assumptions]
+
+## 7. Accuracy and validation [Model Validation; Seth: accuracy is the main judging axis]
+
+- [x] `validation/validate.py`: 38 checks pass (cross-check against ACS subject tables, internal consistency incl. industries, provenance, mapping, county/state context incl. BEA, BLS, SNAP and DOTAX ZIP/area/county totals, and the tax-area overlap)
+- [x] Written protocol, `validation/PROTOCOL.md`
+- [ ] Subject-matter expert (DBEDT/READ) fills in `validation/spot_check_sample.csv`
+- [ ] Run `validate.py` again after every data rebuild and before each demo
+- [ ] Test the agent's answers against the same figures (see section 1)
+- [ ] Test program eligibility results **(other group)**
+- [ ] Confirm what the margin-of-error flag means for small districts in the demo script
+
+## 8. Accessibility and plain language [Business Rules: WCAG 2.1 AA]
+
+- [~] Built with labels, keyboard district list as an alternative to the map, text that scales. **Not audited.**
+- [ ] Automated audit (e.g. axe or Lighthouse) and fix the findings
+- [ ] Colour contrast check of text, flags and map colours
+- [ ] Keyboard-only walk-through of the whole page
+- [ ] Screen reader check
+- [ ] Plain-language review of every label and message
+- [ ] ʻOkina and kahakō correct everywhere, including the agent's answers
+
+## 9. Known limits to state openly
+
+- Margins of error on summed indicators (e.g. 65+) are approximations; one Senate district differs a lot from the published figure
+- Maui County comparison leaves out Kalawao County (the Census Bureau reports it separately)
+- Each district's county comes from the state boundary file's County field, not from the geometry
+- Rates inherit ACS sampling error; small districts can have a margin larger than the estimate
+
+## 10. Project housekeeping
+
+- [ ] Commit the current work (many uncommitted changes on `api-and-preview`) and open a pull request
+- [x] Add `.env.example` (`build.py` points to it)
+- [ ] Write the README: what it is, how to run each step, data sources, limits
+- [ ] Remove the older `web/map.html` page, now covered by the main page
+- [ ] Agree the interface with Shade if they build the real front end (the API stays the same)
+- [ ] Decide how the demo runs (local, or hosted) and test it on a clean machine
+- [ ] Prepare the demo script: one rural, one urban, one high-income district

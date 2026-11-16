@@ -1,0 +1,320 @@
+# Every saved source file the pipeline reads, where it came from, and when.
+#
+# RULES
+#   - The pipeline reads only the files listed here. Nothing is downloaded while building, and
+#     no script scans a website.
+#   - Each file is downloaded once, by the method in `how`, and stored at `path` (relative to
+#     pipeline/raw/). Do not edit the files.
+#   - `sha256` is the file's fingerprint. pipeline/build.py refuses to use a file whose fingerprint
+#     differs, so a replaced file cannot slip in without its date being updated here.
+#     After downloading a new file, run `python pipeline/build.py`; it prints the fingerprint to
+#     paste here.
+#   - hawaii.gov files (DBEDT, DOTAX, DHS, Med-QUEST) must be downloaded by a person in a browser.
+#     The Hawaiʻi.gov Terms of Use those sites link to prohibit access "through any automated
+#     means (including... scripts...)" (see pipeline/sources.yaml).
+#   - `status: needed` = not downloaded yet. The build skips it and says so.
+#   - The ACS file (acs/acs5_2024.json) is made by pipeline/fetch_acs.py and records its own
+#     download time; the OPSD file is recorded in pipeline/boundaries.yaml.
+
+files:
+  - path: bea/CAINC1.zip
+    source_id: bea_cainc1
+    status: present
+    url: https://apps.bea.gov/regional/zip/CAINC1.zip
+    how: "Downloaded once with curl (a single request) by Claude Code at the team's request. BEA terms: pipeline/sources.yaml."
+    downloaded_on: "2026-11-16T03:15:50Z" # UTC; 2026-11-15 in Hawaiʻi
+    downloaded_by: Claude Code (at the team's request)
+    sha256: e1465c8b0e7e75f541241fe2fa64364b784dd6d2223901f9d576c4c5d49480b5
+    contents: "CAINC1 for every state; the pipeline reads CAINC1_HI_1969_2024.csv inside the zip. The file says: \"Last updated: February 5, 2026-- new statistics for 2024; revised statistics for 2020-2023.\""
+    next_release: "December 2, 2026 (2025 estimates; BEA says the 2024 data will be superseded). Source: https://www.bea.gov/news/2026/gross-domestic-product-county-and-personal-income-county-2024"
+
+  - path: bls/laucnty25.xlsx
+    source_id: bls_laus
+    status: present
+    url: https://www.bls.gov/lau/laucnty25.xlsx
+    how: "By hand in a browser from https://www.bls.gov/lau/tables.htm (\"Labor force data by county, 2025 annual averages\", XLSX). An automated request got HTTP 403."
+    contents: "Title: \"Labor Force Data by County, 2025 11-Month and Annual Averages*\". Footnote: Hawaiʻi figures are 11-month averages excluding October 2025 (federal shutdown). File dated May 19, 2026."
+    read_by: pipeline/context.py (load_bls)
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 8b7d01a87807bbeb13cf18db9ee1cb393273803a5384f4f48262048fb37b1505
+
+  - path: dbedt/DB2025_section01.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section01.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 1 Population, \"Download section tables\")."
+    use: "Table 1.06 resident population by county (read by pipeline/context.py). Candidates: 1.14-1.16, 1.18 (Oʻahu neighborhoods, census tract, ZIP code area)"
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 1f0963de585a4c342504151181860fce2180f17c42c7a862ec625f74f0c05cb7
+
+  - path: dbedt/DB2025_section02.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section02.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 2 Vital Statistics and Health, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 2c3f978394a0ef246cf5f547e15cbc911716c3b0ca5f5fcb65cca36fde1d856a
+
+  - path: dbedt/DB2025_section03.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section03.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 3 Education, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 417e2dada8467bfbaec0e7470ffb92f33657b5a380c7ee59e3b169bfe4aca521
+
+  - path: dbedt/DB2025_section04.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section04.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 4 Law Enforcement, Courts, and Prisons, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: a26339c8613e566d37ca64a48d7c7ae1de0b2184ca88d603111fb482c03f0c81
+
+  - path: dbedt/DB2025_section05.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section05.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 5 Geography and Environment, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: ed7f870a2efbc34d93567b7d68e9713e45eda0f9a486382d94085d0f4c42621b
+
+  - path: dbedt/DB2025_section06.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section06.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 6 Land Use and Ownership, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: f55ee233f3e9bcf208abab0011238e152f1833f005b48c34269f9a479b1f2a8d
+
+  - path: dbedt/DB2025_section07.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section07.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 7 Recreation and Travel, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: c05c44bdaa61c6c3af9c03eb5d636991d7706f3241a1ed74a9b93aebb7ea75f5
+
+  - path: dbedt/DB2025_section08.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section08.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 8 Elections, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 292c9436ded44f565149317bb0e412c0a24794255e3abb1bbd329cc4d7f751eb
+
+  - path: dbedt/DB2025_section09.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section09.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 9 Government Finances and Employment, \"Download section tables\")."
+    use: "Candidate: 9.27 IRS income by ZIP code (needs the ZIP-to-district method)"
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 7d12235882688b19d5e7c14f31954ab129247ad3925c87feb2bd65ef46ccf59c
+
+  - path: dbedt/DB2025_section10.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section10.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 10 National Defense, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: a9bfd3b0edd20932b0c13d5b670ce204363f34a539c9230d8f705727b5a67f8d
+
+  - path: dbedt/DB2025_section11.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section11.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 11 Social Insurance and Human Services, \"Download section tables\")."
+    use: "Tables 11.03-11.05 SNAP cases, people served and benefits by island (read by pipeline/context.py)"
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: de414554e77ee462abb8f0bd46a308921c8a13fa74ec61e6168540ddadeef051
+
+  - path: dbedt/DB2025_section12.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section12.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 12 Labor Force, Employment, and Earnings, \"Download section tables\")."
+    use: "Candidate: 12.16 job count by industry by county (not read yet)"
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 29ca7407ab4c4511ba1fa5b2d1f3e32c33f1990ccdc129b745c2bd3bf38556cf
+
+  - path: dbedt/DB2025_section13.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section13.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 13 Income, Expenditures, and Wealth, \"Download section tables\")."
+    use: "Candidate: none read; 13.12 and 13.24 repeat BEA and Census data"
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 137a6db124080f9e5d5e41f93292c86654b521b1ba412980a75949548abbfc15
+
+  - path: dbedt/DB2025_section14.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section14.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 14 Prices, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 663ae079a48985d58535b00a6079ca9f45af3c378c6128dcb48c3ed2f7124c0a
+
+  - path: dbedt/DB2025_section15.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section15.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 15 Banking, Insurance, and Business Enterprise, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 41fc5b8fa991ce714a0bafd6739a1b16a8903ecdf2561583710343d8a8700710
+
+  - path: dbedt/DB2025_section16.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section16.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 16 Information and Communications, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: f320687142694190fb2bc5d7e9fb5c83169693dceaa1a02367200403d9b41043
+
+  - path: dbedt/DB2025_section17.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section17.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 17 Energy and Science, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: b2593265d4178375d6b3cf3b3963bb5aab46a49287d8618db7513bb409ed5e6c
+
+  - path: dbedt/DB2025_section18.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section18.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 18 Transportation, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 4df808aa909728fd6c66a7f53e21b5c2c3b55b377bfa6832179d041eafec2719
+
+  - path: dbedt/DB2025_section19.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section19.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 19 Agriculture, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: d8b347cb89f1cba2b8d64d682996d7395eb6921feb33a7f78485c4bbb7e9ee2a
+
+  - path: dbedt/DB2025_section20.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section20.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 20 Forests, Fisheries, and Mining, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 284af70297bcc011bc6fe17194aef6c95e3986db91c8073d8be8b102472a014e
+
+  - path: dbedt/DB2025_section21.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section21.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 21 Construction and Housing, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: df9a83319169e26700c4ec29179236026e3e0ef199197268b0d5df748e7f8018
+
+  - path: dbedt/DB2025_section22.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section22.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 22 Manufactures, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: bcbfc7a4d0531542a0902d7a4037b54b17a9291b7173dccc0243ce99ba9f09a4
+
+  - path: dbedt/DB2025_section23.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section23.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 23 Domestic Trade and Services, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 4bc6712437dc34115712b453f73e53c993e71020fe9e556b525fe0bfdd72f2f1
+
+  - path: dbedt/DB2025_section24.xlsx
+    source_id: dbedt_databook
+    status: present
+    url: https://files.hawaii.gov/dbedt/economic/databook/db2025/DB2025_section24.xlsx
+    how: "By hand in a browser from https://dbedt.hawaii.gov/economic/databook/db2025/ (Section 24 Foreign and Interstate Commerce, \"Download section tables\")."
+    use: "Not used. Kept so the whole edition is on file."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 76851f35136c324a795da6a2f06fa07480b4b34a738984644896df68935d18ef
+
+  - path: dotax/2023indinc_tables.xlsx
+    source_id: dotax_individual_income
+    status: present
+    url: https://files.hawaii.gov/tax/stats/stats/indinc/2023indinc_tables.xlsx
+    how: "By hand in a browser from https://tax.hawaii.gov/stats/a5_1annual/a5_5ind_inc/ (\"2023 (XLSX)\")."
+    use: "Read by pipeline/context.py: Table A-13 (26 geographic areas with county and state totals; county and state median income shown as context) and A-14 (the area of each of 121 ZIP codes). Stored in tax_area / tax_area_zip; not linked to districts until the overlap in docs/GEOGRAPHY_METHOD.md is built."
+    downloaded_on: "2026-11-15"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 8027aa98f143c4869ca08d39f5f5b4838d6afa060f548a13068299fad7d8c33c
+
+  - path: dotax/2023indinc.pdf
+    source_id: dotax_individual_income
+    status: present
+    url: https://files.hawaii.gov/tax/stats/stats/indinc/2023indinc.pdf
+    how: "By hand, same page (\"2023 (PDF)\")."
+    use: "Reference only (report dated October 2026). Method notes: returns received by March 31, 2025; DOTAX suppresses tabulations of ten or fewer returns below the state level; area and ZIP tables cover returns with Hawaiʻi ZIP codes; tax-district totals for Oʻahu include out-of-state and unidentified ZIP codes. It does not explain how ZIP codes are grouped into geographic areas; Table A-14 lists the area for each ZIP."
+    downloaded_on: "2026-11-16"
+    downloaded_by: a team member, by hand in a browser
+    sha256: 84713a2a3d601eacb965e7f1060e7a4c61dc07a18e2c8bc60d910d9952ae20cf
+
+  - path: census/tab20_sldl202420_zcta520_st15.txt
+    source_id: census_relationship_files
+    status: present
+    url: https://www2.census.gov/geo/docs/maps-data/data/rel2020/cd-sld/tab20_sldl202420_zcta520_st15.txt
+    how: "Downloaded once with curl (a single request) by Claude Code at the team's request, 2026-11-16 11:47 UTC. Listed on https://www.census.gov/geographies/reference-files/time-series/geo/relationship-files.2020.html (2024 State Legislative District - Lower Chamber, Hawaii). The 2024 set matches the ACS 2024 district figures. Federal source: the hawaii.gov automated-access restriction does not apply."
+    use: "Read by pipeline/context.py (load_district_zcta): which DOTAX tax areas overlap each House district (docs/GEOGRAPHY_METHOD.md). Pipe-delimited; one row per district-ZCTA pair with AREALAND_PART (land area of the overlap, square meters)."
+    downloaded_on: "2026-11-16"
+    downloaded_by: "Claude Code (at the team's request)"
+    sha256: 951c82629df3edc075cc34b9659ab55d5e462885538bc6722c831650db7e1885
+
+  - path: census/tab20_sldu202420_zcta520_st15.txt
+    source_id: census_relationship_files
+    status: present
+    url: https://www2.census.gov/geo/docs/maps-data/data/rel2020/cd-sld/tab20_sldu202420_zcta520_st15.txt
+    how: "As above (single curl request, 2026-11-16 11:47 UTC), 2024 State Legislative District - Upper Chamber, Hawaii."
+    use: "Read by pipeline/context.py: which DOTAX tax areas overlap each Senate district. Same layout as the House file."
+    downloaded_on: "2026-11-16"
+    downloaded_by: "Claude Code (at the team's request)"
+    sha256: c53062d927344a6af18749c04d7b27713c2da0077db37986d5679b18c31c5732

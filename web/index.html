@@ -3,190 +3,582 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Home</title>
+  <title>Know Your District</title>
+  <!-- ArcGIS Maps SDK for JavaScript 4.31 (Esri CDN) -->
+  <link rel="stylesheet" href="https://js.arcgis.com/4.31/esri/themes/light/main.css">
+  <script src="https://js.arcgis.com/4.31/"></script>
   <style>
     :root {
-      --bg: #f7f7f5;
-      --card: #ffffff;
-      --text: #1f2933;
-      --muted: #52606d;
-      --accent: #0b6e69;
-      --warn: #8a5a00;
-      --border: #d9dde1;
+      --bg: #f4f6f6; --card: #ffffff; --text: #1b2631; --muted: #536270;
+      --accent: #0b6e69; --accent-dark: #0b4f4b; --warn: #8a5a00; --border: #d5dbdf;
+      --hdr: 8rem;
     }
     * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.5;
-    }
-    main { max-width: 960px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
-    h1 { margin: 0 0 0.25rem; font-size: 1.75rem; }
-    .intro { margin: 0 0 1.5rem; color: var(--muted); }
-    label { display: block; font-weight: 600; margin-bottom: 0.35rem; }
-    select {
-      font: inherit;
-      padding: 0.55rem 0.75rem;
-      min-width: 260px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--card);
-    }
-    select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
-    h2 { margin: 2rem 0 1rem; font-size: 1.35rem; }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 1rem;
-    }
-    .card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 1rem 1.1rem;
-    }
-    .card h3 { margin: 0 0 0.5rem; font-size: 0.95rem; font-weight: 600; color: var(--muted); }
-    .value { font-size: 1.6rem; font-weight: 700; margin: 0; }
-    .unavailable { font-size: 1rem; font-weight: 600; color: var(--warn); }
-    .moe { margin: 0.15rem 0 0.6rem; color: var(--muted); font-size: 0.9rem; }
-    .source { margin: 0; font-size: 0.82rem; color: var(--muted); }
-    .source a { color: var(--accent); }
-    .message { color: var(--muted); }
+    /* Text scales with the screen so it stays readable on large monitors. */
+    html { font-size: clamp(16px, 0.55vw + 10px, 22px); }
+    body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+           background: var(--bg); color: var(--text); line-height: 1.45; }
+    a { color: var(--accent); }
+    a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible {
+      outline: 3px solid var(--accent); outline-offset: 2px; }
+
+    header.top { position: sticky; top: 0; z-index: 10; background: var(--card);
+                 border-bottom: 1px solid var(--border); padding: 0.6rem 1.5rem 0.75rem; }
+    .toprow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1.5rem; }
+    header.top h1 { margin: 0; font-size: 1.35rem; color: var(--accent-dark); }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; align-items: end; margin-top: 0.4rem; }
+    .field > span, .field > label { display: block; font-weight: 600; font-size: 0.8rem; color: var(--muted); margin-bottom: 0.15rem; }
+    select, .ask input { font: inherit; padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); }
+    select { min-width: 12rem; }
+    .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+    .seg button { font: inherit; padding: 0.45rem 0.9rem; border: 0; background: var(--card); color: var(--text); cursor: pointer; }
+    .seg button + button { border-left: 1px solid var(--border); }
+    .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; font-weight: 600; }
+    .ask { display: flex; gap: 0.4rem; flex: 1 1 22rem; min-width: 14rem; }
+    .ask input { flex: 1; background: #eef1f2; }
+    .btn { font: inherit; padding: 0.45rem 1rem; border-radius: 6px; border: 1px solid var(--accent);
+           background: var(--accent); color: #fff; cursor: pointer; font-weight: 600; }
+    .btn.secondary { background: var(--card); color: var(--accent); }
+    .btn[disabled] { opacity: 0.6; cursor: not-allowed; }
+
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 1.5rem;
+              padding: 1.25rem 1.5rem 3rem; }
+    .col-map { position: sticky; top: calc(var(--hdr) + 0.75rem); align-self: start;
+               height: calc(100vh - var(--hdr) - 1.5rem); min-height: 26rem;
+               display: flex; flex-direction: column; gap: 0.5rem; }
+    .islands { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    .islands button { font: inherit; font-size: 0.85rem; padding: 0.3rem 0.8rem; border-radius: 999px;
+                      border: 1px solid var(--border); background: var(--card); cursor: pointer; }
+    .islands button:hover { border-color: var(--accent); }
+    #viewDiv { flex: 1; min-height: 0; border: 1px solid var(--border); border-radius: 8px; background: #bcd9ea; }
+    .legend { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 1rem; font-size: 0.82rem; }
+    .legend .title { font-weight: 600; }
+    .legend .item { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .legend .sw { width: 1.1rem; height: 0.8rem; border: 1px solid rgba(0,0,0,0.25); display: inline-block; }
+    .mapnote { margin: 0; font-size: 0.78rem; color: var(--muted); }
+    .hover { margin: 0; font-size: 0.85rem; min-height: 1.3rem; font-weight: 600; }
+
+    h2.district { margin: 0; font-size: 2rem; line-height: 1.15; }
+    .sub { margin: 0.2rem 0 1rem; color: var(--muted); font-size: 1rem; }
+    .facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.9rem; }
+    .fact { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 0.9rem 1rem; }
+    .fact h3 { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--muted); min-height: 2.4em; }
+    .fact .big { margin: 0.1rem 0 0; font-size: 2.1rem; font-weight: 700; line-height: 1.1; }
+    .fact .moe { margin: 0.1rem 0 0.6rem; font-size: 0.8rem; color: var(--muted); }
+    .vs { font-size: 0.88rem; border-top: 1px solid var(--border); padding-top: 0.5rem; }
+    .vs .row { margin: 0.2rem 0; }
+    .vs .hl { font-weight: 600; }
+    .vs em { font-style: normal; color: var(--warn); font-size: 0.78rem; margin-left: 0.25rem; }
+    .src { margin: 0.6rem 0 0; font-size: 0.74rem; color: var(--muted); }
+
+    details { background: var(--card); border: 1px solid var(--border); border-radius: 8px; margin-top: 0.9rem; }
+    details > summary { cursor: pointer; padding: 0.75rem 1rem; font-weight: 600; }
+    details > .inner { padding: 0 1rem 1rem; overflow-x: auto; }
+    table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+    th, td { text-align: left; padding: 0.45rem 0.6rem; border-top: 1px solid var(--border); vertical-align: top; }
+    thead th { border-top: 0; color: var(--muted); font-size: 0.76rem; }
+    td .moe, td .flag { display: block; font-size: 0.74rem; }
+    td .moe { color: var(--muted); }
+    .flag { color: var(--warn); }
+    .muted { color: var(--muted); }
+    .small { font-size: 0.82rem; }
+    .actions { margin-top: 1rem; display: flex; gap: 0.6rem; flex-wrap: wrap; }
+    .empty { padding: 3rem 1rem; color: var(--muted); }
+    .empty h2 { color: var(--text); font-size: 1.6rem; margin: 0 0 0.5rem; }
     .error { color: #a61b1b; }
+
+    .site-footer { padding: 1rem 1.5rem 2rem; border-top: 1px solid var(--border); color: var(--muted); font-size: 0.8rem; }
+    .site-footer p { margin: 0.2rem 0; }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; padding: 1rem; }
+      .col-map { position: static; height: 70vh; order: -1; }
+      header.top { position: static; }
+    }
+    @media print {
+      header.top, .col-map, .actions { display: none !important; }
+      body { background: #fff; }
+      .layout { display: block; padding: 0; }
+      details { break-inside: avoid; }
+    }
   </style>
 </head>
 <body>
-  <main>
-    <h1>Home</h1>
-    <p class="intro">Who lives in each of Hawaiʻi's 51 House and 25 Senate districts. Every figure shows its source and year.</p>
+  <header class="top" id="hdr">
+    <div class="toprow">
+      <h1>Know Your District</h1>
+      <form class="ask" onsubmit="return false" aria-label="Ask a question (not connected yet)">
+        <label for="ask-input" style="position:absolute;left:-9999px">Ask a question about a district</label>
+        <input id="ask-input" type="text" placeholder='Ask a question, e.g. "How many kūpuna in my district live on fixed incomes?" (coming soon)' disabled>
+        <button class="btn secondary" type="submit" disabled>Ask</button>
+      </form>
+    </div>
+    <div class="controls">
+      <div class="field">
+        <span id="chamber-label">Chamber</span>
+        <div class="seg" role="group" aria-labelledby="chamber-label">
+          <button type="button" id="ch-house" aria-pressed="true">House (51)</button>
+          <button type="button" id="ch-senate" aria-pressed="false">Senate (25)</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="district">Choose a district</label>
+        <select id="district"><option value="">Loading...</option></select>
+      </div>
+      <div class="field">
+        <label for="metric">Color the map by</label>
+        <select id="metric" style="min-width:20rem"><option>Loading...</option></select>
+      </div>
+    </div>
+  </header>
 
-    <label for="district">Choose a district</label>
-    <select id="district" disabled>
-      <option>Loading districts...</option>
-    </select>
+  <div class="layout">
+    <main id="main" aria-live="polite">
+      <div class="empty">
+        <h2>Who lives in your district?</h2>
+        <p>Choose a district above, or click one on the map, to see a sourced profile of its residents.</p>
+      </div>
+    </main>
 
-    <section id="profile" aria-live="polite"></section>
-  </main>
+    <div class="col-map">
+      <div class="islands" role="group" aria-label="Zoom the map to an area" id="islands"></div>
+      <div id="viewDiv" role="application" aria-label="Map of Hawaiʻi legislative districts. The district list at the top is a keyboard-accessible alternative."></div>
+      <p class="hover" id="hover" aria-live="off"></p>
+      <div class="legend" id="legend"></div>
+      <p class="mapnote" id="mapnote" aria-live="polite"></p>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <p>This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.</p>
+    <p>Percentages and margins of error marked "calculated" or "about" are our own calculations from published Census figures. Informational only; not legal or eligibility advice.</p>
+  </footer>
 
   <script>
-    const select = document.getElementById("district");
-    const profile = document.getElementById("profile");
+    // The headline statistics. Edit this list to change what leads the summary (metric ids come
+    // from MAP_METRICS in api/main.py). Keep it short: fewer, well-chosen figures read best.
+    const KEY_METRICS = ["median_household_income", "poverty_rate", "share_65_plus", "rent_burden_rate",
+                         "no_insurance_rate", "snap_share", "unemployment_rate"];
+    const COLORS = ["#e6f2f1", "#a8d5d1", "#5fb3ac", "#1f8a83", "#0b4f4b"];
+    const STATE_EXTENT = { xmin: -160.5, ymin: 18.8, xmax: -154.6, ymax: 22.4 };
+    const AREAS = [ // quick zoom buttons; county ids come from the boundary file
+      { label: "Statewide", county: null },
+      { label: "Hawaiʻi Island", county: "COUNTY-001" },
+      { label: "Maui, Molokaʻi, Lānaʻi", county: "COUNTY-009" },
+      { label: "Oʻahu", county: "COUNTY-003" },
+      { label: "Kauaʻi", county: "COUNTY-007" },
+    ];
+    const $ = id => document.getElementById(id);
+    const state = { chamber: "house", districtId: null, mapData: null, districts: [], edges: [] };
+    let view, fillLayer, selLayer, GraphicCtor, ExtentCtor;
 
-    function formatValue(value, unit) {
-      if (unit === "dollars") return "$" + Math.round(value).toLocaleString("en-US");
-      return Math.round(value).toLocaleString("en-US");
-    }
+    // ---------- formatting ----------
+    const fmtMetric = (v, f) => v == null ? "Not available"
+      : f === "dollars" ? "$" + Math.round(v).toLocaleString("en-US") : (v * 100).toFixed(1) + "%";
+    const fmtCount = v => v == null ? "Not available" : Math.round(v).toLocaleString("en-US");
+    const fmtMoe = (m, f) => m == null ? "margin of error not available"
+      : f === "dollars" ? "plus or minus $" + Math.round(m).toLocaleString("en-US")
+      : f === "count" ? "plus or minus " + Math.round(m).toLocaleString("en-US")
+      : "plus or minus " + (m * 100).toFixed(1) + " points";
+    const shortCounty = n => n ? n.replace(/, Hawaii$/, "") : "its county";
+    const shortGeo = g => g.split(" (")[0];
 
-    function uncertaintyText(fact) {
-      switch (fact.moe_status) {
-        case "ok":
-        case "derived":
-          return "plus or minus " + formatValue(fact.moe, fact.unit);
-        case "controlled":
-          return "fixed to official population totals";
-        case "not_computable":
-          return "margin of error not available, treat as uncertain";
-        default:
-          return "";
-      }
-    }
-
-    function unavailableText(status) {
-      if (status === "not_applicable") return "Not applicable here";
-      return "Not available: too few cases for the source to publish";
-    }
-
-    function renderFact(fact) {
-      const card = document.createElement("article");
-      card.className = "card";
-
-      const title = document.createElement("h3");
-      title.textContent = fact.label;
-      card.append(title);
-
-      if (fact.value_status === "ok") {
-        const value = document.createElement("p");
-        value.className = "value";
-        value.textContent = formatValue(fact.value, fact.unit);
-        card.append(value);
-
-        const moe = document.createElement("p");
-        moe.className = "moe";
-        moe.textContent = uncertaintyText(fact);
-        card.append(moe);
+    function diffText(diff, f) {
+      if (!diff) return { text: "not available", flag: "", short: "" };
+      let text;
+      if (f === "dollars") {
+        const r = (diff.relative || 0) * 100;
+        text = Math.abs(r) < 0.5 ? "about the same" : `${Math.abs(r).toFixed(0)}% ${r > 0 ? "higher" : "lower"}`;
       } else {
-        const value = document.createElement("p");
-        value.className = "value unavailable";
-        value.textContent = unavailableText(fact.value_status);
-        card.append(value);
+        const p = diff.absolute * 100;
+        text = Math.abs(p) < 0.05 ? "about the same" : `${Math.abs(p).toFixed(1)} points ${p > 0 ? "higher" : "lower"}`;
       }
+      const flag = diff.within_margin_of_error === true ? "Within the margin of error: may not be a real difference"
+        : diff.within_margin_of_error === null ? "Margin of error not available: treat as uncertain" : "";
+      const short = diff.within_margin_of_error === true ? "within margin of error"
+        : diff.within_margin_of_error === null ? "margin not available" : "";
+      return { text, flag, short };
+    }
 
-      const source = document.createElement("p");
-      source.className = "source";
-      const link = document.createElement("a");
-      link.href = fact.source.url;
-      link.textContent = fact.source.publisher + ", " + fact.source.dataset;
-      link.target = "_blank";
-      link.rel = "noopener";
-      source.append("Source: ", link, ", " + fact.source.year);
-      card.append(source);
+    const el = (tag, props = {}, ...kids) => {
+      const n = Object.assign(document.createElement(tag), props);
+      kids.forEach(k => n.append(k));
+      return n;
+    };
+    function tableLinks(src, into) {
+      (src.tables || []).forEach((t, i) => into.append(i ? ", " : "", el("a", { href: t.url, target: "_blank", rel: "noopener", textContent: "Table " + t.table_id })));
+    }
+    // Short source line: enough to cite source, year, table and geography on every figure.
+    function srcLine(src) {
+      const p = el("p", { className: "src" }, `Census ACS 5-year ${src.year} · `);
+      tableLinks(src, p);
+      p.append(` · ${shortGeo(src.geography)}`);
+      return p;
+    }
 
+    // ---------- summary pieces ----------
+    function renderKeyFact(c) {
+      const card = el("article", { className: "fact" }, el("h3", { textContent: c.label }));
+      card.append(el("p", { className: "big", textContent: fmtMetric(c.district.value, c.format) }));
+      card.append(el("p", { className: "moe", textContent: c.district.value != null ? fmtMoe(c.district.moe, c.format) : "" }));
+      const vs = el("div", { className: "vs" });
+      const line = (name, ref) => {
+        const d = diffText(ref && ref.difference, c.format);
+        const row = el("div", { className: "row" }, el("span", { className: "hl", textContent: d.text }),
+          ` than ${name} (${fmtMetric(ref && ref.value, c.format)})`);
+        if (d.short) row.append(el("em", { textContent: d.short, title: d.flag }));
+        return row;
+      };
+      if (c.county) vs.append(line(shortCounty(c.county.name), c.county));
+      vs.append(line("the state", c.state));
+      card.append(vs, srcLine(c.source));
       return card;
     }
 
-    async function loadDistrict(geoId) {
-      profile.innerHTML = '<p class="message">Loading...</p>';
+    function renderDetails(data) {
+      const wrap = el("div");
+      const t1 = el("table");
+      const cn = shortCounty(data.comparisons[0] && data.comparisons[0].county && data.comparisons[0].county.name);
+      const head = t1.createTHead().insertRow();
+      ["Measure", "This district", cn, "State", "Vs " + cn, "Vs state"].forEach(h => head.append(el("th", { scope: "col", textContent: h })));
+      const body = t1.createTBody();
+      let group = null;
+      data.comparisons.forEach(c => {
+        if (c.group !== group) {
+          group = c.group;
+          if (group !== "District profile") {
+            const gr = body.insertRow();
+            const th = el("th", { scope: "colgroup", colSpan: 6, textContent: group, style: "padding-top:0.9rem" });
+            if (c.group_note) th.append(el("span", { className: "moe", textContent: c.group_note }));
+            gr.append(th);
+          }
+        }
+        const tr = body.insertRow();
+        tr.append(el("th", { scope: "row", textContent: c.label }));
+        const v = (e, withMoe) => { const td = el("td", {}, fmtMetric(e && e.value, c.format));
+          if (withMoe && e && e.value != null) td.append(el("span", { className: "moe", textContent: fmtMoe(e.moe, c.format) })); return td; };
+        const d = ref => { const x = diffText(ref && ref.difference, c.format); const td = el("td", {}, x.text);
+          if (x.flag) td.append(el("span", { className: "flag", textContent: x.flag })); return td; };
+        tr.append(v(c.district, true), c.county ? v(c.county, false) : el("td"), v(c.state, false), d(c.county), d(c.state));
+      });
+      wrap.append(el("p", { className: "muted small", textContent:
+        "Percentages are calculated from published counts. Margins of error use the Census Bureau's method for proportions. A difference inside its margin of error may not be a real difference." }), t1);
+
+      const t2 = el("table");
+      const h2 = t2.createTHead().insertRow();
+      ["Figure", "Value", "Source table"].forEach(h => h2.append(el("th", { scope: "col", textContent: h })));
+      const b2 = t2.createTBody();
+      data.facts.forEach(f => {
+        const tr = b2.insertRow();
+        tr.append(el("th", { scope: "row", textContent: f.label }));
+        const unitFmt = v => f.unit === "dollars" ? "$" + Math.round(v).toLocaleString("en-US") : Math.round(v).toLocaleString("en-US");
+        const vt = el("td");
+        if (f.value_status === "ok") {
+          vt.append(unitFmt(f.value));
+          vt.append(el("span", { className: "moe", textContent: f.moe == null ? "margin of error not available"
+            : `${f.moe_status === "derived" ? "about " : ""}plus or minus ${unitFmt(f.moe)}` }));
+        } else {
+          vt.append("Not available", el("span", { className: "flag", textContent: "Too few cases for the source to publish" }));
+        }
+        const st = el("td");
+        tableLinks({ tables: f.source.tables }, st);
+        st.append(` (${f.source.year})`);
+        tr.append(vt, st);
+      });
+      wrap.append(el("h3", { textContent: "Every figure behind this profile", style: "margin:1.2rem 0 0.4rem;font-size:0.95rem" }),
+        el("p", { className: "muted small", textContent:
+          "All figures: " + data.facts[0].source.publisher + ", " + data.facts[0].source.dataset + ". Geography: " + data.facts[0].source.geography +
+          ". Reported directly for this geography; not estimated or apportioned by us." }), t2);
+      return wrap;
+    }
+
+    // Figures published only for counties and the state (e.g. BEA). Never shown as district figures.
+    function renderContext(data, countyName) {
+      const ctx = data.county_context || [];
+      if (!ctx.length) return null;
+      const t = el("table");
+      const h = t.createTHead().insertRow();
+      ["Measure", countyName || "County", "State", "Source"].forEach(x => h.append(el("th", { scope: "col", textContent: x })));
+      const b = t.createTBody();
+      const fmt = (v, unit) => v == null ? "Not available" : unit === "dollars" ? "$" + Math.round(v).toLocaleString("en-US")
+        : unit === "percent" ? v.toFixed(1) + "%" : Math.round(v).toLocaleString("en-US");
+      ctx.forEach(c => {
+        const tr = b.insertRow();
+        const th = el("th", { scope: "row" }, c.label, el("span", { className: "moe", textContent: c.period }));
+        if (c.caveat) th.append(el("span", { className: "flag", textContent: c.caveat }));
+        tr.append(th);
+        [c.county, c.state].forEach(e => {
+          const td = el("td", {}, e ? fmt(e.value, c.unit) : "Not available");
+          if (e && e.note) td.append(el("span", { className: "flag", textContent: e.note }));
+          tr.append(td);
+        });
+        const st = el("td", {}, `${c.source.publisher}, ${c.source.dataset}, `);
+        c.source.tables.forEach(x => st.append(el("a", { href: x.url, target: "_blank", rel: "noopener", textContent: x.table_id })));
+        if (c.source.original_source) st.append(el("span", { className: "moe", textContent: "Original data: " + c.source.original_source.replace(/^Source:\s*/, "") }));
+        st.append(el("span", { className: "moe", textContent: `${c.source.vintage ? c.source.vintage + ". " : ""}Downloaded ${c.source.retrieved_at}.` }));
+        tr.append(st);
+      });
+      return el("details", {}, el("summary", { textContent: "County and state context (not figures for this district)" }),
+        el("div", { className: "inner" },
+          el("p", { className: "muted small", textContent: "These sources publish figures for counties (or islands) and the state only, not for legislative districts. They describe the county this district is in, not the district itself, and cover different years from the district figures above. No margin of error is published for them. SNAP counts are program records from the Hawaiʻi Department of Human Services: how many people the program actually served." }),
+          t));
+    }
+
+    // DOTAX tax areas that overlap the district. Whole-area figures, never district figures.
+    function renderTaxAreas(data, countyName) {
+      const ta = data.tax_areas;
+      if (!ta || !ta.areas.length) return null;
+      const money = v => v == null ? "Not available" : "$" + Math.round(v).toLocaleString("en-US");
+      const pct = v => v < 0.001 ? "under 0.1%" : (100 * v).toFixed(v < 0.1 ? 1 : 0) + "%";
+      const ctx = (data.county_context || []).find(c => c.indicator_id === "dotax_median_agi");
+      const t = el("table");
+      const h = t.createTHead().insertRow();
+      ["Tax area", ta.label, "Resident tax returns", "Share of this district's land in the area", "Share of the area's land in this district"]
+        .forEach(x => h.append(el("th", { scope: "col", textContent: x })));
+      const b = t.createTBody();
+      ta.areas.forEach(a => {
+        const tr = b.insertRow();
+        const th = el("th", { scope: "row", textContent: a.name });
+        if (a.relation !== "overlaps") th.append(el("span", { className: "flag", textContent: "Touches the edge of the district only (under 1% of its land)" }));
+        tr.append(th, el("td", { textContent: money(a.median_agi) }),
+          el("td", { textContent: a.returns == null ? "Not available" : Math.round(a.returns).toLocaleString("en-US") }),
+          el("td", { textContent: pct(a.share_of_district_land) }), el("td", { textContent: pct(a.share_of_area_land_in_district) }));
+      });
+      if (ctx) {
+        [[ctx.county, countyName || "County"], [ctx.state, "State"]].forEach(([e, name]) => {
+          if (!e) return;
+          const tr = b.insertRow();
+          tr.append(el("th", { scope: "row", textContent: `For comparison: ${name}` }), el("td", { textContent: money(e.value) }),
+            el("td", { textContent: "" }), el("td", { textContent: "" }), el("td", { textContent: "" }));
+        });
+      }
+      const src = el("p", { className: "muted small" }, `Source: ${ta.source.publisher}, ${ta.source.dataset}, `);
+      ta.source.tables.forEach((x, i) => { if (i) src.append(", "); src.append(el("a", { href: x.url, target: "_blank", rel: "noopener", textContent: x.table_id })); });
+      src.append(`. ${ta.source.vintage ? ta.source.vintage + ". " : ""}Downloaded ${ta.source.retrieved_at}. Matched to districts with: ${ta.overlap_source}`);
+      const notes = [ta.applies_to,
+        "Land area is only a rough guide to where people live: an area can cover much of a district's land but few of its residents.",
+        ta.caveat];
+      if (ta.district_land_in_no_tax_area >= 0.01)
+        notes.push(`${pct(ta.district_land_in_no_tax_area)} of this district's land is outside every ZIP code area that DOTAX lists.`);
+      return el("details", {}, el("summary", { textContent: "Income by tax area (areas that overlap this district)" }),
+        el("div", { className: "inner" }, ...notes.map(n => el("p", { className: "muted small", textContent: n })), t, src));
+    }
+
+    function renderProfile(data) {
+      const comps = data.comparisons;
+      const keyComps = KEY_METRICS.map(id => comps.find(c => c.metric_id === id)).filter(Boolean);
+      const pop = data.facts.find(f => f.indicator_id === "pop_total");
+      const county = comps[0] && comps[0].county ? shortCounty(comps[0].county.name) : "";
+
+      const popLine = pop && pop.value_status === "ok"
+        ? `About ${fmtCount(pop.value)} residents (${fmtMoe(pop.moe, "count")})` : "Population not available";
+
+      const facts = el("div", { className: "facts" });
+      keyComps.forEach(c => facts.append(renderKeyFact(c)));
+
+      const details = el("details", {}, el("summary", { textContent: "See all figures and sources" }), el("div", { className: "inner" }, renderDetails(data)));
+      const programs = el("details", {}, el("summary", { textContent: "Programs residents may qualify for" }),
+        el("div", { className: "inner" }, el("p", { className: "muted", textContent:
+          "Coming soon. This section will list state, county and federal programs, with how to apply. Final eligibility is always decided by the program's agency." })));
+      const actions = el("div", { className: "actions" },
+        el("button", { className: "btn", type: "button", textContent: "Print or save as PDF", onclick: () => window.print() }),
+        el("button", { className: "btn secondary", type: "button", textContent: "Copy link to this district",
+          onclick: e => { navigator.clipboard && navigator.clipboard.writeText(location.href); e.target.textContent = "Link copied"; } }));
+
+      const context = renderContext(data, county);
+      const taxAreas = renderTaxAreas(data, county);
+      $("main").replaceChildren(
+        el("h2", { className: "district", textContent: data.name }),
+        el("p", { className: "sub", textContent: county ? `${county} · ${popLine}` : popLine }),
+        ...[facts, details, taxAreas, context, programs, actions].filter(Boolean));
+    }
+    // Open every section when printing so the page prints as a complete one-pager.
+    window.addEventListener("beforeprint", () => document.querySelectorAll("details").forEach(d => d.open = true));
+
+    // ---------- selection ----------
+    const ringsOf = g => g.type === "Polygon" ? g.coordinates : g.coordinates.flat(1);
+    const polygon = g => ({ type: "polygon", rings: ringsOf(g), spatialReference: { wkid: 4326 } });
+
+    function drawSelection(zoom) {
+      selLayer.removeAll();
+      const f = state.mapData && state.mapData.features.find(x => x.properties.geo_id === state.districtId);
+      if (!f) { if (zoom) goExtent(STATE_EXTENT); return; }
+      const g = new GraphicCtor({ geometry: polygon(f.geometry),
+        symbol: { type: "simple-fill", color: [0, 0, 0, 0], outline: { color: "#111111", width: 3 } } });
+      selLayer.add(g);
+      if (zoom) view.when(() => view.goTo(g.geometry.extent.expand(2.6)).catch(() => {}));
+    }
+    function goExtent(e) {
+      view.when(() => view.goTo(new ExtentCtor({ ...e, spatialReference: { wkid: 4326 } }).expand(1.08)).catch(() => {}));
+    }
+    function countyExtent(countyId) {
+      if (!state.mapData) return null;
+      let x0 = 999, y0 = 999, x1 = -999, y1 = -999;
+      const walk = a => { if (typeof a[0] === "number") { x0 = Math.min(x0, a[0]); x1 = Math.max(x1, a[0]); y0 = Math.min(y0, a[1]); y1 = Math.max(y1, a[1]); } else a.forEach(walk); };
+      state.mapData.features.filter(f => f.properties.county_geo_id === countyId).forEach(f => walk(f.geometry.coordinates));
+      return x0 === 999 ? null : { xmin: x0, ymin: y0, xmax: x1, ymax: y1 };
+    }
+
+    async function selectDistrict(id, zoom = true) {
+      state.districtId = id || null;
+      $("district").value = id || "";
+      const url = new URL(location.href);
+      id ? url.searchParams.set("d", id) : url.searchParams.delete("d");
+      history.replaceState(null, "", url);
+      drawSelection(zoom);
+      if (!id) { $("main").replaceChildren(el("div", { className: "empty" }, el("h2", { textContent: "Who lives in your district?" }),
+        el("p", { textContent: "Choose a district above, or click one on the map." }))); return; }
+      $("main").replaceChildren(el("p", { className: "muted", textContent: "Loading..." }));
       try {
-        const res = await fetch("/api/districts/" + encodeURIComponent(geoId));
+        const res = await fetch("/api/districts/" + encodeURIComponent(id));
         if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
         const data = await res.json();
-
-        const heading = document.createElement("h2");
-        heading.textContent = data.name;
-        const grid = document.createElement("div");
-        grid.className = "grid";
-        data.facts.forEach(f => grid.append(renderFact(f)));
-        profile.replaceChildren(heading, grid);
+        if (state.districtId !== id) return; // user already moved on
+        renderProfile(data);
       } catch (err) {
-        profile.innerHTML = "";
-        const p = document.createElement("p");
-        p.className = "error";
-        p.textContent = "Could not load this district. " + err.message;
-        profile.append(p);
+        $("main").replaceChildren(el("p", { className: "error", textContent: "Could not load this district. " + err.message }));
       }
+    }
+
+    function fillDistrictList() {
+      const sel = $("district");
+      sel.replaceChildren(new Option("Choose...", ""));
+      state.districts.filter(d => d.geo_type === state.chamber).forEach(d => sel.append(new Option(d.name, d.geo_id)));
+      const prefix = state.chamber === "house" ? "HD" : "SD";
+      sel.value = state.districtId && state.districtId.startsWith(prefix) ? state.districtId : "";
+    }
+    function setChamber(chamber) {
+      state.chamber = chamber;
+      $("ch-house").setAttribute("aria-pressed", chamber === "house");
+      $("ch-senate").setAttribute("aria-pressed", chamber === "senate");
+      if (state.districtId && !state.districtId.startsWith(chamber === "house" ? "HD" : "SD")) state.districtId = null;
+      fillDistrictList();
+      drawMap().then(() => selectDistrict(state.districtId, false));
+    }
+
+    // ---------- map ----------
+    let mapDrawn = null;
+    async function drawMap() {
+      const metric = $("metric").value;
+      if (!metric) return;
+      $("mapnote").textContent = "Loading map...";
+      try {
+        const res = await fetch(`/api/map/${metric}/${state.chamber}`);
+        if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+        state.mapData = await res.json();
+        mapDrawn(state.mapData);
+      } catch (err) {
+        $("mapnote").replaceChildren(el("span", { className: "error", textContent: "Could not load the map. " + err.message }));
+      }
+    }
+
+    require(["esri/Map", "esri/views/MapView", "esri/layers/GraphicsLayer", "esri/Graphic", "esri/geometry/Extent"],
+      function (Map, MapView, GraphicsLayer, Graphic, Extent) {
+        GraphicCtor = Graphic; ExtentCtor = Extent;
+        fillLayer = new GraphicsLayer();
+        selLayer = new GraphicsLayer();
+        const map = new Map();
+        map.addMany([fillLayer, selLayer]); // selection outline sits on top
+        view = new MapView({ container: "viewDiv", map, background: { color: "#bcd9ea" },
+          extent: new Extent({ ...STATE_EXTENT, spatialReference: { wkid: 4326 } }).expand(1.05),
+          ui: { components: ["zoom"] } });
+
+        const quantileEdges = (values, n) => {
+          const v = values.filter(x => x !== null).sort((a, b) => a - b);
+          return Array.from({ length: n + 1 }, (_, i) => v[Math.min(v.length - 1, Math.floor(i * (v.length - 1) / n))]);
+        };
+        const classOf = (v, edges) => { // 0..4, or -1 when not available
+          if (v == null) return -1;
+          for (let i = COLORS.length - 1; i > 0; i--) if (v >= edges[i]) return i;
+          return 0;
+        };
+
+        mapDrawn = function (data) {
+          const edges = quantileEdges(data.features.map(f => f.properties.value), COLORS.length);
+          state.edges = edges;
+          fillLayer.removeAll();
+          data.features.forEach(f => {
+            const k = classOf(f.properties.value, edges);
+            fillLayer.add(new Graphic({
+              geometry: polygon(f.geometry),
+              symbol: { type: "simple-fill", color: k < 0 ? "#c8c8c8" : COLORS[k], outline: { color: "#ffffff", width: 0.7 } },
+              attributes: { geo_id: f.properties.geo_id, name: f.properties.name, value: f.properties.value },
+            }));
+          });
+          // Legend: one slim row under the map
+          const legend = $("legend");
+          legend.replaceChildren(el("span", { className: "title", textContent: data.meta.label }));
+          COLORS.forEach((c, i) => legend.append(el("span", { className: "item" },
+            el("span", { className: "sw", style: `background:${c}` }),
+            `${fmtMetric(edges[i], data.meta.format)} to ${fmtMetric(edges[i + 1], data.meta.format)}`)));
+          if (data.features.some(f => f.properties.value == null))
+            legend.append(el("span", { className: "item" }, el("span", { className: "sw", style: "background:#c8c8c8" }), "Not available"));
+          const s = data.meta.source;
+          const note = el("span", {}, `State: ${fmtMetric(data.meta.state_value, data.meta.format)}. Census ACS 5-year ${s.year}, `);
+          tableLinks(s, note);
+          note.append(`. Districts drawn from the Hawaiʻi Statewide GIS Program (OPSD) 2022 boundaries.`);
+          $("mapnote").replaceChildren(note);
+          drawSelection(false);
+        };
+
+        const districtAt = async event => {
+          const hit = await view.hitTest(event, { include: [fillLayer] });
+          const g = hit.results.find(r => r.graphic && r.graphic.attributes && r.graphic.attributes.geo_id);
+          return g ? g.graphic.attributes : null;
+        };
+        view.on("click", async e => { const a = await districtAt(e); if (a) selectDistrict(a.geo_id, false); });
+        let hoverPending = false;
+        view.on("pointer-move", e => {
+          if (hoverPending) return;
+          hoverPending = true;
+          requestAnimationFrame(async () => {
+            const a = await districtAt(e);
+            $("hover").textContent = a ? `${a.name}: ${a.value == null ? "not available" : fmtMetric(a.value, state.mapData.meta.format)}` : "";
+            hoverPending = false;
+          });
+        });
+        init();
+      });
+
+    function buildIslandButtons() {
+      $("islands").replaceChildren(...AREAS.map(a => el("button", { type: "button", textContent: a.label,
+        onclick: () => goExtent(a.county ? countyExtent(a.county) || STATE_EXTENT : STATE_EXTENT) })));
     }
 
     async function init() {
       try {
-        const res = await fetch("/api/districts");
-        if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
-        const districts = await res.json();
+        const [dRes, mRes] = await Promise.all([fetch("/api/districts"), fetch("/api/map/metrics")]);
+        if (!dRes.ok || !mRes.ok) throw new Error("Data service unavailable");
+        state.districts = await dRes.json();
+        const metrics = await mRes.json();
+        const groups = {};
+        metrics.forEach(m => (groups[m.group] = groups[m.group] || el("optgroup", { label: m.group })).append(new Option(m.label, m.metric_id)));
+        $("metric").replaceChildren(...Object.values(groups));
+        $("metric").value = "median_household_income";
+        buildIslandButtons();
 
-        select.replaceChildren();
-        for (const [type, label] of [["house", "House districts"], ["senate", "Senate districts"]]) {
-          const group = document.createElement("optgroup");
-          group.label = label;
-          districts.filter(d => d.geo_type === type).forEach(d => {
-            group.append(new Option(d.name, d.geo_id));
-          });
-          select.append(group);
+        const wanted = new URL(location.href).searchParams.get("d");
+        if (wanted && /^(HD|SD)-\d+$/i.test(wanted)) {
+          state.districtId = wanted.toUpperCase();
+          state.chamber = state.districtId.startsWith("HD") ? "house" : "senate";
         }
-        select.disabled = false;
-        select.addEventListener("change", () => loadDistrict(select.value));
-        loadDistrict(select.value);
+        $("ch-house").setAttribute("aria-pressed", state.chamber === "house");
+        $("ch-senate").setAttribute("aria-pressed", state.chamber === "senate");
+        fillDistrictList();
+        await drawMap();
+        if (state.districtId) { $("district").value = state.districtId; selectDistrict(state.districtId, true); }
       } catch (err) {
-        select.replaceChildren(new Option("Unavailable"));
-        profile.innerHTML = "";
-        const p = document.createElement("p");
-        p.className = "error";
-        p.textContent = "Could not load districts. " + err.message;
-        profile.append(p);
+        $("main").replaceChildren(el("p", { className: "error", textContent: "Could not load. " + err.message }));
       }
     }
 
-    init();
+    // Keep the sticky map just below the sticky header, whatever its height.
+    const setHdr = () => document.documentElement.style.setProperty("--hdr", $("hdr").offsetHeight + "px");
+    window.addEventListener("resize", setHdr); window.addEventListener("load", setHdr); setHdr();
+
+    $("ch-house").addEventListener("click", () => setChamber("house"));
+    $("ch-senate").addEventListener("click", () => setChamber("senate"));
+    $("district").addEventListener("change", e => selectDistrict(e.target.value, true));
+    $("metric").addEventListener("change", () => drawMap());
   </script>
 </body>
 </html>

@@ -56,3 +56,428 @@ indicators:
     unit: households
     type: single
     variables: [B22003_002E]
+
+  # --- Denominators: needed to turn the counts above into rates ---
+  - id: pop_poverty_universe
+    label: Residents for whom poverty status is determined
+    unit: people
+    type: single
+    variables: [B17001_001E]
+
+  # --- Age ---
+  - id: pop_under_18
+    label: Residents under age 18
+    unit: people
+    type: single
+    variables: [B09001_001E]
+
+  # --- Housing costs ---
+  - id: median_gross_rent
+    label: Median gross rent
+    unit: dollars
+    type: single
+    variables: [B25064_001E]
+
+  - id: renter_households
+    label: Renter households with rent burden computed
+    unit: households
+    type: single
+    variables: [B25070_001E]
+
+  - id: rent_burdened_households
+    label: Renter households paying 30% or more of income on rent
+    unit: households
+    type: sum
+    variables: [B25070_007E, B25070_008E, B25070_009E, B25070_010E]
+
+  - id: owner_households
+    label: Owner-occupied households
+    unit: households
+    type: single
+    variables: [B25003_002E]
+
+  # --- Income distribution ---
+  - id: households_income_under_50k
+    label: Households with income under $50,000
+    unit: households
+    type: sum
+    variables:
+      [
+        B19001_002E,
+        B19001_003E,
+        B19001_004E,
+        B19001_005E,
+        B19001_006E,
+        B19001_007E,
+        B19001_008E,
+        B19001_009E,
+        B19001_010E,
+      ]
+
+  - id: households_income_200k_plus
+    label: Households with income of $200,000 or more
+    unit: households
+    type: single
+    variables: [B19001_017E]
+
+  # --- Employment ---
+  - id: labor_force
+    label: Civilian labor force
+    unit: people
+    type: single
+    variables: [B23025_003E]
+
+  - id: unemployed
+    label: Unemployed residents in the labor force
+    unit: people
+    type: single
+    variables: [B23025_005E]
+
+  # --- Disability (B18101, civilian noninstitutionalized population) ---
+  - id: pop_disability_universe
+    label: Residents for whom disability status is determined
+    unit: people
+    type: single
+    variables: [B18101_001E]
+
+  - id: pop_with_disability
+    label: Residents with a disability
+    unit: people
+    type: sum
+    variables:
+      [
+        B18101_004E,
+        B18101_007E,
+        B18101_010E,
+        B18101_013E,
+        B18101_016E,
+        B18101_019E,
+        B18101_023E,
+        B18101_026E,
+        B18101_029E,
+        B18101_032E,
+        B18101_035E,
+        B18101_038E,
+      ]
+
+  # --- Health insurance (B27001) ---
+  - id: pop_insurance_universe
+    label: Residents for whom health insurance coverage is determined
+    unit: people
+    type: single
+    variables: [B27001_001E]
+
+  - id: pop_no_health_insurance
+    label: Residents with no health insurance coverage
+    unit: people
+    type: sum
+    variables:
+      [
+        B27001_005E,
+        B27001_008E,
+        B27001_011E,
+        B27001_014E,
+        B27001_017E,
+        B27001_020E,
+        B27001_023E,
+        B27001_026E,
+        B27001_029E,
+        B27001_033E,
+        B27001_036E,
+        B27001_039E,
+        B27001_042E,
+        B27001_045E,
+        B27001_048E,
+        B27001_051E,
+        B27001_054E,
+        B27001_057E,
+      ]
+
+  # --- Medicaid / means-tested public coverage (C27007), added 2026-11-16 ---
+  # Labels from https://api.census.gov/data/2024/acs/acs5/groups/C27007.json (read 2026-11-16).
+  # What residents report in the survey, not program enrollment records.
+  - id: pop_medicaid_universe
+    label: Residents for whom Medicaid/means-tested coverage is determined
+    unit: people
+    type: single
+    variables: [C27007_001E]
+
+  - id: pop_medicaid
+    label: Residents with Medicaid or other means-tested public health coverage
+    unit: people
+    type: sum
+    variables:
+      [C27007_004E, C27007_007E, C27007_010E, C27007_014E, C27007_017E, C27007_020E]
+
+  # --- Social Security income (B19055, households), added 2026-11-16 ---
+  # Labels from https://api.census.gov/data/2024/acs/acs5/groups/B19055.json (read 2026-11-16).
+  # For the brief's example question about kūpuna on fixed incomes.
+  - id: households_ss_universe
+    label: Total households (Social Security income)
+    unit: households
+    type: single
+    variables: [B19055_001E]
+
+  - id: households_social_security
+    label: Households with Social Security income in the past 12 months
+    unit: households
+    type: single
+    variables: [B19055_002E]
+
+  # --- Kūpuna living alone (B11007, households) ---
+  - id: households_with_65_plus
+    label: Households with one or more people age 65 and older
+    unit: households
+    type: single
+    variables: [B11007_002E]
+
+  - id: households_65_plus_living_alone
+    label: One-person households with someone age 65 or older
+    unit: households
+    type: single
+    variables: [B11007_003E]
+
+  # --- Language (B16002, households) ---
+  - id: households_language_universe
+    label: Total households (language spoken at home)
+    unit: households
+    type: single
+    variables: [B16002_001E]
+
+  - id: households_limited_english
+    label: Limited English speaking households
+    unit: households
+    type: sum
+    variables:
+      [
+        B16002_004E,
+        B16002_007E,
+        B16002_010E,
+        B16002_013E,
+        B16002_016E,
+        B16002_019E,
+        B16002_022E,
+        B16002_025E,
+        B16002_028E,
+        B16002_031E,
+        B16002_034E,
+        B16002_037E,
+      ]
+
+  # --- Jobs by industry (C24050, civilian employed residents 16+, by where they live) ---
+  # Labels from https://api.census.gov/data/2024/acs/acs5/groups/C24050.json (read 2026-11-16).
+  # Industry of the job a resident holds, wherever the job is; not jobs located in the district.
+  - id: employed_total
+    label: Employed residents age 16 and older (civilian)
+    unit: people
+    type: single
+    variables: [C24050_001E]
+  - id: ind_agriculture
+    label: "Employed residents working in agriculture, forestry, fishing and hunting, and mining"
+    unit: people
+    type: single
+    variables: [C24050_002E]
+  - id: ind_construction
+    label: Employed residents working in construction
+    unit: people
+    type: single
+    variables: [C24050_003E]
+  - id: ind_manufacturing
+    label: Employed residents working in manufacturing
+    unit: people
+    type: single
+    variables: [C24050_004E]
+  - id: ind_wholesale
+    label: Employed residents working in wholesale trade
+    unit: people
+    type: single
+    variables: [C24050_005E]
+  - id: ind_retail
+    label: Employed residents working in retail trade
+    unit: people
+    type: single
+    variables: [C24050_006E]
+  - id: ind_transport_utilities
+    label: "Employed residents working in transportation and warehousing, and utilities"
+    unit: people
+    type: single
+    variables: [C24050_007E]
+  - id: ind_information
+    label: Employed residents working in information
+    unit: people
+    type: single
+    variables: [C24050_008E]
+  - id: ind_finance_real_estate
+    label: "Employed residents working in finance and insurance, and real estate, and rental and leasing"
+    unit: people
+    type: single
+    variables: [C24050_009E]
+  - id: ind_professional
+    label: "Employed residents working in professional, scientific, and management, and administrative, and waste management services"
+    unit: people
+    type: single
+    variables: [C24050_010E]
+  - id: ind_education_health
+    label: "Employed residents working in educational services, and health care and social assistance"
+    unit: people
+    type: single
+    variables: [C24050_011E]
+  - id: ind_arts_accommodation_food
+    label: "Employed residents working in arts, entertainment, and recreation, and accommodation and food services"
+    unit: people
+    type: single
+    variables: [C24050_012E]
+  - id: ind_other_services
+    label: "Employed residents working in other services, except public administration"
+    unit: people
+    type: single
+    variables: [C24050_013E]
+  - id: ind_public_administration
+    label: Employed residents working in public administration
+    unit: people
+    type: single
+    variables: [C24050_014E]
+
+  # --- Ethnicity (alone or in combination) ---
+  - id: pop_nhpi
+    label: Native Hawaiian and Pacific Islander residents (alone or in combination)
+    unit: people
+    type: single
+    variables: [B02012_001E]
+
+  # Added 2026-11-16. Labels from https://api.census.gov/data/2024/acs/acs5/groups/<table>.json.
+  # "Alone or in combination" counts a person in every group they report, so the groups overlap
+  # and their shares add up to more than 100% (common in Hawaiʻi).
+  - id: pop_asian
+    label: Asian residents (alone or in combination)
+    unit: people
+    type: single
+    variables: [B02011_001E]
+
+  - id: pop_white
+    label: White residents (alone or in combination)
+    unit: people
+    type: single
+    variables: [B02008_001E]
+
+  - id: pop_filipino
+    label: Filipino residents (alone or in combination)
+    unit: people
+    type: single
+    variables: [B02018_012E]
+
+  - id: pop_japanese
+    label: Japanese residents (alone or in combination)
+    unit: people
+    type: single
+    variables: [B02018_004E]
+
+  - id: pop_hispanic
+    label: Hispanic or Latino residents (any race)
+    unit: people
+    type: single
+    variables: [B03002_012E]
+
+  - id: pop_two_or_more_races
+    label: Residents of two or more races
+    unit: people
+    type: sum
+    variables: [B03002_009E, B03002_019E]
+
+  # --- Program need: the "likely eligible" side of the outreach gap (added 2026-11-16) ---
+  # These describe income relative to the federal poverty line. They are NOT eligibility counts:
+  # program rules (household size, assets, other tests) are applied in a written method later.
+
+  # B22003: households by SNAP receipt and poverty status
+  - id: households_below_poverty
+    label: Households with income below the poverty level
+    unit: households
+    type: sum
+    variables: [B22003_003E, B22003_006E]
+
+  - id: households_below_poverty_no_snap
+    label: Households below the poverty level that did not receive SNAP in the past 12 months
+    unit: households
+    type: single
+    variables: [B22003_006E]
+
+  # C17002: ratio of income to poverty level (people)
+  - id: pop_ratio_universe
+    label: Residents for whom the ratio of income to poverty is determined
+    unit: people
+    type: single
+    variables: [C17002_001E]
+
+  - id: pop_under_125pct_poverty
+    label: Residents with income under 125% of the poverty level
+    unit: people
+    type: sum
+    variables: [C17002_002E, C17002_003E, C17002_004E]
+
+  - id: pop_under_200pct_poverty
+    label: Residents with income under 200% of the poverty level
+    unit: people
+    type: sum
+    variables: [C17002_002E, C17002_003E, C17002_004E, C17002_005E, C17002_006E, C17002_007E]
+
+  # C27016: health insurance by ratio of income to poverty (under 1.00 and 1.00 to 1.37)
+  - id: pop_under_138pct_poverty
+    label: Residents with income under 138% of the poverty level (health insurance universe)
+    unit: people
+    type: sum
+    variables: [C27016_002E, C27016_012E]
+
+  - id: pop_under_138pct_uninsured
+    label: Residents with income under 138% of the poverty level and no health insurance
+    unit: people
+    type: sum
+    variables: [C27016_005E, C27016_008E, C27016_011E, C27016_015E, C27016_018E, C27016_021E]
+
+  # B17020: poverty by age. Its age groups give 60+, not 65+.
+  - id: pop_60_plus_poverty_universe
+    label: Residents age 60 and older for whom poverty status is determined
+    unit: people
+    type: sum
+    variables: [B17020_007E, B17020_008E, B17020_009E, B17020_015E, B17020_016E, B17020_017E]
+
+  - id: pop_60_plus_below_poverty
+    label: Residents age 60 and older below the poverty level
+    unit: people
+    type: sum
+    variables: [B17020_007E, B17020_008E, B17020_009E]
+
+  # --- Young families (B11005), added 2026-11-16 ---
+  - id: households_children_universe
+    label: Total households (presence of people under 18)
+    unit: households
+    type: single
+    variables: [B11005_001E]
+
+  - id: households_with_children
+    label: Households with one or more people under 18
+    unit: households
+    type: single
+    variables: [B11005_002E]
+
+  - id: households_single_parent
+    label: Households with people under 18, family with no spouse present
+    unit: households
+    type: single
+    variables: [B11005_005E]
+
+  # --- Homeowner housing costs (B25091), added 2026-11-16 ---
+  # Owner costs as a share of household income; excludes "Not computed".
+  - id: owner_households_cost_computed
+    label: Owner households with owner costs computed
+    unit: households
+    type: sum
+    variables: [B25091_003E, B25091_004E, B25091_005E, B25091_006E, B25091_007E, B25091_008E,
+                B25091_009E, B25091_010E, B25091_011E, B25091_014E, B25091_015E, B25091_016E,
+                B25091_017E, B25091_018E, B25091_019E, B25091_020E, B25091_021E, B25091_022E]
+
+  - id: owner_cost_burdened_households
+    label: Owner households paying 30% or more of income on owner costs
+    unit: households
+    type: sum
+    variables: [B25091_008E, B25091_009E, B25091_010E, B25091_011E, B25091_019E, B25091_020E,
+                B25091_021E, B25091_022E]
