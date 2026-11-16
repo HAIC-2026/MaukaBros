@@ -51,7 +51,7 @@ Seth Colby's kickoff video ("Seth").
 - [x] ArcGIS map of House and Senate districts, colored by a chosen measure
 - [x] Selected district outlined and zoomed to
 - [x] Legend, island zoom buttons, hover label
-- [~] **Click a district, hover, and the island buttons: not tested** (screenshots only). Please try in a browser.
+- [x] Click a district, hover and the island buttons: tested in a browser with Playwright (2026-11-16); the map was restyled the same day (spotlight selection, hover tooltip, legend bar)
 - [x] Official state boundaries (OPSD 2022) recorded with terms in `pipeline/boundaries.yaml`
 - [ ] Geometry overlap check: OPSD 2022 vs Census TIGER 2024 (believed identical, not verified)
 - [ ] Confirm ArcGIS use is allowed without an Esri key/licence for the submission (see section 6)
@@ -129,4 +129,4 @@ Seth Colby's kickoff video ("Seth").
 - [x] Remove the older `web/map.html` page, now covered by the main page (deleted 2026-11-16)
 - [ ] Agree the interface with Shade if they build the real front end (the API stays the same)
 - [ ] Decide how the demo runs (local, or hosted) and test it on a clean machine
-- [ ] Prepare the demo script: one rural, one urban, one high-income district
+- [x] Prepare the demo script: one rural, one urban, one high-income district (about 7 minutes, for the functional evaluation video; kept outside the repo)

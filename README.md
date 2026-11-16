@@ -6,7 +6,7 @@ districts, built for legislators, their staff and State agencies.
 District Insight is the MaukaBros entry to the 2026 Hawaiʻi Annual Innovation Challenge (HAIC),
 use case "Know Your District", championed by DBEDT's Research and Economic Analysis Division.
 
-**Live site:** [https://YOUR-DOMAIN-HERE](https://YOUR-DOMAIN-HERE)
+**Live site:** [https://maukabros.onrender.com](https://maukabros.onrender.com)
 
 ## What it does
 
