@@ -1,4 +1,4 @@
-# MaukaBros: Know Your District
+# MaukaBros: District Insight
 
 Profiles of who lives in each of Hawaiʻi's 51 House and 25 Senate districts, from the ACS 2024 5-year estimates. The site will be judged: aim for an impressive but professional, civic-data look.
 
