@@ -2,7 +2,7 @@
 // Kept out of the HTML so the Content Security Policy can forbid inline scripts.
 import { fmtMetric, fmtCount, fmtMoe, shortCounty, districtLabel, compareEstimates } from "/js/format.js";
 import { $, el, tableLinks, renderKeyFact, renderPairFact, renderContext, renderTaxAreas, programsHelp, planLine, reportUrl, factKey, cardStyleSwitch, countyOf,
-  skeleton, sk, skLines, skProfile, skTiles } from "/js/render.js";
+  skeleton, sk, skLines, skProfile, skAccordions } from "/js/render.js";
 import { presetById, presetFor, districtFor } from "/js/presets.js";
 import { renderMarkdown } from "/js/markdown.js";
 
@@ -119,15 +119,16 @@ function renderPairProfile(a, b) {
   const actions = el("div", { className: "actions" },
     el("a", { className: "btn i-forward", href: full, textContent: "Full comparison" }),
     el("button", { className: "btn secondary i-print", type: "button", textContent: "Print / PDF", onclick: () => window.print() }),
-    el("button", { className: "btn secondary", type: "button", textContent: "Stop comparing",
-      onclick: () => { state.vsId = null; selectDistrict(a.geo_id, true); } }),
     el("button", { className: "btn secondary i-copy", type: "button", textContent: "Copy link",
-      onclick: e => { navigator.clipboard && navigator.clipboard.writeText(location.href); e.target.textContent = "Link copied"; } }));
+      onclick: e => { navigator.clipboard && navigator.clipboard.writeText(location.href); e.target.textContent = "Link copied"; } }),
+    // Leaves the comparison, so it looks different from the actions on it: borderless, with a close icon.
+    el("button", { className: "btn ghost i-close stop-compare", type: "button", textContent: "Stop comparing",
+      onclick: () => { state.vsId = null; selectDistrict(a.geo_id, true); } }));
   // Programs and their official pages are the same for every district.
   const programs = programsHelp(a.programs, { moreHref: `${reportUrl(a.geo_id, "programs")}&vs=${encodeURIComponent(b.geo_id)}`,
-    moreText: "More in the full comparison: residents likely eligible in both districts", collapsed: true });
+    moreText: "Likely-eligible estimates for both districts in the full comparison", collapsed: true });
   const note = a.geo_type !== b.geo_type ? el("p", { className: "pair-note", textContent:
-    "House and Senate districts overlap, so some residents are in both. Rates and medians compare; the margin-of-error test is approximate." }) : null;
+    "House and Senate districts overlap, so the margin-of-error test is approximate." }) : null;
   $("main").replaceChildren(
     el("h2", { className: "district", textContent: `${a.name} vs ${b.name}` }),
     ...[who(a, "a"), who(b, "b"), note, viewSwitch(), facts, factKey(undefined, { a: A.id, b: B.id }), actions, programs].filter(Boolean));
@@ -296,6 +297,7 @@ function fillVsList() {
     sel.append(g);
   });
   sel.disabled = !state.districtId;
+  sel.closest(".field").hidden = !state.districtId;
   sel.value = state.vsId || "";
 }
 
@@ -304,6 +306,7 @@ async function selectDistrict(id, zoom = true) {
   if (!state.districtId || state.vsId === state.districtId) state.vsId = null;
   const vs = state.vsId;
   $("district").value = id || "";
+  $("intro").hidden = !!id;
   fillVsList();
   chatContext();
   $("report-link").hidden = !id;
@@ -347,7 +350,7 @@ function findResults(r) {
   const shares = r.matches.some(m => (m.districts || []).some(d => d.share_of_residents));
   const hood = r.matches.some(m => m.neighborhood);
   if (shares) out.push(el("p", { className: "find-note", textContent: "% = share of the area's 2020 residents in each district (2020 Census blocks)." }));
-  if (hood) out.push(el("p", { className: "find-note", textContent: "Neighborhoods are placed by their official USGS reference point; parts near a district line may be in the next district." }));
+  if (hood) out.push(el("p", { className: "find-note", textContent: "Neighborhoods are placed by one reference point; edges may fall in the next district." }));
   return out;
 }
 function closeFind() { $("find-results").hidden = true; }
@@ -383,19 +386,18 @@ let programList = null; // GET /api/programs: every program with its official pa
 const outreachSkeleton = () => [skeleton("Loading the outreach highlight…", sk("sk-line", "14rem"), sk("sk-h2", "82%"), sk("sk-block"),
   skLines(2, ["70%", "55%"]), el("div", { className: "where" }, ...[0, 1].map(() => el("div", {}, sk("sk-line", "50%"), skLines(5, ["100%"])))))];
 function landingSkeleton() {
-  $("main").replaceChildren(el("div", { className: "empty" }, el("h2", { textContent: "Who lives in your district?" }),
-    el("p", { textContent: "Pick a district above or on the map." })), el("section", { className: "outreach" }, ...outreachSkeleton()));
+  $("main").replaceChildren(el("section", { className: "outreach" }, ...outreachSkeleton()));
 }
 
+// Landing: the opening section (index.html) explains the site; below it, one outreach example
+// (the brief's Success Scenario) and the programs list.
 function renderLanding() {
-  const intro = el("div", { className: "empty" }, el("h2", { textContent: "Who lives in your district?" }),
-    el("p", { textContent: "Pick a district above or on the map." }));
   const slot = el("section", { className: "outreach" }, ...outreachSkeleton());
   slot.setAttribute("aria-labelledby", "outreach-h");
-  const progSlot = el("div", { className: "prog-help" }, skeleton("Loading programs…", sk("sk-h2", "44%"), skLines(1, ["80%"]), skTiles(3)));
-  $("main").replaceChildren(intro, slot, progSlot);
+  const progSlot = el("div", { className: "prog-landing" }, skAccordions(1));
+  $("main").replaceChildren(slot, progSlot);
   const fill = d => { if (slot.isConnected) slot.replaceChildren(...outreachSection(d)); };
-  const fillProgs = d => { if (progSlot.isConnected) progSlot.replaceChildren(...[programsHelp(d.programs, { checkedOn: d.checked_on })].filter(Boolean)); };
+  const fillProgs = d => { if (progSlot.isConnected) progSlot.replaceChildren(...[programsHelp(d.programs, { checkedOn: d.checked_on, collapsed: true })].filter(Boolean)); };
   if (programList) fillProgs(programList);
   else fetch("/api/programs").then(r => r.ok ? r.json() : Promise.reject(new Error(r.statusText)))
     .then(d => { programList = d; fillProgs(d); })
@@ -430,7 +432,7 @@ function outreachSection(d) {
       el("span", { className: "name", textContent: r.name }),
       el("span", { className: "n", textContent: fmtCount(r.count) + " households" }),
       el("span", { className: "detail", textContent:
-        `${fmtMoe(r.count_moe, "count")} · ${fmtMetric(r.share, "percent")} of its poor households (${fmtMoe(r.share_moe, "percent")})`
+        `${fmtMoe(r.count_moe, "count")} · ${fmtMetric(r.share, "percent")} (${fmtMoe(r.share_moe, "percent")}) of its households below poverty`
         + (r.low_reliability ? " · low reliability" : "") })))));
     const [a, b] = rows;
     const close = a && b && compareEstimates({ value: a.count, moe: a.count_moe }, { value: b.count, moe: b.count_moe });
@@ -444,14 +446,15 @@ function outreachSection(d) {
   src.append(" · State and legislative districts · Income rule: ",
     el("a", { href: d.program.url, target: "_blank", rel: "noopener", textContent: "Hawaiʻi DHS SNAP page" }), ".");
   return [
-    el("p", { className: "kicker", textContent: "Outreach opportunity · SNAP" }),
-    el("h2", { id: "outreach-h", textContent: `${pct(s.share)} of Hawaiʻi households below poverty did not receive SNAP` }),
+    el("p", { className: "kicker", textContent: "Outreach example: SNAP" }),
+    el("h2", { id: "outreach-h", textContent: `${pct(s.share)} of Hawaiʻi households below the poverty line get no SNAP` }),
     el("div", { className: "headline" },
       el("p", { className: "big", textContent: fmtCount(s.count) }),
-      el("p", { className: "big-label", textContent: `households statewide (${fmtMoe(s.count_moe, "count")}), ${fmtMetric(s.share, "percent")} (${fmtMoe(s.share_moe, "percent")}) of those below poverty, got no SNAP in the past 12 months.` })),
-    el("p", { className: "why", textContent: `Their incomes are well under SNAP's limit. ${d.income_rule}` }),
+      el("p", { className: "big-label", textContent: `households statewide (${fmtMoe(s.count_moe, "count")}), ${fmtMetric(s.share, "percent")} (${fmtMoe(s.share_moe, "percent")}) of those below poverty. Their incomes are well under SNAP's limit.` })),
     el("div", { className: "where" }, list("Most households, House", d.house), list("Most households, Senate", d.senate)),
-    el("p", { className: "caveat", textContent: `${d.caveat} Final eligibility is decided by ${d.program.agency.split(" (")[0]}.` }),
+    el("details", { className: "about" }, el("summary", { textContent: "About these figures" }),
+      el("div", { className: "inner" }, el("p", { textContent: d.income_rule }),
+        el("p", { textContent: `${d.caveat} Final eligibility is decided by ${d.program.agency.split(" (")[0]}.` }))),
     el("div", { className: "actions" },
       el("button", { className: "btn secondary", type: "button", textContent: "Show on map",
         onclick: () => { $("metric").value = d.metric_id; drawMap(); } })),
@@ -718,6 +721,29 @@ $("metric").addEventListener("change", () => drawMap());
 {
   const q = new URL(location.href).searchParams;
   const d = (q.get("d") || "").toUpperCase(), vs = (q.get("vs") || "").toUpperCase();
-  if (/^(HD|SD)-\d{1,2}$/.test(d)) $("main").replaceChildren(skeleton(`Loading ${districtLabel(d)}…`, ...skProfile(/^(HD|SD)-\d{1,2}$/.test(vs))));
-  else landingSkeleton();
+  if (/^(HD|SD)-\d{1,2}$/.test(d)) {
+    $("intro").hidden = true;
+    $("main").replaceChildren(skeleton(`Loading ${districtLabel(d)}…`, ...skProfile(/^(HD|SD)-\d{1,2}$/.test(vs))));
+  } else landingSkeleton();
+  $("vs").closest(".field").hidden = !/^(HD|SD)-\d{1,2}$/.test(d);
 }
+
+// "District Insight" (top left) returns to the landing page in place once the map is ready;
+// before that, the link simply loads "/".
+$("brand").addEventListener("click", e => {
+  if (!selLayer || !mapDrawn) return;
+  e.preventDefault();
+  closeFind();
+  state.vsId = null;
+  markArea(AREAS[0].label);
+  selectDistrict(null, true);
+  window.scrollTo({ top: 0, behavior: REDUCE_MOTION ? "auto" : "smooth" });
+});
+
+// Opening section buttons: jump to the place search, or open the assistant.
+$("intro-find").addEventListener("click", () => {
+  const f = $("find-input");
+  f.scrollIntoView({ block: "center", behavior: REDUCE_MOTION ? "auto" : "smooth" });
+  f.focus({ preventScroll: true });
+});
+$("intro-ask").addEventListener("click", () => { openChat(); $("chat-input").focus(); });

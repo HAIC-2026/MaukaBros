@@ -227,7 +227,7 @@ async function load() {
       $("pair").replaceChildren(pairCard(data, "a"), pairCard(dataVs, "b"));
       $("pair").hidden = false;
       if (data.geo_type !== dataVs.geo_type) {
-        $("pair-note").textContent = "House and Senate districts overlap. Rates and medians compare, but some residents are in both, so the margin-of-error test is approximate.";
+        $("pair-note").textContent = "House and Senate districts overlap, so the margin-of-error test is approximate.";
 
         $("pair-note").hidden = false;
       }

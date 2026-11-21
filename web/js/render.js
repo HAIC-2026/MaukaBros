@@ -23,6 +23,13 @@ export function srcLine(src) {
   return p;
 }
 
+// Notes a reader needs once, kept out of the way: a closed "About these figures".
+export const aboutBox = (...notes) => {
+  const ps = notes.filter(Boolean);
+  return ps.length ? el("details", { className: "about-notes" }, el("summary", { textContent: "About these figures" }),
+    el("div", { className: "inner" }, ...ps.map(n => el("p", { textContent: n })))) : null;
+};
+
 // ---------- headline cards: three views ----------
 // The same figures, drawn three ways. Each view answers a different question:
 //   text   "What does it say?" plain sentences (default)
@@ -42,7 +49,7 @@ export function cardStyle() {
 }
 export function cardStyleSwitch(onChange) {
   const cur = cardStyle();
-  const wrap = el("div", { className: "cs-switch", role: "group" }, el("span", { className: "cs-label", textContent: "View" }));
+  const wrap = el("div", { className: "cs-switch", role: "group" });
   wrap.setAttribute("aria-label", "Card view");
   CARD_STYLES.forEach(([k, label]) => {
     const b = el("button", { type: "button", textContent: label, onclick: () => {
@@ -53,7 +60,6 @@ export function cardStyleSwitch(onChange) {
     b.setAttribute("aria-pressed", k === cur);
     wrap.append(b);
   });
-  wrap.append(el("span", { className: "cs-hint", textContent: CARD_STYLES.find(([k]) => k === cur)[2] }));
   return wrap;
 }
 
@@ -138,7 +144,7 @@ function howCalculated(c) {
   if (calc || c.district.value == null || c.format !== "dollars") return calc;
   const tables = (c.source.tables || []).map(t => "Table " + t.table_id).join(", ");
   return el("details", { className: "calc" }, el("summary", { textContent: "How it's calculated" }),
-    el("p", { textContent: `Not calculated by us. The Census Bureau publishes this median for the district in ${tables}, with its margin of error. A median can't be rebuilt from published counts, so it is shown exactly as published.` }));
+    el("p", { textContent: `Published as is by the Census Bureau (${tables}). Medians can't be rebuilt from counts.` }));
 }
 
 // One headline figure: value with its margin of error, comparison with county and state, source.
@@ -380,7 +386,7 @@ export function renderDetails(data) {
   const county = countyOf(data);
   const wrap = el("div", { className: "source-data" });
   wrap.append(el("p", { className: "muted small", textContent:
-    "For checking: every measure with its county and state, and the published Census counts behind each percentage. Margins of error use the Census Bureau's formula for proportions. A difference inside its margin of error is not a clear difference." }));
+    "Every measure, and the Census counts behind each percentage." }));
 
   const sections = [];
   const placed = new Set();
@@ -462,10 +468,11 @@ export function contextBody(data, countyName, ids) {
     st.append(el("span", { className: "moe", textContent: `${c.source.vintage ? c.source.vintage + ". " : ""}Downloaded ${c.source.retrieved_at}.` }));
     tr.append(st);
   });
-  const notes = ["County (or island) and state figures only: they describe the district's county, not the district, cover different years, and have no published margin of error."];
-  if (ctx.some(c => /^(snap_|medquest_|dotax_.*_claims$)/.test(c.indicator_id)))
-    notes.push("SNAP and Med-QUEST counts are Hawaiʻi DHS program records; tax-credit claims are DOTAX records. Both show actual program use.");
-  return el("div", {}, ...notes.map(n => el("p", { className: "muted small", textContent: n })), el("div", { className: "table-wrap" }, t));
+  const records = ctx.some(c => /^(snap_|medquest_|dotax_.*_claims$)/.test(c.indicator_id));
+  return el("div", {}, el("p", { className: "muted small", textContent: "County and state figures, not district figures." }),
+    el("div", { className: "table-wrap" }, t),
+    aboutBox("They describe the district's county (or island), cover different years, and have no published margin of error.",
+      records && "SNAP and Med-QUEST counts are Hawaiʻi DHS program records; tax-credit claims are DOTAX records. Both show actual program use."));
 }
 
 export function renderContext(data, countyName) {
@@ -512,13 +519,10 @@ export function taxAreasBody(data, countyName) {
       el("a", { href: ta.credits.source.url, target: "_blank", rel: "noopener", textContent: "Table A-7" }),
       `. Downloaded ${ta.credits.source.retrieved_at}. ${ta.credits.note}`);
   }
-  const notes = [ta.applies_to,
-    "Resident shares use 2020 Census counts, only to match areas to the district.",
-    ta.caveat];
-  if (ta.district_residents_in_no_tax_area >= 0.01)
-    notes.push(`${pct(ta.district_residents_in_no_tax_area)} of the district's 2020 residents live in ZIP codes DOTAX does not list.`);
-  return el("div", {}, ...notes.filter(Boolean).map(n => el("p", { className: "muted small", textContent: n })),
-    el("div", { className: "table-wrap" }, t), src);
+  return el("div", {}, el("p", { className: "muted small", textContent: "Whole tax areas that overlap the district, not district figures." }),
+    el("div", { className: "table-wrap" }, t), src,
+    aboutBox(ta.applies_to, "Resident shares use 2020 Census counts, only to match areas to the district.", ta.caveat,
+      ta.district_residents_in_no_tax_area >= 0.01 && `${pct(ta.district_residents_in_no_tax_area)} of the district's 2020 residents live in ZIP codes DOTAX does not list.`));
 }
 
 export function renderTaxAreas(data, countyName) {
@@ -548,8 +552,7 @@ function leCard(p, countyName) {
     return el("article", { className: "fact missing" }, el("h3", { textContent: `${p.name}: residents likely eligible` }),
       el("p", { className: "big", textContent: "No estimate" }),
       el("p", { className: "moe", textContent: "No survey measure fits this program" }),
-      el("p", { className: "muted small", style: "margin:0 0 0.5rem", textContent: le.reason }),
-      el("p", { className: "src", textContent: le.final_eligibility }));
+      el("details", { className: "calc" }, el("summary", { textContent: "Why" }), el("p", { textContent: le.reason })));
   }
   const d = le.district;
   const card = el("article", { className: "fact" }, el("h3", { textContent: leTitle(le, p) }),
@@ -587,7 +590,7 @@ export function likelyEligibleBody(data) {
   const county = countyOf(data);
   return el("div", {},
     el("p", { className: "muted small", textContent:
-      "Residents with income under each program's limit, from the Census survey. Only the income test is applied (not immigration, work, asset or household rules), so these are estimates, not eligibility counts. Each card says which way it likely errs; \"How it's estimated\" has the full method. Final eligibility is decided by the agency that runs the program." }),
+      "Income test only, so these are estimates, not eligibility counts." }),
     el("div", { className: "facts" }, ...progs.map(p => leCard(p, county))));
 }
 
@@ -613,7 +616,7 @@ export function likelyEligiblePair(a, b) {
     body.insertRow().append(th, cell(le.district), cell(lb && lb.district), cell(le.state));
   });
   return el("div", {},
-    el("p", { className: "muted small", textContent: "Counts of residents, so larger districts have larger counts. Estimates apply the income test only. " + (progs[0].likely_eligible.final_eligibility || "") }),
+    el("p", { className: "muted small", textContent: "Counts of residents, so larger districts have larger counts. Income test only." }),
     el("div", { className: "table-wrap" }, t));
 }
 
@@ -660,7 +663,7 @@ export function programLinks(progs, { heading = "h3", checkedOn = "" } = {}) {
   });
   return el("div", {},
     el("p", { className: "muted small", textContent:
-      "Each button opens the agency's own page: who qualifies, income limits and how to apply. Informational only. The agency that runs each program decides who is eligible." }),
+      "Each agency decides who qualifies." }),
     el("div", { className: "prog-links" }, ...tiles));
 }
 
@@ -706,14 +709,14 @@ export function programsBody(data) {
       el("p", { className: "print-url", textContent: p.url }),
       el("details", { className: "prog-details" }, el("summary", { textContent: "Details: who qualifies, income limits, how to apply" }), body));
   });
-  return el("div", {}, el("p", { className: "muted small", textContent: `The same programs serve every district. ${progs[0].note || ""}` }), ...rows);
+  return el("div", {}, el("p", { className: "muted small", textContent: "Each agency decides who qualifies." }), ...rows);
 }
 
 // Map page: "Programs residents can apply for", always open, with a link to the report's
 // Programs view (likely-eligible estimates, income limits, what to bring).
 // `collapsed`: a closed dropdown, for district views (the programs are the same for every district).
 export function programsHelp(progs, { title = "Programs residents can apply for", moreHref = "", checkedOn = "",
-  moreText = "More in the full report: residents likely eligible, income limits, what to bring", collapsed = false } = {}) {
+  moreText = "Likely-eligible estimates and income limits in the full report", collapsed = false } = {}) {
   const body = programLinks(progs, { heading: "h4", checkedOn });
   if (!body) return null;
   const more = moreHref ? el("p", { className: "prog-more" }, el("a", { href: moreHref, textContent: moreText })) : null;

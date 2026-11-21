@@ -16,10 +16,16 @@
               min-height: 3rem; padding: 0.25rem 1rem 0.25rem 1.5rem; }
     header.top h1 { margin: 0; font-size: 0.875rem; font-weight: 600; letter-spacing: 0.1px; color: #f4f4f4; white-space: nowrap; }
     header.top h1 span { font-weight: 400; color: #c6c6c6; }
+    header.top h1 a { color: inherit; text-decoration: none; }
+    header.top h1 a:hover, header.top h1 a:hover span { color: #fff; }
+    header.top h1 a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
     .controls { display: flex; flex-wrap: wrap; gap: 1rem 1rem; align-items: end; padding: 0.75rem 1.5rem 1rem; }
     select { min-width: 12rem; }
     .controls .field { min-width: 0; max-width: 100%; }
-    #metric { width: 13rem; max-width: 100%; }
+    /* "Color map by" sits right above the map it controls */
+    .map-metric { display: flex; align-items: center; gap: 0.75rem; }
+    .map-metric label { font-size: 0.875rem; color: var(--muted); white-space: nowrap; }
+    #metric { width: 15rem; max-width: 100%; min-width: 0; }
 
     #district, #vs { min-width: 11rem; }
     /* Find by place: field + button, results drop down under it */
@@ -65,14 +71,23 @@
     .ask input:hover { background: #333333; }
     .ask input::placeholder { color: #a8a8a8; }
     #report-link[hidden] { display: none; }
+    /* "Stop comparing": ghost button with a close icon, set apart from Print and Copy */
+    .btn.i-close { --icon: var(--i-close); }
+    .actions .stop-compare { min-width: 0; color: var(--muted); }
+    .actions .stop-compare:hover { color: var(--text); }
 
-    /* Profile gets the wider column so tiles have room; the map stays large and sticky. */
-    .layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 3rem;
-              padding: 2rem 2rem 4rem; max-width: 120rem; margin: 0 auto; }
-    .col-map { position: sticky; top: calc(var(--hdr) + 1rem); align-self: start;
-               height: calc(100vh - var(--hdr) - 2rem); min-height: 26rem;
-               display: flex; flex-direction: column; gap: 0.5rem;
-               padding-bottom: 3rem; } /* room for the assistant button in the corner */
+    /* Profile gets the wider column so tiles have room. The map column never moves: it sticks at
+       the same place it starts (2rem under the header), fills the window to 1rem from the bottom,
+       and its grid area runs to the end of the page (the footer sits in the left column). */
+    .layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 0 3rem;
+              grid-template-areas: "intro map" "main map" "foot map"; grid-template-rows: auto 1fr auto;
+              padding: 2rem 2rem 1rem; max-width: 120rem; margin: 0 auto; }
+    .intro { grid-area: intro; }
+    #main { grid-area: main; }
+    .layout > .site-footer { grid-area: foot; margin-top: 3rem; padding: 1.25rem 1.5rem; }
+    .col-map { grid-area: map; position: sticky; top: calc(var(--hdr) + 2rem); align-self: start;
+               height: calc(100vh - var(--hdr) - 3rem); min-height: 18rem;
+               display: flex; flex-direction: column; gap: 0.5rem; }
     .islands { display: flex; flex-wrap: wrap; gap: 0; }
     .islands button { font: inherit; font-size: 0.875rem; min-height: 2rem; padding: 0 0.75rem; border: 0;
                       border-bottom: 2px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; }
@@ -82,13 +97,13 @@
     #viewDiv { position: absolute; inset: 0; border: 1px solid var(--border); background: #dde8ef; overflow: hidden; }
     #viewDiv .esri-view-surface--inset-outline:focus::after { outline: 2px solid var(--focus); }
     /* Hover tooltip (Carbon tooltip: dark, small, no arrow) */
-    .map-tip { position: absolute; left: 0; top: 0; z-index: 2; pointer-events: none; min-width: 11rem; max-width: 16rem;
+    .map-tip { position: absolute; left: 0; top: 0; z-index: 3; pointer-events: none; min-width: 11rem; max-width: 16rem;
                padding: 0.5rem 0.75rem; background: #393939; color: #f4f4f4; font-size: 0.75rem; letter-spacing: 0.32px;
                line-height: 1.35; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); }
     .map-tip[hidden] { display: none; }
     /* District numbers over the map: dark text with a white halo, readable on every fill */
     .map-labels { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
-    .map-label { position: absolute; left: 0; top: 0; font-size: 0.75rem; font-weight: 600; line-height: 1; color: #161616;
+    .map-label { position: absolute; left: 0; top: 0; font-size: 0.75rem; font-weight: 600; line-height: 1; color: var(--text);
                  font-variant-numeric: tabular-nums; white-space: nowrap; padding: 1px 2px;
                  text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff, 0 0 4px #fff; }
     .map-label[hidden] { display: none; }
@@ -111,12 +126,41 @@
     .lg-na { display: inline-flex; align-items: center; gap: 0.375rem; margin-top: 0.5rem; color: var(--muted); }
     .lg-na .sw { width: 1rem; height: 0.625rem; background: #c6c6c6; }
     .mapnote { margin: 0; font-size: 0.75rem; letter-spacing: 0.32px; color: var(--muted); }
+    /* Legend and source under the map; the right padding leaves the corner to the assistant button */
+    .map-key { display: flex; flex-direction: column; padding-right: 4rem; }
+
+    /* Short desktop windows: the map keeps as much height as it can. Nothing is laid over it (a
+       centered district would be hidden); the hover line goes (the tooltip says the same) and the
+       spacing tightens. */
+    @media (min-width: 901px) and (max-height: 820px) {
+      .col-map { gap: 0.375rem; }
+      .col-map .hover { display: none; }
+      .legend { margin-bottom: 0.25rem; padding-top: 0; }
+      .mapnote { line-height: 1.35; }
+    }
+    @media (min-width: 901px) and (max-height: 640px) {
+      .map-metric label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+      .islands button { min-height: 1.75rem; }
+      .legend .title { display: none; } /* the "Color map by" choice right above names the measure */
+    }
     .hover { margin: 0; font-size: 0.875rem; min-height: 1.3rem; font-weight: 600; }
 
     h2.district { margin: 0; font-size: 2rem; font-weight: 400; line-height: 1.25; }
     .sub { margin: 0.5rem 0 1rem; color: var(--muted); font-size: 1rem; }
-    .empty { padding: 2rem; color: var(--muted); background: var(--layer); border-left: 3px solid var(--accent); }
-    .empty h2 { color: var(--text); font-size: 1.5rem; font-weight: 400; margin: 0 0 0.5rem; }
+    /* Opening section: what the site is for, and the three steps to use it */
+    .intro[hidden] { display: none; }
+    .intro { padding-bottom: 0.5rem; }
+    .intro h2 { margin: 0 0 1.25rem; max-width: 24ch; font-size: 2.625rem; font-weight: 400; line-height: 1.2; }
+    .intro .lead { margin: 0.75rem 0 1.5rem; font-size: 1.125rem; line-height: 1.5; color: var(--muted); max-width: 36rem; }
+    .steps { list-style: none; margin: 0 0 1.5rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem 1.75rem; }
+    .steps li { display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; font-weight: 600; }
+    .steps .n { flex: none; width: 1.5rem; height: 1.5rem; border-radius: 50%; display: grid; place-items: center;
+                background: var(--accent); color: #fff; font-size: 0.75rem; font-weight: 600; }
+    .intro-actions { display: flex; flex-wrap: wrap; gap: 1px; margin: 0 0 1rem; }
+    .intro-actions .btn { min-width: 12rem; }
+    .intro-src { margin: 0; font-size: 0.75rem; letter-spacing: 0.32px; color: var(--muted); max-width: 46rem; }
+    .controls .field[hidden] { display: none; }
+    .prog-landing { margin-top: 2rem; }
 
     /* Landing: the outreach opportunity the brief asks for (Success Scenario) */
     .outreach { margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.5rem; }
@@ -139,8 +183,8 @@
     .where .detail { grid-column: 1 / -1; font-size: 0.75rem; letter-spacing: 0.32px; color: var(--muted); }
     .where .name { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
     .outreach .order-note { margin: 0.5rem 0 0; font-size: 0.75rem; letter-spacing: 0.32px; color: var(--muted); }
-    .outreach .caveat { margin: 1.25rem 0 0; padding: 0 0 0 0.75rem; font-size: 0.75rem; letter-spacing: 0.32px;
-                        color: var(--muted); border-left: 2px solid var(--border); max-width: 46rem; }
+    .outreach details.about { margin-top: 1.25rem; font-size: 0.875rem; }
+    .outreach details.about p { margin: 0 0 0.5rem; font-size: 0.75rem; letter-spacing: 0.32px; color: var(--muted); max-width: 46rem; }
     .outreach .actions { margin-top: 1.25rem; }
 
     /* Research assistant panel: short answers here, the full picture on the report page. */
@@ -193,23 +237,32 @@
     .chat-head .icon-btn .icon { --icon: var(--i-close); }
 
     @media (max-width: 900px) {
-      .layout { grid-template-columns: minmax(0, 1fr); padding: 1rem; }
-      .col-map { position: static; height: 70vh; order: -1; }
+      .layout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "intro" "map" "main" "foot"; grid-template-rows: none; padding: 1rem 1rem 0; }
+      .col-map { position: static; height: auto; min-height: 0; padding-bottom: 0; margin-top: 1.5rem; }
+      .map-wrap { flex: none; height: clamp(15rem, 58vh, 34rem); }
+      .col-map .hover { display: none; }
+      .map-key { padding-right: 0; }
+      .layout > .site-footer { margin: 2rem -1rem 0; }
+      .intro { padding-bottom: 0; }
       header.top { position: static; }
       .toprow { padding: 0.5rem 1rem; }
       .controls { padding: 0.75rem 1rem 1rem; }
     }
     @media (max-width: 600px) {
-      .controls .field, .controls select, #metric, #report-link { width: 100%; }
+      .controls .field, .controls select, #report-link { width: 100%; }
+      .map-metric select { flex: 1; }
       .find-row input { flex: 1; width: auto; }
       /* Narrow legend: the two ends and the middle limit only, so labels never collide */
       .lg-ticks span:nth-child(2), .lg-ticks span:nth-child(3), .lg-ticks span:nth-child(5) { display: none; }
       .ask { margin-left: 0; }
       .outreach .headline { grid-template-columns: minmax(0, 1fr); padding: 1rem; }
+      .intro .lead { font-size: 1rem; }
+      .intro-actions .btn { flex: 1 1 100%; min-width: 0; }
+      .intro h2 { font-size: 2rem; }
       .outreach h2 { font-size: 1.25rem; }
     }
     @media print {
-      header.top, .col-map, .actions, .chat, .chat-fab, .cs-switch { display: none !important; }
+      header.top, .col-map, .actions, .chat, .chat-fab, .cs-switch, .intro { display: none !important; }
       .layout { display: block; padding: 0; }
     }
   </style>
@@ -217,7 +270,7 @@
 <body>
   <header class="top" id="hdr">
     <div class="toprow">
-      <h1>District Insight <span>· Hawaiʻi legislative districts</span></h1>
+      <h1><a class="brand" id="brand" href="/">District Insight <span>· Hawaiʻi legislative districts</span></a></h1>
       <form class="ask" id="ask-form" aria-label="Ask the research assistant">
         <label for="ask-input" class="sr-only">Ask a question about a district</label>
         <input id="ask-input" type="text" autocomplete="off" maxlength="1000" aria-describedby="privacy-note" placeholder='Ask, e.g. "How many kūpuna live on fixed incomes?"'>
@@ -248,23 +301,30 @@
         </div>
         <div class="find-results" id="find-results" aria-live="polite" hidden></div>
       </form>
-      <div class="field">
-        <label for="metric">Color map by</label>
-        <select id="metric"><option>Loading...</option></select>
-      </div>
       <a class="btn secondary i-forward" id="report-link" href="/report.html" hidden>Full report</a>
     </div>
   </header>
 
   <div class="layout">
-    <main id="main" aria-live="polite">
-      <div class="empty">
-        <h2>Who lives in your district?</h2>
-        <p>Pick a district above or on the map.</p>
+    <section class="intro" id="intro" aria-labelledby="intro-h">
+      <h2 id="intro-h">Who lives in your district, and what help is available?</h2>
+      <ol class="steps">
+        <li><span class="n" aria-hidden="true">1</span>Pick a district</li>
+        <li><span class="n" aria-hidden="true">2</span>Read its profile</li>
+        <li><span class="n" aria-hidden="true">3</span>Find programs that can help</li>
+      </ol>
+      <div class="intro-actions">
+        <button class="btn" type="button" id="intro-find">Find a district</button>
+        <button class="btn secondary i-chat" type="button" id="intro-ask">Ask a question</button>
       </div>
-    </main>
+    </section>
+    <main id="main" aria-live="polite"></main>
 
     <div class="col-map">
+      <div class="map-metric">
+        <label for="metric">Color map by</label>
+        <select id="metric"><option>Loading...</option></select>
+      </div>
       <div class="islands" role="group" aria-label="Zoom the map to an area" id="islands"><span class="sk" style="width:min(30rem, 100%);height:2rem" aria-hidden="true"></span></div>
       <div class="map-wrap">
         <div class="map-sk" id="map-sk" aria-hidden="true"></div>
@@ -272,9 +332,17 @@
         <div class="map-tip" id="map-tip" aria-hidden="true" hidden></div>
       </div>
       <p class="hover" id="hover" aria-live="off"></p>
-      <div class="legend" id="legend" role="group"><span class="sk sk-line" style="width:40%"></span><span class="sk" style="height:0.625rem;margin-top:1.5rem"></span><span class="sk sk-line" style="width:100%;height:0.5rem"></span></div>
-      <p class="mapnote" id="mapnote" aria-live="polite"></p>
+      <div class="map-key">
+        <div class="legend" id="legend" role="group"><span class="sk sk-line" style="width:40%"></span><span class="sk" style="height:0.625rem;margin-top:1.5rem"></span><span class="sk sk-line" style="width:100%;height:0.5rem"></span></div>
+        <p class="mapnote" id="mapnote" aria-live="polite"></p>
+      </div>
     </div>
+
+    <footer class="site-footer">
+      <p>This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.</p>
+      <p>Figures marked "about" are our calculations from published Census figures. Informational only, not eligibility advice.</p>
+      <p id="privacy-note">Privacy: assistant questions go to Anthropic's Claude AI. No conversations are stored. Esri (map) and jsDelivr (fonts) see your IP address.</p>
+    </footer>
   </div>
 
   <aside class="chat" id="chat" aria-label="Research assistant" hidden>
@@ -291,16 +359,10 @@
       <textarea id="chat-input" rows="2" maxlength="1000" aria-describedby="chat-privacy" placeholder="Ask a question"></textarea>
       <button class="btn" type="submit" id="chat-send">Send</button>
     </form>
-    <p class="chat-note"><strong id="chat-privacy">Questions go to Anthropic's Claude AI. Don't include names, addresses or other personal details.</strong> Answers use only this tool's data, with sources. Informational only: each agency decides program eligibility.</p>
+    <p class="chat-note"><strong id="chat-privacy">Questions go to Anthropic's Claude AI. Don't include names, addresses or other personal details.</strong> Answers use only this site's data.</p>
   </aside>
   <button class="chat-fab" type="button" id="chat-open" aria-label="Open the research assistant" title="Research assistant"><span class="icon" aria-hidden="true"></span></button>
 
-  <footer class="site-footer">
-    <p>This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.</p>
-    <p>Figures marked "calculated" or "about" are our calculations from published Census figures. Informational only; not legal or eligibility advice.</p>
-    <p id="privacy-note">Privacy: assistant questions go to Anthropic's Claude AI; don't include names, addresses or other personal details. This site stores no conversations. Esri (map) and jsDelivr (fonts) receive your IP address when their files load.</p>
-
-  </footer>
 
   <script type="module" src="/js/map-page.js"></script>
 </body>

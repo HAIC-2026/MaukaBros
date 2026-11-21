@@ -76,7 +76,7 @@ export const PRESETS = [
   },
   {
     id: "programs", label: "Programs",
-    blurb: "Low incomes against the poverty line, SNAP and Medicaid use, who is likely eligible on income, and the programs that serve them. None of the figures are eligibility counts.",
+    blurb: "Low incomes, SNAP and Medicaid use, and who is likely eligible. Not eligibility counts.",
 
     metrics: ["under_125pct_poverty_share", "under_200pct_poverty_share", "poor_households_without_snap_share",
               "low_income_uninsured_rate", "snap_share", "medicaid_share"],
