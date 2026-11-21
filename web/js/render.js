@@ -25,20 +25,20 @@ export function srcLine(src) {
 
 // ---------- headline cards: three views ----------
 // The same figures, drawn three ways. Each view answers a different question:
+//   text   "What does it say?" plain sentences (default)
 //   range  "Is the gap real?"  district estimate with its margin-of-error band, county and state marked
 //   bars   "How big is it?"    bars from zero, so sizes compare at a glance
-//   text   "What do I quote?"  plain sentences with a Copy button that includes the source
 // Range and bars are drawn for sighted readers; their full sentence is in screen-reader text.
 export const CARD_STYLES = [
+  ["text", "Text", "Each comparison as a plain sentence."],
   ["range", "Range", "Is each gap real? The shaded band is the margin of error."],
   ["bars", "Bars", "How big is each figure? Bars start at zero."],
-  ["text", "Text", "Plain sentences you can copy into a memo, with the source."],
 ];
 const CS_KEY = "di-card-style";
 export function cardStyle() {
   let s = new URL(location.href).searchParams.get("card");
   try { s = s || localStorage.getItem(CS_KEY); } catch { /* storage blocked */ }
-  return CARD_STYLES.some(([k]) => k === s) ? s : "range";
+  return CARD_STYLES.some(([k]) => k === s) ? s : CARD_STYLES[0][0];
 }
 export function cardStyleSwitch(onChange) {
   const cur = cardStyle();
@@ -122,26 +122,14 @@ function styleBars(c, refs) {
     ...refs.map(r => barRow(r.key, r.name.replace(/ County$/, ""), r.value, c, w, null,
       r.d.sure === "real" || r.d.dir === 0 ? null : el("b", { className: "cs-approx", textContent: " ≈", title: verdictOf(r.d) }))))];
 }
-// Text: one sentence per comparison, and a Copy button for the whole figure with its source.
-function copyButton(text) {
-  return el("button", { className: "cs-copy", type: "button", textContent: "Copy", title: "Copy this figure with its source",
-    onclick: e => {
-      const b = e.currentTarget;
-      if (!navigator.clipboard) return;
-      navigator.clipboard.writeText(text).then(() => { b.textContent = "Copied"; setTimeout(() => { b.textContent = "Copy"; }, 1500); });
-    } });
-}
-const sourceText = src => `Source: ${src.publisher || "U.S. Census Bureau"}, ACS 5-year ${src.year}, ${(src.tables || []).map(t => "Table " + t.table_id).join(", ")}, ${shortGeo(src.geography)}.`;
-function styleText(c, refs, place) {
-  const list = el("ul", { className: "cs-text" }, ...refs.map(r => {
+// Text: one sentence per comparison.
+function styleText(c, refs) {
+  return [el("ul", { className: "cs-text" }, ...refs.map(r => {
     if (r.d.text === "not available") return el("li", { textContent: r.say + "." });
     if (r.d.dir === 0) return el("li", {}, el("b", { textContent: "About the same" }), ` as ${r.whom} (${fmtMetric(r.value, c.format)}).`);
     return el("li", {}, el("b", { textContent: capital(r.d.text) }), ` than ${r.whom} (${fmtMetric(r.value, c.format)}). `,
       el("span", { className: `cs-verdict ${r.d.sure}`, textContent: verdictOf(r.d) + "." }));
-  }));
-  const copy = `${place ? place + ", " : ""}${c.label.charAt(0).toLowerCase() + c.label.slice(1)}: ${fmtMetric(c.district.value, c.format)} (${fmtMoe(c.district.moe, c.format)}). `
-    + refs.map(r => r.say.replace(/\.$/, "")).join(". ") + ". " + sourceText(c.source);
-  return [list, copyButton(copy)];
+  }))];
 }
 
 // How a figure was made: a percentage from two published counts, or a median published as is.
@@ -154,8 +142,7 @@ function howCalculated(c) {
 }
 
 // One headline figure: value with its margin of error, comparison with county and state, source.
-// `place` (the district's name) goes into the text view's copied sentence.
-export function renderKeyFact(c, { style = cardStyle(), place = "" } = {}) {
+export function renderKeyFact(c, { style = cardStyle() } = {}) {
   const card = el("article", { className: `fact card-${style}` }, el("h3", { textContent: c.label }));
   const has = c.district.value != null;
   card.append(el("p", { className: "big" }, fmtMetric(c.district.value, c.format),
@@ -164,7 +151,7 @@ export function renderKeyFact(c, { style = cardStyle(), place = "" } = {}) {
   if (c.district.low_reliability) card.append(el("p", { className: "flag", textContent: "Low reliability: large margin of error" }));
   const refs = refsOf(c);
   const vs = el("div", { className: "vs" });
-  if (has && style === "text") vs.append(...styleText(c, refs, place));
+  if (has && style === "text") vs.append(...styleText(c, refs));
   else {
     vs.append(el("p", { className: "sr-only", textContent: refs.map(r => r.say).join(". ") + "." }));
     if (has) (style === "bars" ? styleBars : styleRange)(c, refs).forEach(n => { n.setAttribute("aria-hidden", "true"); vs.append(n); });
@@ -200,7 +187,6 @@ export function renderPairFact(ca, cb, a, b, style = cardStyle()) {
         both && d.dir !== 0 ? ` in ${a.id} than ${b.id}. ` : both ? ` in ${a.id} and ${b.id}.` : " for both districts.",
         both && d.dir !== 0 ? el("span", { className: `cs-verdict ${d.sure}`, textContent: verdictOf(d) + "." }) : null),
       el("li", { textContent: stateLine + "." })));
-    if (both) vs.append(copyButton(`${c.label}: ${a.name} ${fmtMetric(A.value, c.format)} (${fmtMoe(A.moe, c.format)}), ${b.name} ${fmtMetric(B.value, c.format)} (${fmtMoe(B.moe, c.format)}). ${sentence}. ${stateLine}. ${sourceText(c.source)}`));
   } else {
     vs.append(el("p", { className: "sr-only", textContent: `${a.name}: ${fmtMetric(A && A.value, c.format)}${A && A.value != null ? `, ${fmtMoe(A.moe, c.format)}` : ""}. ${b.name}: ${fmtMetric(B && B.value, c.format)}${B && B.value != null ? `, ${fmtMoe(B.moe, c.format)}` : ""}. ${sentence}. ${stateLine}.` }));
     if (both) {
@@ -570,15 +556,29 @@ function leCard(p, countyName) {
     el("p", { className: "big", textContent: leCount(d) }),
     el("p", { className: "moe", textContent: `${d && d.value != null ? "residents, " : ""}${leMoe(d)}` }));
   if (d && d.low_reliability) card.append(el("p", { className: "flag", textContent: "Low reliability: large margin of error" }));
-  card.append(el("p", { className: "small", style: "margin:0 0 0.5rem", textContent: `Cut used: ${le.acs_cut}.` }),
-    el("p", { className: "muted small", style: "margin:0 0 1rem", textContent: `${le.caveat} ${LE_DIRECTION[le.direction] || ""}` }));
+  card.append(el("p", { className: "muted small", style: "margin:0 0 1rem", textContent: `${le.caveat} ${LE_DIRECTION[le.direction] || ""}` }));
   const vs = el("div", { className: "vs" });
   [[le.county, countyName || "the county"], [le.state, "the state"]].forEach(([e, name]) => {
     if (e) vs.append(el("div", { className: "row" }, `In ${name}: `, el("span", { className: "hl", textContent: leCount(e) }), ` (${leMoe(e)})`));
   });
   card.append(vs);
   if (le.source) card.append(srcLine(le.source));
+  card.append(leMethod(le));
   return card;
+}
+
+// How an estimate was made: the survey cut, the rule it stands in for, and which way it errs.
+function leMethod(le) {
+  const box = el("details", { className: "calc" }, el("summary", { textContent: "How it's estimated" }));
+  [`Cut used: ${le.acs_cut}.`, `Program rule it approximates: ${le.rule}`,
+    le.universe_label && `Counted among: ${le.universe_label} ${le.unit_note || ""}`, le.direction_text]
+    .filter(Boolean).forEach(t => box.append(el("p", { textContent: t })));
+  [["Why it may count too few", le.runs_low], ["Why it may count too many", le.runs_high], ["Could go either way", le.either_way]]
+    .filter(([, xs]) => xs && xs.length).forEach(([title, xs]) => {
+      box.append(el("p", { textContent: title + ":" }), el("ul", {}, ...xs.map(x => el("li", { textContent: x }))));
+    });
+  if (le.final_eligibility) box.append(el("p", { textContent: le.final_eligibility }));
+  return box;
 }
 
 export function likelyEligibleBody(data) {
@@ -587,7 +587,7 @@ export function likelyEligibleBody(data) {
   const county = countyOf(data);
   return el("div", {},
     el("p", { className: "muted small", textContent:
-      "Residents with income under each program's limit, from the Census survey. Only the income test is applied (not immigration, work, asset or household rules), so these are estimates, not eligibility counts. Each card says which way it likely errs; full method notes are under each program below. Final eligibility is decided by the agency that runs the program." }),
+      "Residents with income under each program's limit, from the Census survey. Only the income test is applied (not immigration, work, asset or household rules), so these are estimates, not eligibility counts. Each card says which way it likely errs; \"How it's estimated\" has the full method. Final eligibility is decided by the agency that runs the program." }),
     el("div", { className: "facts" }, ...progs.map(p => leCard(p, county))));
 }
 
@@ -617,68 +617,65 @@ export function likelyEligiblePair(a, b) {
     el("div", { className: "table-wrap" }, t));
 }
 
-// The estimate inside a program's card in the Programs section, with the full method notes.
-function leProgramBlock(p, body, countyName) {
-  const le = p.likely_eligible;
-  if (!le) return;
-  body.append(el("h4", { textContent: "Residents likely eligible (estimate)" }));
-  if (!le.estimated) {
-    body.append(el("p", { className: "small", textContent: le.reason }), el("p", { className: "muted small", textContent: le.final_eligibility }));
-    return;
+// ---------- where to apply: each program's official page, up front ----------
+// Phone numbers and web addresses in program facts become links (tap to call, or open the page).
+const LINKABLE = /https?:\/\/[^\s,;)]+[^\s,;).]|(?:1-)?(?:\(\d{3}\)\s?|\d{3}-)\d{3}-\d{4}/g;
+function withLinks(text) {
+  const out = [];
+  let last = 0;
+  for (const m of text.matchAll(LINKABLE)) {
+    const web = m[0].startsWith("http");
+    out.push(text.slice(last, m.index), web
+      ? el("a", { href: m[0], target: "_blank", rel: "noopener", textContent: m[0].replace(/^https?:\/\//, "") })
+      : el("a", { href: "tel:" + m[0].replace(/\D/g, ""), textContent: m[0] }));
+    last = m.index + m[0].length;
   }
-  const ul = el("ul");
-  [[le.district, "This district"], [le.county, countyName || "County"], [le.state, "State"]].forEach(([e, name]) => {
-    if (e) ul.append(el("li", {}, `${name}: `, el("strong", { textContent: leCount(e) }), ` (${leMoe(e)})`,
-      e.low_reliability ? el("span", { className: "flag", textContent: " Low reliability" }) : null));
-  });
-  body.append(ul, ...[`Cut used: ${le.acs_cut}.`, `Program rule it approximates: ${le.rule}`,
-    `Counted among: ${le.universe_label} ${le.unit_note}`, le.direction_text]
-    .map(t => el("p", { className: "small", style: "margin:0.5rem 0 0", textContent: t })));
-  [["Why it may count too few", le.runs_low], ["Why it may count too many", le.runs_high], ["Could go either way", le.either_way]]
-    .filter(([, xs]) => xs && xs.length).forEach(([title, xs]) => {
-      const list = el("ul");
-      xs.forEach(x => list.append(el("li", { textContent: x })));
-      body.append(el("p", { className: "small", style: "margin:0.5rem 0 0", textContent: title + ":" }), list);
-    });
-  body.append(el("p", { className: "muted small", textContent: `${le.caveat} ${le.final_eligibility}` }));
-  if (le.source) body.append(srcLine(le.source));
+  out.push(text.slice(last));
+  return out;
+}
+const agencyShort = a => a.split(/[,(]/)[0].trim();
+const hostOf = url => { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; } };
+
+// The official-page button for one program. Opens the agency's own page in a new tab.
+export function applyButton(p, cls = "") {
+  return el("a", { className: `btn i-launch prog-go ${cls}`, href: p.url, target: "_blank", rel: "noopener" },
+    "Who qualifies & how to apply",
+    el("span", { className: "sr-only", textContent: `: ${p.name}, official ${agencyShort(p.agency)} page (opens in a new tab)` }));
 }
 
-// Programs (pipeline/programs.yaml). Every fact is quoted from a saved official document.
+// One tile per program: who it serves, how to apply, phone numbers, and the official link.
+// `progs` are programs from /api/districts/{id} or /api/programs; `heading` is the tile title tag.
+export function programLinks(progs, { heading = "h3", checkedOn = "" } = {}) {
+  if (!progs || !progs.length) return null;
+  const tiles = progs.map(p => {
+    const how = (p.facts || []).filter(f => f.topic === "apply" || f.topic === "contact");
+    const host = hostOf(p.url);
+    return el("article", { className: "prog-tile" },
+      el(heading, { textContent: p.name }),
+      el("p", { className: "prog-serves", textContent: p.serves }),
+      how.length ? el("ul", { className: "prog-how" }, ...how.map(f => el("li", {}, ...withLinks(f.text)))) : null,
+      applyButton(p),
+      el("p", { className: "print-url", textContent: p.url }), // printed copies keep the address
+      el("p", { className: "src", textContent: `Official source: ${agencyShort(p.agency)}${host ? ` · ${host}` : ""}. Checked ${p.checked_on || checkedOn}.` }));
+  });
+  return el("div", {},
+    el("p", { className: "muted small", textContent:
+      "Each button opens the agency's own page: who qualifies, income limits and how to apply. Informational only. The agency that runs each program decides who is eligible." }),
+    el("div", { className: "prog-links" }, ...tiles));
+}
+
+// Programs (pipeline/programs.yaml). Every fact is quoted from a saved official document. The
+// same for every district: the district's own figures and estimates are elsewhere in the view.
 export function programsBody(data) {
   const progs = data.programs || [];
   if (!progs.length) return null;
-  const inner = el("div", {},
-    el("p", { className: "muted small", textContent:
-      "Programs that serve groups in this district. \"In this district\" figures are the district's own Census figures, chosen to show where each program may matter; they are not counts of eligible people. "
-      + (progs[0].note || "") }));
-  const val = (v, f) => v == null ? "Not available" : f === "dollars" ? "$" + Math.round(v).toLocaleString("en-US") : f === "percent" ? (100 * v).toFixed(1) + "%" : Math.round(v).toLocaleString("en-US");
   const money = v => "$" + Number(v).toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 });
-  progs.forEach(p => {
-    const box = el("details", { className: "program" }, el("summary", {}, p.name, el("span", { className: "moe", textContent: p.serves })));
+  const rowsTitle = { by_household_size: "Household size", by_children: "Children claimed", by_federal_agi: "Federal AGI", by_living_arrangement: "Living arrangement" };
+  const rows = progs.map(p => {
     const body = el("div", { className: "inner" });
-    if (p.district_measures.length) {
-      const ul = el("ul");
-      p.district_measures.forEach(m => {
-        const li = el("li", {}, `${m.label}: `, el("strong", { textContent: val(m.district, m.format) }), ` (state ${val(m.state, m.format)})`);
-        if (m.low_reliability) li.append(el("span", { className: "flag", textContent: " Low reliability" }));
-        ul.append(li);
-      });
-      body.append(el("h4", { textContent: "In this district" }), ul);
-    }
-    leProgramBlock(p, body, countyOf(data));
-    if (p.uptake.length) {
-      const ul = el("ul");
-      p.uptake.forEach(u => ul.append(el("li", { textContent: `${u.label}, ${u.period}: county ${val(u.county)}, state ${val(u.state)} (program records)` })));
-      body.append(el("h4", { textContent: "Program use in the county" }), ul);
-    }
-    if (p.uptake_note) body.append(el("p", { className: "small", textContent: p.uptake_note }));
     const section = (title, topics) => {
       const fs = p.facts.filter(f => topics.includes(f.topic));
-      if (!fs.length) return;
-      const ul = el("ul");
-      fs.forEach(f => ul.append(el("li", { textContent: f.text })));
-      body.append(el("h4", { textContent: title }), ul);
+      if (fs.length) body.append(el("h4", { textContent: title }), el("ul", {}, ...fs.map(f => el("li", {}, ...withLinks(f.text)))));
     };
     section("Who may qualify", ["eligibility"]);
     const lim = p.income_limits;
@@ -686,8 +683,7 @@ export function programsBody(data) {
       const rowsKey = Object.keys(lim).find(k => k.startsWith("by_"));
       const t = el("table");
       const h = t.createTHead().insertRow();
-      [rowsKey === "by_household_size" ? "Household size" : rowsKey === "by_children" ? "Children claimed" : rowsKey === "by_federal_agi" ? "Federal AGI" : "", ...lim.columns]
-        .forEach(x => h.append(el("th", { scope: "col", textContent: x })));
+      [rowsTitle[rowsKey] || "", ...lim.columns].forEach(x => h.append(el("th", { scope: "col", textContent: x })));
       const tb = t.createTBody();
       Object.entries(lim[rowsKey]).slice(0, rowsKey === "by_household_size" ? 4 : 99).forEach(([k, vals]) => {
         const tr = tb.insertRow();
@@ -695,25 +691,41 @@ export function programsBody(data) {
         vals.forEach(v => tr.append(el("td", { textContent: money(v) })));
       });
       body.append(el("h4", { textContent: "Income limits" }),
-        el("p", { className: "muted small", textContent: `${lim.description} ${lim.valid_for}.${rowsKey === "by_household_size" ? " Larger households: see official source." : ""}` }),
+        el("p", { className: "muted small", textContent: `${lim.description} ${lim.valid_for}.${rowsKey === "by_household_size" ? " Larger households: see the official page." : ""}` }),
         el("div", { className: "table-wrap" }, t));
     }
     section("How to apply", ["apply", "contact"]);
     section("What to bring", ["documents"]);
     section("Coming changes", ["change"]);
-    body.append(el("p", { className: "src" }, `${p.agency}. `,
-      el("a", { href: p.url, target: "_blank", rel: "noopener", textContent: "Official information" }),
-      `. Saved ${p.checked_on}. ${p.note}`));
-    box.append(body);
-    inner.append(box);
+    if (p.uptake_note) body.append(el("h4", { textContent: "Program use" }), el("p", { className: "small", textContent: p.uptake_note }));
+    body.append(el("p", { className: "src", textContent: `${p.agency}. Saved ${p.checked_on}.` }));
+    return el("article", { className: "prog-row" },
+      el("div", { className: "prog-row-head" },
+        el("div", {}, el("h3", { textContent: p.name }), el("p", { className: "prog-serves", textContent: p.serves })),
+        applyButton(p, "secondary small")),
+      el("p", { className: "print-url", textContent: p.url }),
+      el("details", { className: "prog-details" }, el("summary", { textContent: "Details: who qualifies, income limits, how to apply" }), body));
   });
-  return inner;
+  return el("div", {}, el("p", { className: "muted small", textContent: `The same programs serve every district. ${progs[0].note || ""}` }), ...rows);
 }
 
-export function renderPrograms(data) {
-  const body = programsBody(data);
-  return el("details", {}, el("summary", { textContent: "Programs residents may qualify for" }),
-    el("div", { className: "inner" }, body || el("p", { className: "muted", textContent: "No program information is loaded for this district." })));
+// Map page: "Programs residents can apply for", always open, with a link to the report's
+// Programs view (likely-eligible estimates, income limits, what to bring).
+// `collapsed`: a closed dropdown, for district views (the programs are the same for every district).
+export function programsHelp(progs, { title = "Programs residents can apply for", moreHref = "", checkedOn = "",
+  moreText = "More in the full report: residents likely eligible, income limits, what to bring", collapsed = false } = {}) {
+  const body = programLinks(progs, { heading: "h4", checkedOn });
+  if (!body) return null;
+  const more = moreHref ? el("p", { className: "prog-more" }, el("a", { href: moreHref, textContent: moreText })) : null;
+  if (collapsed) {
+    return el("details", { className: "prog-drop" },
+      el("summary", {}, el("span", {}, title, el("span", { className: "count", textContent: ` ${progs.length} programs, with links to apply` }))),
+      el("div", { className: "inner" }, body, more));
+  }
+  const s = el("section", { className: "prog-help" });
+  s.setAttribute("aria-labelledby", "prog-help-h");
+  s.append(el("h3", { id: "prog-help-h", textContent: title }), body, more);
+  return s;
 }
 
 // Official permanent-resident population from the 2021 Reapportionment Plan, when available.
@@ -769,3 +781,31 @@ export const reportUrl = (districtId, view, question) => {
   if (qid) u.searchParams.set("qid", qid);
   return u.pathname + u.search;
 };
+
+// ---------- skeleton screens ----------
+// Grey placeholders shaped like the content that is loading, so the page keeps its layout while
+// data arrives. Each skeleton is hidden from screen readers; a short "Loading" line is read instead.
+// The shimmer stops for people who ask for reduced motion (base.css).
+export const sk = (cls = "", w = "") => el("span", { className: `sk ${cls}`, style: w ? `width:${w}` : "" });
+const times = (n, f) => Array.from({ length: n }, (_, i) => f(i));
+const WIDTHS = ["92%", "78%", "86%", "64%", "88%", "72%"];
+
+export function skeleton(label, ...parts) {
+  const vis = el("div", { className: "sk-wrap" }, ...parts);
+  vis.setAttribute("aria-hidden", "true");
+  return el("div", {}, el("p", { className: "sr-only", textContent: label }), vis);
+}
+export const skLines = (n = 2, w = WIDTHS) => el("div", { className: "sk-lines" }, ...times(n, i => sk("sk-line", w[i % w.length])));
+// One headline card: title, big number, two comparison lines, source.
+export const skFact = () => el("div", { className: "fact sk-card" }, sk("sk-line", "62%"), sk("sk-big", "48%"),
+  el("div", { className: "sk-vs" }, sk("sk-line", "94%"), sk("sk-line", "80%"), sk("sk-line sk-small", "58%")));
+export const skFacts = (n = 6) => el("div", { className: "facts" }, ...times(n, skFact));
+export const skTable = (rows = 5) => el("div", { className: "sk-table" }, sk("sk-row sk-head"), ...times(rows, () => sk("sk-row")));
+export const skAccordions = (n = 3) => el("div", { className: "sk-accs" }, ...times(n, i => el("div", { className: "sk-acc" }, sk("sk-line", ["36%", "24%", "44%"][i % 3]))));
+export const skButtons = (n = 3) => el("div", { className: "sk-actions" }, ...times(n, () => sk("sk-btn")));
+export const skTiles = (n = 3) => el("div", { className: "prog-links" }, ...times(n, () => el("div", { className: "prog-tile sk-card" },
+  sk("sk-line", "70%"), skLines(2, ["90%", "60%"]), sk("sk-line", "84%"), sk("sk-btn sk-btn-wide"))));
+// A district profile on the map page (one district, or two when comparing).
+export const skProfile = (pair = false) => [sk("sk-h1", pair ? "70%" : "42%"),
+  ...(pair ? [sk("sk-line", "52%"), sk("sk-line", "48%")] : [sk("sk-line", "38%")]),
+  sk("sk-switch"), skFacts(6), skButtons(3), skAccordions(3)];

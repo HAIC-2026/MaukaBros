@@ -12,9 +12,9 @@ use case "Know Your District", championed by DBEDT's Research and Economic Analy
 
 - **District profile.** Pick a district from the list or the map and see six headline figures
   (household income, poverty, kūpuna, rent burden, SNAP use, unemployment), each compared with
-  the county and the state. Three card views: **Range** (is each gap real? the margin-of-error band
-  against the county and state), **Bars** (how big? bars from zero) and **Text** (plain sentences
-  with a Copy button that includes the source).
+  the county and the state. Three card views: **Text** (the default: one plain sentence per comparison), **Range** (is each gap real? the margin-of-error band against the county and state) and
+  **Bars** (how big? bars from zero). Below the cards, **Programs residents can apply for** links
+  each program's official page, with how to apply and phone numbers.
 - **Find by place.** Type a town, neighborhood, ZIP code or DOTAX tax area (e.g. Kāneʻohe, Kāhala,
   96816, North Shore) to see which districts its residents live in. No AI involved, so it is free
   and instant.

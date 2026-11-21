@@ -1,7 +1,8 @@
 // Map page (index.html): district list, map, profile and research assistant.
 // Kept out of the HTML so the Content Security Policy can forbid inline scripts.
 import { fmtMetric, fmtCount, fmtMoe, shortCounty, districtLabel, compareEstimates } from "/js/format.js";
-import { $, el, tableLinks, renderKeyFact, renderPairFact, renderContext, renderTaxAreas, renderPrograms, planLine, reportUrl, factKey, cardStyleSwitch, countyOf } from "/js/render.js";
+import { $, el, tableLinks, renderKeyFact, renderPairFact, renderContext, renderTaxAreas, programsHelp, planLine, reportUrl, factKey, cardStyleSwitch, countyOf,
+  skeleton, sk, skLines, skProfile, skTiles } from "/js/render.js";
 import { presetById, presetFor, districtFor } from "/js/presets.js";
 import { renderMarkdown } from "/js/markdown.js";
 
@@ -32,6 +33,34 @@ const MAP_CHOICES = [
 ];
 const state = { chamber: "house", districtId: null, vsId: null, mapData: null, districts: [], edges: [] };
 let view, fillLayer, hoverLayer, selLayer, GraphicCtor, ExtentCtor;
+let placeLabels = () => {}; // set once the map loads
+
+// ---------- district numbers on the map ----------
+// Drawn as HTML over the map in the page's own font (Esri's map labels need its font service,
+// which this site doesn't use). Each number sits inside its district, on the widest horizontal
+// stretch of its largest piece, and shows only where it fits without overlapping another.
+const ringArea = r => { let a = 0; for (let i = 0, j = r.length - 1; i < r.length; j = i++) a += (r[j][0] + r[i][0]) * (r[j][1] - r[i][1]); return Math.abs(a / 2); };
+function labelSpot(geom) {
+  const polys = geom.type === "Polygon" ? [geom.coordinates] : geom.coordinates;
+  const rings = polys.reduce((best, p) => ringArea(p[0]) > ringArea(best[0]) ? p : best);
+  const ys = rings[0].map(c => c[1]);
+  const y0 = Math.min(...ys), y1 = Math.max(...ys);
+  let best = null;
+  [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8].forEach(f => {
+    const y = y0 + f * (y1 - y0);
+    const xs = [];
+    rings.forEach(r => { for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+      const a = r[j], b = r[i];
+      if ((a[1] > y) !== (b[1] > y)) xs.push(a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1]));
+    } });
+    xs.sort((a, b) => a - b);
+    for (let k = 0; k + 1 < xs.length; k += 2) { // inside the shape between each pair of crossings
+      const w = xs[k + 1] - xs[k];
+      if (!best || w > best.w * 1.25) best = { w, y, x0: xs[k], x1: xs[k + 1] }; // favor the middle lines
+    }
+  });
+  return best && { lon: (best.x0 + best.x1) / 2, lat: best.y, x0: best.x0, x1: best.x1 };
+}
 
 // ---------- summary ----------
 // The map page shows the headline figures; the report page (report.html) has every view.
@@ -56,12 +85,11 @@ function renderProfile(data) {
   const popLine = popLineOf(data);
 
   const facts = el("div", { className: "facts" });
-  keyComps.forEach(c => facts.append(renderKeyFact(c, { place: data.name })));
+  keyComps.forEach(c => facts.append(renderKeyFact(c)));
 
-  const programs = renderPrograms(data);
+  const programs = programsHelp(data.programs, { moreHref: reportUrl(data.geo_id, "programs"), collapsed: true });
   const actions = el("div", { className: "actions" },
-    el("a", { className: "btn i-launch", href: reportUrl(data.geo_id), target: "_blank", rel: "noopener" },
-      "Full report", el("span", { className: "sr-only", textContent: " (opens in a new tab)" })),
+    el("a", { className: "btn i-forward", href: reportUrl(data.geo_id), textContent: "Full report" }),
     el("button", { className: "btn secondary i-print", type: "button", textContent: "Print / PDF", onclick: () => window.print() }),
     el("button", { className: "btn secondary i-copy", type: "button", textContent: "Copy link",
       onclick: e => { navigator.clipboard && navigator.clipboard.writeText(location.href); e.target.textContent = "Link copied"; } }));
@@ -71,7 +99,7 @@ function renderProfile(data) {
   $("main").replaceChildren(
     el("h2", { className: "district", textContent: data.name }),
     el("p", { className: "sub", textContent: county ? `${county} · ${popLine}` : popLine }),
-    ...[planLine(data), viewSwitch(), facts, factKey(), actions, taxAreas, context, programs].filter(Boolean));
+    ...[planLine(data), viewSwitch(), facts, factKey(), actions, programs, taxAreas, context].filter(Boolean));
 }
 
 // Two districts side by side: the overview figures as paired cards, each difference tested
@@ -89,19 +117,20 @@ function renderPairProfile(a, b) {
     ` · ${[countyOf(d), popLineOf(d)].filter(Boolean).join(" · ")}`);
   const full = `${reportUrl(a.geo_id)}&vs=${encodeURIComponent(b.geo_id)}`;
   const actions = el("div", { className: "actions" },
-    el("a", { className: "btn i-launch", href: full, target: "_blank", rel: "noopener" },
-      "Full comparison", el("span", { className: "sr-only", textContent: " (opens in a new tab)" })),
-    el("button", { className: "btn secondary", type: "button", textContent: "Swap",
-      onclick: () => { const x = state.districtId; state.vsId = x; openDistrict(b.geo_id); } }),
+    el("a", { className: "btn i-forward", href: full, textContent: "Full comparison" }),
+    el("button", { className: "btn secondary i-print", type: "button", textContent: "Print / PDF", onclick: () => window.print() }),
     el("button", { className: "btn secondary", type: "button", textContent: "Stop comparing",
       onclick: () => { state.vsId = null; selectDistrict(a.geo_id, true); } }),
     el("button", { className: "btn secondary i-copy", type: "button", textContent: "Copy link",
       onclick: e => { navigator.clipboard && navigator.clipboard.writeText(location.href); e.target.textContent = "Link copied"; } }));
+  // Programs and their official pages are the same for every district.
+  const programs = programsHelp(a.programs, { moreHref: `${reportUrl(a.geo_id, "programs")}&vs=${encodeURIComponent(b.geo_id)}`,
+    moreText: "More in the full comparison: residents likely eligible in both districts", collapsed: true });
   const note = a.geo_type !== b.geo_type ? el("p", { className: "pair-note", textContent:
     "House and Senate districts overlap, so some residents are in both. Rates and medians compare; the margin-of-error test is approximate." }) : null;
   $("main").replaceChildren(
     el("h2", { className: "district", textContent: `${a.name} vs ${b.name}` }),
-    ...[who(a, "a"), who(b, "b"), note, viewSwitch(), facts, factKey(undefined, { a: A.id, b: B.id }), actions].filter(Boolean));
+    ...[who(a, "a"), who(b, "b"), note, viewSwitch(), facts, factKey(undefined, { a: A.id, b: B.id }), actions, programs].filter(Boolean));
 
 }
 
@@ -146,7 +175,7 @@ async function ask(question) {
   chat.history.push({ role: "user", content: question });
   const log = $("chat-log");
   log.append(el("div", { className: "msg user", textContent: question }));
-  const pending = el("div", { className: "msg thinking", textContent: "Looking up the figures…" });
+  const pending = el("div", { className: "msg thinking" }, "Looking up the figures…", skeleton("", skLines(3)));
   log.append(pending); log.scrollTop = log.scrollHeight;
   try {
     const r = await fetch("/api/chat", { method: "POST", headers: { "Content-Type": "application/json" },
@@ -215,6 +244,7 @@ const outline = (color, width) => ({ type: "simple-fill", color: [0, 0, 0, 0], o
 // being compared (same chamber only, since the map shows one chamber) gets a dashed edge.
 function drawSelection(zoom) {
   selLayer.removeAll();
+  placeLabels();
   fillLayer.graphics.forEach(g => { g.symbol = fillSymbol(g); });
   const find = id => id && state.mapData && state.mapData.features.find(x => x.properties.geo_id === id);
   const f = find(state.districtId), fv = find(state.vsId);
@@ -284,7 +314,7 @@ async function selectDistrict(id, zoom = true) {
   history.replaceState(null, "", url);
   drawSelection(zoom);
   if (!id) { renderLanding(); return; }
-  $("main").replaceChildren(el("p", { className: "muted", textContent: "Loading..." }));
+  $("main").replaceChildren(skeleton(`Loading ${districtLabel(id)}${vs ? ` and ${districtLabel(vs)}` : ""}…`, ...skProfile(!!vs)));
   try {
     const [data, dataVs] = await Promise.all([fetchDistrict(id), vs ? fetchDistrict(vs) : null]);
     if (state.districtId !== id || state.vsId !== vs) return; // user already moved on
@@ -328,7 +358,8 @@ $("find-form").addEventListener("submit", async e => {
   if (!q) return;
   const box = $("find-results");
   box.hidden = false;
-  box.replaceChildren(el("p", { className: "muted small", textContent: "Searching…" }));
+  box.replaceChildren(skeleton("Searching…", sk("sk-line", "40%"), el("div", { className: "find-list" }, sk("sk-pill", "8rem"), sk("sk-pill", "6.5rem")),
+    sk("sk-line", "30%"), el("div", { className: "find-list" }, sk("sk-pill", "8rem"))));
   try {
     const res = await fetch("/api/find?q=" + encodeURIComponent(q.slice(0, 100)));
     if (!res.ok) throw new Error(res.statusText);
@@ -346,14 +377,29 @@ document.addEventListener("click", e => { if (!$("find-form").contains(e.target)
 // Households below the poverty level that did not receive SNAP (ACS B22003), with the districts
 // that have the most of them. Every number shows its margin of error and source (GET /api/outreach).
 let outreachData = null;
+let programList = null; // GET /api/programs: every program with its official page, for the landing
+
+// Landing placeholders: the outreach highlight (headline number, two ranked lists).
+const outreachSkeleton = () => [skeleton("Loading the outreach highlight…", sk("sk-line", "14rem"), sk("sk-h2", "82%"), sk("sk-block"),
+  skLines(2, ["70%", "55%"]), el("div", { className: "where" }, ...[0, 1].map(() => el("div", {}, sk("sk-line", "50%"), skLines(5, ["100%"])))))];
+function landingSkeleton() {
+  $("main").replaceChildren(el("div", { className: "empty" }, el("h2", { textContent: "Who lives in your district?" }),
+    el("p", { textContent: "Pick a district above or on the map." })), el("section", { className: "outreach" }, ...outreachSkeleton()));
+}
 
 function renderLanding() {
   const intro = el("div", { className: "empty" }, el("h2", { textContent: "Who lives in your district?" }),
     el("p", { textContent: "Pick a district above or on the map." }));
-  const slot = el("section", { className: "outreach" });
+  const slot = el("section", { className: "outreach" }, ...outreachSkeleton());
   slot.setAttribute("aria-labelledby", "outreach-h");
-  $("main").replaceChildren(intro, slot);
+  const progSlot = el("div", { className: "prog-help" }, skeleton("Loading programs…", sk("sk-h2", "44%"), skLines(1, ["80%"]), skTiles(3)));
+  $("main").replaceChildren(intro, slot, progSlot);
   const fill = d => { if (slot.isConnected) slot.replaceChildren(...outreachSection(d)); };
+  const fillProgs = d => { if (progSlot.isConnected) progSlot.replaceChildren(...[programsHelp(d.programs, { checkedOn: d.checked_on })].filter(Boolean)); };
+  if (programList) fillProgs(programList);
+  else fetch("/api/programs").then(r => r.ok ? r.json() : Promise.reject(new Error(r.statusText)))
+    .then(d => { programList = d; fillProgs(d); })
+    .catch(() => progSlot.remove());
   if (outreachData) return fill(outreachData);
   fetch("/api/outreach").then(r => r.ok ? r.json() : Promise.reject(new Error(r.statusText)))
     .then(d => { outreachData = d; fill(d); })
@@ -442,11 +488,13 @@ async function drawMap() {
     mapDrawn(state.mapData);
   } catch (err) {
     $("mapnote").replaceChildren(el("span", { className: "error", textContent: "Could not load the map. " + err.message }));
+    $("map-sk").hidden = true;
   }
 }
 
-require(["esri/Map", "esri/views/MapView", "esri/layers/GraphicsLayer", "esri/Graphic", "esri/geometry/Extent"],
-  function (Map, MapView, GraphicsLayer, Graphic, Extent) {
+require(["esri/Map", "esri/views/MapView", "esri/layers/GraphicsLayer", "esri/Graphic", "esri/geometry/Extent",
+  "esri/geometry/support/webMercatorUtils", "esri/core/reactiveUtils"],
+  function (Map, MapView, GraphicsLayer, Graphic, Extent, webMercatorUtils, reactiveUtils) {
     GraphicCtor = Graphic; ExtentCtor = Extent;
     fillLayer = new GraphicsLayer();
     hoverLayer = new GraphicsLayer();
@@ -457,6 +505,23 @@ require(["esri/Map", "esri/views/MapView", "esri/layers/GraphicsLayer", "esri/Gr
       extent: new Extent({ ...STATE_EXTENT, spatialReference: { wkid: 4326 } }).expand(1.05),
       ui: { components: ["zoom", "attribution"] } }); // Esri requires its attribution (pipeline/sources.yaml)
 
+    // Keep the map on Hawaiʻi: the center can't be panned off the islands, and zooming out stops a
+    // little past the whole state, so nobody gets lost in empty ocean. No rotation either.
+    view.constraints.rotationEnabled = false;
+    const limitZoomOut = () => {
+      if (!view.width || !view.height) return;
+      const m = 111319.49; // meters per degree, as the view measures scale
+      const res = Math.max((STATE_EXTENT.xmax - STATE_EXTENT.xmin) * m / view.width,
+                           (STATE_EXTENT.ymax - STATE_EXTENT.ymin) * m / Math.cos(20.6 * Math.PI / 180) / view.height);
+      view.constraints.minScale = res * (96 / 0.0254) * 1.8; // pixels at 96 dpi; 1.8 = some room around the state
+    };
+    view.when(() => {
+      const box = new Extent({ ...STATE_EXTENT, spatialReference: { wkid: 4326 } });
+      view.constraints.geometry = view.spatialReference.isWebMercator ? webMercatorUtils.geographicToWebMercator(box) : box;
+      limitZoomOut();
+    });
+    view.on("resize", limitZoomOut);
+
     const quantileEdges = (values, n) => {
       const v = values.filter(x => x !== null).sort((a, b) => a - b);
       return Array.from({ length: n + 1 }, (_, i) => v[Math.min(v.length - 1, Math.floor(i * (v.length - 1) / n))]);
@@ -466,6 +531,44 @@ require(["esri/Map", "esri/views/MapView", "esri/layers/GraphicsLayer", "esri/Gr
       for (let i = COLORS.length - 1; i > 0; i--) if (v >= edges[i]) return i;
       return 0;
     };
+
+    // District numbers: one label per district, re-placed whenever the map moves.
+    let labels = [];
+    const labelBox = el("div", { className: "map-labels" });
+    labelBox.setAttribute("aria-hidden", "true"); // the district list is the accessible alternative
+    view.when(() => (view.container.querySelector(".esri-view-surface") || view.container).append(labelBox));
+    const screenOf = (lon, lat) => {
+      const [x, y] = view.spatialReference.isWebMercator ? webMercatorUtils.lngLatToXY(lon, lat) : [lon, lat];
+      return view.toScreen({ type: "point", x, y, spatialReference: view.spatialReference });
+    };
+    const buildLabels = data => {
+      labels = data.features.map(f => {
+        const spot = labelSpot(f.geometry);
+        const id = f.properties.geo_id;
+        const node = el("span", { className: "map-label", textContent: id.replace(/^[A-Z]+-/, "") });
+        return spot && { id, spot, node };
+      }).filter(Boolean);
+      labelBox.replaceChildren(...labels.map(l => l.node));
+      labels.forEach(l => { l.w = 7.5 * l.node.textContent.length + 4; l.h = 14; }); // size before the map is on screen
+    };
+    placeLabels = () => {
+      if (!view || !view.ready || !labels.length) return;
+      const placed = [];
+      const sel = [state.districtId, state.vsId];
+      const order = labels.map(l => {
+        const p = screenOf(l.spot.lon, l.spot.lat), a = screenOf(l.spot.x0, l.spot.lat), b = screenOf(l.spot.x1, l.spot.lat);
+        return { l, p, room: p ? Math.abs(b.x - a.x) : 0, pick: sel.includes(l.id) };
+      }).sort((x, y) => (y.pick - x.pick) || (y.room - x.room)); // selected first, then the roomiest
+      order.forEach(({ l, p, room, pick }) => {
+        const inView = p && p.x > 0 && p.y > 0 && p.x < view.width && p.y < view.height;
+        const box = inView && { x0: p.x - l.w / 2 - 2, x1: p.x + l.w / 2 + 2, y0: p.y - l.h / 2, y1: p.y + l.h / 2 };
+        const fits = inView && (pick || room >= l.w + 6) && !placed.some(q => q.x0 < box.x1 && box.x0 < q.x1 && q.y0 < box.y1 && box.y0 < q.y1);
+        l.node.hidden = !fits;
+        l.node.classList.toggle("sel", pick);
+        if (fits) { placed.push(box); l.node.style.transform = `translate(${p.x}px, ${p.y}px) translate(-50%, -50%)`; }
+      });
+    };
+    reactiveUtils.watch(() => [view.extent, view.width, view.height], () => placeLabels());
 
     mapDrawn = function (data) {
       const edges = quantileEdges(data.features.map(f => f.properties.value), COLORS.length);
@@ -482,6 +585,8 @@ require(["esri/Map", "esri/views/MapView", "esri/layers/GraphicsLayer", "esri/Gr
         fillLayer.add(g);
       });
       renderLegend(data, edges);
+      buildLabels(data);
+      $("map-sk").hidden = true;
       const s = data.meta.source;
       const note = el("span", {}, `Census ACS 5-year ${s.year}, `);
       tableLinks(s, note);
@@ -495,7 +600,8 @@ require(["esri/Map", "esri/views/MapView", "esri/layers/GraphicsLayer", "esri/Gr
       const r = hit.results.find(x => x.graphic && x.graphic.attributes && x.graphic.attributes.geo_id);
       return r ? r.graphic : null;
     };
-    view.on("click", async e => { const g = await districtAt(e); if (g) selectDistrict(g.attributes.geo_id, false); });
+    // Clicking a district selects it and centers the map on it.
+    view.on("click", async e => { const g = await districtAt(e); if (g) selectDistrict(g.attributes.geo_id, true); });
 
     // Hover: thin white outline on the district, and a tooltip that follows the pointer.
     let hoverPending = false, hoverId = null;
@@ -607,3 +713,11 @@ $("district").addEventListener("change", e => selectDistrict(e.target.value, tru
 $("vs").addEventListener("change", e => { state.vsId = e.target.value || null; selectDistrict(state.districtId, true); });
 
 $("metric").addEventListener("change", () => drawMap());
+
+// First paint: a skeleton of whatever the link asks for, until the map and data are ready.
+{
+  const q = new URL(location.href).searchParams;
+  const d = (q.get("d") || "").toUpperCase(), vs = (q.get("vs") || "").toUpperCase();
+  if (/^(HD|SD)-\d{1,2}$/.test(d)) $("main").replaceChildren(skeleton(`Loading ${districtLabel(d)}…`, ...skProfile(/^(HD|SD)-\d{1,2}$/.test(vs))));
+  else landingSkeleton();
+}

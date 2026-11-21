@@ -1,6 +1,7 @@
 // Report page (report.html): district report, views, comparison of two districts.
 // Kept out of the HTML so the Content Security Policy can forbid inline scripts.
-import { $, el, renderKeyFact, renderPairFact, missingFact, comparisonTable, renderDetails, contextBody, taxAreasBody, programsBody, planLine, countyOf, pairTable, reportUrl, takeQuestion, likelyEligibleBody, likelyEligiblePair, factKey, cardStyleSwitch } from "/js/render.js";
+import { $, el, renderKeyFact, renderPairFact, missingFact, comparisonTable, renderDetails, contextBody, taxAreasBody, programsBody, planLine, countyOf, pairTable, reportUrl, takeQuestion, likelyEligibleBody, likelyEligiblePair, factKey, cardStyleSwitch,
+  skeleton, sk, skLines, skFacts, skTable } from "/js/render.js";
 import { fmtCount, fmtMoe, fmtToday } from "/js/format.js";
 import { PRESETS, presetById } from "/js/presets.js";
 
@@ -23,12 +24,15 @@ function syncUrl() {
   u.searchParams.delete("qid"); // used once on load; never kept in the address bar or history
   u.searchParams.delete("q");   // older links that carried the question itself
   history.replaceState(null, "", u);
-  $("back").href = state.id ? "/?d=" + encodeURIComponent(state.id) : "/";
+  $("back").href = state.id ? "/?d=" + encodeURIComponent(state.id) + (state.vs ? "&vs=" + encodeURIComponent(state.vs) : "") : "/";
 }
 
 // ---------- tabs (WAI-ARIA tabs pattern, automatic activation) ----------
+// Programs sits right after Overview. (PRESETS keeps its own order: the assistant's view
+// matching depends on it.)
+const TABS = [PRESETS[0], presetById("programs"), ...PRESETS.slice(1).filter(p => p.id !== "programs")];
 function buildTabs() {
-  $("tabs").replaceChildren(...PRESETS.map(p => el("button", {
+  $("tabs").replaceChildren(...TABS.map(p => el("button", {
     type: "button", role: "tab", id: "tab-" + p.id, textContent: p.label,
     onclick: () => selectView(p.id, false),
   })));
@@ -36,7 +40,7 @@ function buildTabs() {
   markTabs();
 }
 function markTabs() {
-  PRESETS.forEach(p => {
+  TABS.forEach(p => {
     const t = $("tab-" + p.id);
     const on = p.id === state.view;
     t.setAttribute("aria-selected", on);
@@ -45,11 +49,11 @@ function markTabs() {
   });
 }
 $("tabs").addEventListener("keydown", e => {
-  const i = PRESETS.findIndex(p => p.id === state.view);
-  const next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: PRESETS.length - 1 }[e.key];
+  const i = TABS.findIndex(p => p.id === state.view);
+  const next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: TABS.length - 1 }[e.key];
   if (next === undefined) return;
   e.preventDefault();
-  selectView(PRESETS[(next + PRESETS.length) % PRESETS.length].id, true);
+  selectView(TABS[(next + TABS.length) % TABS.length].id, true);
 });
 function selectView(id, focusTab) {
   state.view = id;
@@ -93,9 +97,10 @@ function renderPairSection(s, a, b) {
     body = el("div", { className: "card" }, el("p", { className: "muted", style: "margin:0", textContent: s.text }));
   } else if (s.type === "likelyEligible") {
     body = likelyEligiblePair(a, b);
+  } else if (s.type === "programs") {
+    body = programsBody(a); // program facts are the same for every district
   } else {
     const what = s.type === "taxAreas" ? "Tax areas overlap each district differently"
-      : s.type === "programs" ? "Program details are the same for every district"
       : "These describe each district's county, not the district";
     const link = d => el("a", { href: reportUrl(d.geo_id, state.view), textContent: d.name });
     body = el("div", { className: "card" }, el("p", { className: "muted", style: "margin:0" },
@@ -130,8 +135,8 @@ function renderPanel() {
       const ca = byId(a, id), cb = byId(b, id);
       facts.append(ca || cb ? renderPairFact(ca, cb, { id: a.id, name: a.name }, { id: b.id, name: b.name }) : missingFact(id));
     });
-    $("panel").replaceChildren(el("p", { className: "blurb", textContent: `${p.label}: both districts side by side, with the state for reference.` }), notes, viewSwitch(),
-      facts, factKey(undefined, { a: a.id, b: b.id }),
+    $("panel").replaceChildren(el("p", { className: "blurb", textContent: `${p.label}: both districts side by side, with the state for reference.` }), notes,
+      viewSwitch(), facts, ...[factKey(undefined, { a: a.id, b: b.id })].filter(Boolean),
  ...p.sections.map(s => renderPairSection(s, a, b)));
     document.title = `${data.geo_id} compared with ${state.dataVs.geo_id} · ${p.label} · District Insight`;
     return;
@@ -140,10 +145,10 @@ function renderPanel() {
   const facts = el("div", { className: "facts" });
   p.metrics.forEach(id => {
     const c = data.comparisons.find(x => x.metric_id === id);
-    facts.append(c ? renderKeyFact(c, { place: data.name }) : missingFact(id));
+    facts.append(c ? renderKeyFact(c) : missingFact(id));
   });
-  $("panel").replaceChildren(el("p", { className: "blurb", textContent: p.blurb }), notes, viewSwitch(),
-    facts, factKey(), ...p.sections.map(s => renderSection(s, data, county)));
+  $("panel").replaceChildren(el("p", { className: "blurb", textContent: p.blurb }), notes,
+    viewSwitch(), facts, ...[factKey()].filter(Boolean), ...p.sections.map(s => renderSection(s, data, county)));
   document.title = `${data.name} · ${p.label} · District Insight`;
 }
 
@@ -182,6 +187,20 @@ function fillVsOptions() {
   sel.value = state.vs || "";
 }
 
+// Placeholder report while a district (or two) loads: title, summary line, cards, a table.
+function showSkeleton(id, vs) {
+  $("title").replaceChildren(sk("sk-h1", vs ? "75%" : "40%"));
+  $("sub").replaceChildren(sk("sk-line", "45%"));
+  $("plan").replaceChildren();
+  $("all").hidden = true;
+  if (vs) {
+    $("pair").replaceChildren(...["a", "b"].map(c => el("article", { className: `pcard ${c}` }, skeleton("", sk("sk-h2", "60%"), skLines(3, ["45%", "62%", "70%"])))));
+    $("pair").hidden = false;
+  }
+  $("panel").replaceChildren(skeleton(`Loading ${id}${vs ? ` and ${vs}` : ""}…`, skLines(1, ["55%"]), sk("sk-switch"), skFacts(6),
+    sk("sk-h2", "30%"), skTable(5)));
+}
+
 async function load() {
   const { id, vs } = state;
   state.data = null; state.dataVs = null;
@@ -195,7 +214,7 @@ async function load() {
     $("plan").replaceChildren(); $("panel").replaceChildren(); $("all-inner").replaceChildren();
     return;
   }
-  $("panel").replaceChildren(el("p", { className: "muted", textContent: "Loading…" }));
+  showSkeleton(id, vs);
   try {
     const [data, dataVs] = await Promise.all([fetchDistrict(id), vs ? fetchDistrict(vs) : null]);
     if (state.id !== id || state.vs !== vs) return; // user already moved on
@@ -223,6 +242,7 @@ async function load() {
     renderPanel();
   } catch (err) {
     $("title").textContent = "District report";
+    $("sub").replaceChildren(); $("pair").hidden = true;
     $("panel").replaceChildren(el("p", { className: "error", textContent: "Could not load this district. " + err.message }));
   }
 }
@@ -244,6 +264,7 @@ async function init() {
     if (state.id && !known(state.id)) state.id = "";
     if (!state.id || !known(state.vs) || state.vs === state.id) state.vs = "";
   } catch (err) {
+    $("title").textContent = "District report"; $("sub").replaceChildren(); $("pair").hidden = true;
     $("panel").replaceChildren(el("p", { className: "error", textContent: "Could not load. " + err.message }));
     return;
   }
@@ -264,4 +285,5 @@ $("copy").addEventListener("click", e => {
   if (navigator.clipboard) navigator.clipboard.writeText(u.href).then(() => { e.target.textContent = "Link copied"; });
 });
 window.addEventListener("beforeprint", () => document.querySelectorAll("details").forEach(d => d.open = true));
+if (state.id) showSkeleton(state.id, state.vs);
 init();

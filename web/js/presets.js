@@ -49,7 +49,7 @@ export const PRESETS = [
     sections: [
       { type: "group", title: "Industries residents work in", group: "Jobs held by residents, by industry" },
       { type: "taxAreas", title: "Income on tax returns, by tax area" },
-      { type: "context", title: "County and state context", ids: ["dotax_median_agi", "per_capita_personal_income", "bls_unemployment_rate"] },
+      { type: "context", title: "County and state context", ids: ["per_capita_personal_income", "bls_unemployment_rate"] },
     ],
   },
   {
@@ -75,8 +75,8 @@ export const PRESETS = [
     ],
   },
   {
-    id: "programs", label: "Program need",
-    blurb: "Low incomes against the poverty line, SNAP and Medicaid use, and who is likely eligible on income. None are eligibility counts.",
+    id: "programs", label: "Programs",
+    blurb: "Low incomes against the poverty line, SNAP and Medicaid use, who is likely eligible on income, and the programs that serve them. None of the figures are eligibility counts.",
 
     metrics: ["under_125pct_poverty_share", "under_200pct_poverty_share", "poor_households_without_snap_share",
               "low_income_uninsured_rate", "snap_share", "medicaid_share"],
@@ -85,7 +85,7 @@ export const PRESETS = [
     groups: ["Program need and uptake"],
     sections: [
       { type: "likelyEligible", title: "Residents likely eligible on income (estimates)" },
-      { type: "programs", title: "Programs residents may qualify for" },
+      { type: "programs", title: "Programs and how to apply" },
       { type: "context", title: "Program use: county and state records",
         ids: ["snap_cases_monthly", "snap_people_monthly", "medquest_managed_care", "dotax_eitc_claims", "dotax_food_excise_claims", "dotax_renters_claims"] },
     ],

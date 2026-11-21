@@ -32,8 +32,11 @@
                          border: 0; border-bottom: 2px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; }
     .tabs [role="tab"]:hover { color: var(--text); border-bottom-color: var(--border-strong); }
     .tabs [role="tab"][aria-selected="true"] { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); }
+    .bar-actions { display: flex; gap: 1px; }
+    .bar-actions .btn { min-width: 9.5rem; }
 
     .blurb { margin: 0 0 0.5rem; font-size: 1rem; }
+    #panel .facts { grid-template-columns: repeat(auto-fill, minmax(min(21rem, 100%), 1fr)); }
     .notes { margin: 0 0 1rem; }
     .notes p { margin: 0.25rem 0; }
     .block { margin-top: 2.5rem; }
@@ -65,12 +68,12 @@
     @media (max-width: 600px) {
       .shell { padding: 0 1rem; }
       .bar { padding: 0.75rem 1rem 1rem; }
-      .bar .field, .bar select { width: 100%; }
+      .bar .field, .bar select, .bar-actions { width: 100%; }
+      .bar-actions .btn { flex: 1 1 0; min-width: 0; }
       main { padding: 1.5rem 1rem; }
       h1 { font-size: 1.75rem; }
       .facts { grid-template-columns: 1fr; }
       #pair { grid-template-columns: 1fr; }
-      .actions .btn { flex: 1 1 100%; }
     }
     /* Narrow screens: each measure becomes a tile; the column name moves in front of each value. */
     @media screen and (max-width: 600px) {
@@ -85,7 +88,7 @@
       table.pair td::before { content: attr(data-label); grid-row: 1 / span 4; font-size: 0.75rem; letter-spacing: 0.32px; color: var(--muted); }
     }
     @media print {
-      .shell, .bar, .tabs, .actions, .from-q, .cs-switch { display: none !important; }
+      .shell, .bar, .tabs, .from-q, .cs-switch { display: none !important; }
 
       .print-only { display: block; }
       main { max-width: none; padding: 0; }
@@ -106,6 +109,10 @@
       <label for="vs">Compare with</label>
       <select id="vs"><option value="">Loading…</option></select>
     </div>
+    <div class="bar-actions">
+      <button class="btn i-print" type="button" id="print">Print / PDF</button>
+      <button class="btn secondary i-copy" type="button" id="copy">Copy link</button>
+    </div>
   </header>
 
   <main id="main">
@@ -122,10 +129,6 @@
       <summary>Source data: every figure, for checking</summary>
       <div class="inner" id="all-inner"></div>
     </details>
-    <div class="actions">
-      <button class="btn i-print" type="button" id="print">Print / PDF</button>
-      <button class="btn secondary i-copy" type="button" id="copy">Copy link</button>
-    </div>
   </main>
 
   <footer class="site-footer">

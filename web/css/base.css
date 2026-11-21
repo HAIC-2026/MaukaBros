@@ -36,6 +36,7 @@
 
   /* @carbon/icons (16px glyphs), used as CSS masks so they take the text color */
   --i-launch: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M13,14H3c-0.6,0-1-0.4-1-1V3c0-0.6,0.4-1,1-1h5v1H3v10h10V8h1v5C14,13.6,13.6,14,13,14z'/%3E%3Cpath d='M10 1L10 2 13.3 2 9 6.3 9.7 7 14 2.7 14 6 15 6 15 1z'/%3E%3C/svg%3E");
+  --i-arrow-right: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M9.3 3.7L13.1 7.5 1 7.5 1 8.5 13.1 8.5 9.3 12.3 10 13 15 8 10 3z'/%3E%3C/svg%3E");
   --i-arrow-left: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M6.7 12.3L2.9 8.5 15 8.5 15 7.5 2.9 7.5 6.7 3.7 6 3 1 8 6 13z'/%3E%3C/svg%3E");
   --i-printer: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M28,9H25V3H7V9H4a2,2,0,0,0-2,2V21a2,2,0,0,0,2,2H7v6H25V23h3a2,2,0,0,0,2-2V11A2,2,0,0,0,28,9ZM9,5H23V9H9ZM23,27H9V17H23Zm5-6H25V15H7v6H4V11H28Z'/%3E%3C/svg%3E");
   --i-copy: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M28,10V28H10V10H28m0-2H10a2,2,0,0,0-2,2V28a2,2,0,0,0,2,2H28a2,2,0,0,0,2-2V10a2,2,0,0,0-2-2Z'/%3E%3Cpath d='M4,18H2V4A2,2,0,0,1,4,2H18V4H4Z'/%3E%3C/svg%3E");
@@ -58,11 +59,12 @@ textarea:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
   outline: 2px solid var(--focus); outline-offset: -2px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-/* Icons: add i-launch, i-back, i-print, i-copy or i-chat to a .btn; the icon sits at the right, as in Carbon */
+/* Icons: add i-launch, i-forward, i-back, i-print, i-copy or i-chat to a .btn; the icon sits at the right, as in Carbon */
 .icon, .btn[class*="i-"]::after { display: inline-block; width: 1rem; height: 1rem; flex: none; background: currentColor;
   -webkit-mask: var(--icon) no-repeat center / contain; mask: var(--icon) no-repeat center / contain; }
 .btn[class*="i-"]::after { content: ""; }
 .btn.i-launch { --icon: var(--i-launch); }
+.btn.i-forward { --icon: var(--i-arrow-right); }
 .btn.i-back { --icon: var(--i-arrow-left); gap: 0.5rem; }
 .btn.i-back::after { order: -1; }
 .btn.i-print { --icon: var(--i-printer); }
@@ -150,14 +152,11 @@ input::placeholder, textarea::placeholder { color: var(--helper); }
 .cs-whisker { position: absolute; top: 50%; height: 0.625rem; margin-top: -0.3125rem; border: 2px solid var(--text);
               border-top: 0; border-bottom: 0; background: linear-gradient(var(--text), var(--text)) center / 100% 2px no-repeat; }
 .cs-approx { color: var(--muted); font-weight: 600; cursor: help; }
-/* Text view: sentences, with a copy button for the figure and its source */
+/* Text view: one sentence per comparison */
 .cs-text { margin: 0; padding: 0; list-style: none; }
 .cs-text li { margin: 0 0 0.5rem; line-height: 1.45; }
 .cs-verdict { color: var(--muted); }
 .cs-verdict.real { color: var(--text); font-weight: 600; }
-.cs-copy { font: inherit; font-size: 0.75rem; letter-spacing: 0.32px; min-height: 1.75rem; padding: 0 0.625rem; margin: 0 0 0.25rem;
-           border: 1px solid var(--border-strong); background: transparent; color: var(--accent); cursor: pointer; }
-.cs-copy:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
 /* Pair cards: two districts. A = green, B = dark grey */
 .pv-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin: 0.375rem 0 0.75rem; }
 .pv { display: flex; flex-direction: column; min-width: 0; }
@@ -234,11 +233,39 @@ details.plan > p { margin: 0.25rem 0 0; line-height: 1.5; }
 details.sub-details { margin: 0; }
 details.sub-details > summary .count { color: var(--muted); font-size: 0.75rem; margin-left: 0.5rem; margin-right: auto; }
 
-/* Program sections (programsBody) */
-details.program > summary { align-items: flex-start; }
-details.program > summary .moe { display: block; font-size: 0.75rem; color: var(--muted); }
-details.program h4 { margin: 1rem 0 0.25rem; font-size: 0.875rem; }
-details.program ul { margin: 0.25rem 0; padding-left: 1.25rem; font-size: 0.875rem; }
+/* Programs (programsBody): one row per program, the official page always visible, details on demand */
+.prog-row { border-top: 1px solid var(--border); padding: 1rem 0 0.25rem; }
+.prog-row:last-child { border-bottom: 1px solid var(--border); }
+.prog-row-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.75rem 2rem; }
+.prog-row-head > div { flex: 1 1 22rem; min-width: 0; }
+.prog-row h3 { margin: 0 0 0.25rem; font-size: 1rem; font-weight: 600; }
+.prog-row .prog-serves { margin: 0; font-size: 0.875rem; color: var(--muted); max-width: 48rem; }
+.prog-row .prog-go { flex: none; }
+details.prog-details { border: 0; margin-top: 0.25rem; }
+details.prog-details > summary { justify-content: flex-start; gap: 0.5rem; padding: 0.375rem 0; min-height: 2rem; font-size: 0.875rem; color: var(--accent); }
+details.prog-details > summary:hover { background: transparent; color: var(--accent-dark); text-decoration: underline; }
+details.prog-details > .inner { padding: 0 0 1rem; max-width: 52rem; }
+details.prog-details h4 { margin: 1rem 0 0.25rem; font-size: 0.875rem; }
+details.prog-details ul { margin: 0.25rem 0; padding-left: 1.25rem; font-size: 0.875rem; }
+.fact .calc ul { font-size: 0.75rem; }
+
+/* Where to apply (programLinks / programsHelp): one tile per program with its official page */
+.prog-help { margin: 2.5rem 0 0; padding-top: 1.5rem; border-top: 1px solid var(--border); scroll-margin-top: calc(var(--hdr, 0px) + 1rem); }
+.prog-help > h3 { margin: 0 0 0.5rem; font-size: 1.5rem; font-weight: 400; line-height: 1.3; }
+#prog-help-h { scroll-margin-top: calc(var(--hdr, 0px) + 1rem); }
+.prog-help .prog-more, .prog-drop .prog-more { margin: 1rem 0 0; font-size: 0.875rem; }
+details.prog-drop > summary .count { color: var(--muted); font-size: 0.75rem; margin-left: 0.5rem; }
+details.prog-drop .prog-links { grid-template-columns: repeat(auto-fill, minmax(min(16rem, 100%), 1fr)); }
+.prog-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(18.5rem, 100%), 1fr)); gap: 1rem; margin-top: 0.75rem; }
+.prog-tile { background: var(--layer); border-top: 3px solid var(--accent); padding: 1rem 1.25rem 1.25rem; display: flex; flex-direction: column; }
+.prog-tile h3, .prog-tile h4 { margin: 0 0 0.375rem; font-size: 1rem; font-weight: 600; line-height: 1.35; }
+.prog-tile .prog-serves { margin: 0 0 0.5rem; font-size: 0.875rem; color: var(--muted); }
+.prog-tile .prog-how { margin: 0 0 1rem; padding-left: 1.1rem; font-size: 0.875rem; }
+.prog-tile .prog-how li { margin: 0 0 0.25rem; }
+.prog-tile .prog-how a { white-space: nowrap; font-weight: 600; }
+.prog-tile .prog-go { margin-top: auto; align-self: flex-start; max-width: 100%; white-space: normal; text-align: left; gap: 1rem; }
+.prog-tile .src { margin-top: 0.5rem; }
+.print-url { display: none; }
 
 .actions { margin: 2rem 0; display: flex; gap: 1px; flex-wrap: wrap; }
 .actions .btn { min-width: 12rem; }
@@ -247,6 +274,45 @@ details.program ul { margin: 0.25rem 0; padding-left: 1.25rem; font-size: 0.875r
                letter-spacing: 0.32px; background: var(--layer); }
 .site-footer p { margin: 0.25rem 0; max-width: 72rem; }
 
+/* Skeleton screens (skeleton(), sk* in render.js): grey shapes with a slow shimmer */
+.sk { display: block; position: relative; overflow: hidden; background: var(--layer-accent); max-width: 100%; }
+.sk::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent); animation: sk-shimmer 1.5s ease-in-out infinite; }
+@keyframes sk-shimmer { to { transform: translateX(100%); } }
+.sk-card .sk, .sk-table .sk-row { background: var(--layer-accent); }
+.sk-line { height: 0.75rem; margin: 0.5rem 0; }
+.sk-line.sk-small { height: 0.5rem; margin-top: 1rem; }
+.sk-h1 { height: 2rem; margin: 0.25rem 0 0.75rem; }
+.sk-h2 { height: 1.5rem; margin: 0.25rem 0 1rem; }
+.sk-big { height: 2.25rem; margin: 0.75rem 0 1rem; }
+.sk-switch { width: 12rem; height: 1rem; margin: 1rem 0 0.75rem; }
+.sk-card { pointer-events: none; }
+.sk-card.fact { min-height: 15rem; }
+.sk-vs { border-top: 1px solid #c6c6c6; padding-top: 0.5rem; margin-top: auto; }
+.sk-table .sk-row { height: 2.75rem; margin-top: 1px; background: var(--layer); }
+.sk-table .sk-head { background: var(--layer-accent); }
+.sk-accs { margin-top: 1rem; }
+.sk-acc { border-top: 1px solid var(--border); padding: 0.375rem 1rem; }
+.sk-acc:last-child { border-bottom: 1px solid var(--border); }
+.sk-actions { display: flex; gap: 1px; margin: 2rem 0; }
+.sk-btn { width: 12rem; height: 2.5rem; }
+.sk-btn.sk-btn-wide { width: 70%; margin-top: auto; }
+.sk-block { height: 5.5rem; margin: 0 0 1rem; }
+.sk-pill { height: 2rem; }
+/* The map before its shapes arrive */
+.map-sk { position: absolute; inset: 0; z-index: 1; background: #dde8ef; overflow: hidden; }
+.map-sk::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent); animation: sk-shimmer 1.5s ease-in-out infinite; }
+.map-sk[hidden] { display: none; }
+/* Assistant: placeholder lines under "Looking up the figures" */
+.msg.thinking .sk-lines { max-width: 22rem; }
+.msg.thinking .sk { background: var(--layer-hover); }
+
+/* Narrow screens: wide data tables keep readable columns and scroll sideways inside their box
+   (the two-district table restacks itself instead) */
+@media screen and (max-width: 600px) {
+  .table-wrap > table:not(.pair) { min-width: 36rem; }
+}
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
@@ -257,4 +323,10 @@ details.program ul { margin: 0.25rem 0; padding-left: 1.25rem; font-size: 0.875r
   .fact { break-inside: avoid; }
   .table-wrap { overflow: visible; }
   tbody tr { background: #fff; }
+  /* Keep the district colors (A green, B grey), bands and bars when printing or saving as PDF */
+  .cs-dot, .cs-band, .cs-fill, .cs-tick, .cs-key, .cs-chip, .cs-whisker, .pv-id::before, .pair-who::before {
+    -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .prog-tile { break-inside: avoid; background: #fff; border: 1px solid var(--border); border-top: 3px solid var(--accent); }
+  .prog-go { display: none !important; }
+  .print-url { display: block; margin: 0; font-size: 0.75rem; word-break: break-all; }
 }
