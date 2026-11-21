@@ -154,10 +154,10 @@ function reportCard(question, trace) {
   const id = districtFor(trace, state.districtId);
   if (!id) return null;
   const preset = presetById(presetFor(question, trace));
-  return el("a", { className: "report-card", href: reportUrl(id, preset.id, question), target: "_blank", rel: "noopener" },
+  return el("a", { className: "report-card", href: reportUrl(id, preset.id, question) },
     el("div", {}, el("strong", { textContent: "Open full report" }),
-      el("span", { className: "meta", textContent: `${districtLabel(id)} · ${preset.label} · new tab` })),
-    el("span", { className: "go", textContent: "↗", ariaHidden: "true" }));
+      el("span", { className: "meta", textContent: `${districtLabel(id)} · ${preset.label}` })),
+    el("span", { className: "go", textContent: "→", ariaHidden: "true" }));
 }
 
 function sourcesBlock(sources, id) {
