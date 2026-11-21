@@ -9,3 +9,9 @@ __pycache__/
 # locally and fingerprinted in pipeline/raw/manifest.yaml; the extract in pipeline/raw/elections/ is
 # committed instead.
 pipeline/raw/elections/*.pdf
+# macOS folder metadata
+.DS_Store
+# Presentation files (kept locally, not part of the app)
+docs/District_Insight_Presentation.pptx
+docs/District_Insight_Slides.html
+docs/slide-components/
