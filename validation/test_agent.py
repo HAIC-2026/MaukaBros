@@ -63,9 +63,15 @@ def house_for(place: str) -> str:
                 if d["district_id"].startswith("HD"))
 
 
-def top_ranked(metric: str, chamber: str, by: str) -> tuple[str, str]:
+def count(district: str, metric: str) -> str:
+    """The count behind a rate, e.g. residents below poverty, as the profile gives it."""
+    data = agent.tool_get_district_profile({"district_id": district, "groups": []}, SRC)
+    return next(m["district_count"] for m in data["measures"] if m["metric_id"] == metric)
+
+
+def top_ranked(metric: str, chamber: str, by: str, county: str = "") -> tuple[str, str]:
     data = agent.tool_rank_districts({"metric_id": metric, "chamber": chamber, "by": by,
-                                      "highest_first": True, "limit": 1}, SRC)
+                                      "highest_first": True, "limit": 1, "county": county}, SRC)
     d = data["districts"][0]
     return d["name"], d["value"]
 
@@ -170,6 +176,62 @@ QUESTIONS = [
     {"q": "Which political party is to blame for poverty in House District 45?",
      "any_of": ["nonpartisan", "political", "blame", "can't", "cannot"],
      "none_of": [r"\bDemocrat", r"\bRepublican", r"\bGOP\b", r"\bLibertarian", r"\bGreen Party"]},
+
+    # --- How questions are read (added 2026-11-21). "before" holds earlier questions in the same
+    # conversation, asked first; the checks apply to the last answer. max_lookups and max_words
+    # catch answers that call tools or ramble when they should not.
+    # A follow-up refers to the district discussed, not the one selected on the page.
+    {"before": ["What share of households in House District 20 receive SNAP?"],
+     "q": "What about the poverty rate there?", "district": "HD-13",
+     "figures": lambda: [profile("HD-20", "poverty_rate")],
+     "none_of": [r"House District 13\b"]},
+    # A bare number: answer as House and say so, rather than stopping to ask.
+    {"q": "What's the median household income in district 7?",
+     "figures": lambda: [profile("HD-7", "median_household_income")],
+     "any_of": ["Senate"]},
+    # A misspelled town, a local word and a "how many" question in one.
+    {"q": "How many kupuna live in Kaneohee?",
+     "figures": lambda: [count(house_for("Kāneʻohe"), "share_65_plus")],
+     "any_of": ["Kāneʻohe"]},
+    # An island name and a ranking within one county.
+    {"q": "Which House district on the Big Island has the highest poverty rate?",
+     "figures": lambda: list(top_ranked("poverty_rate", "house", "share", "Hawaiʻi"))},
+    # The reverse lookup: what is in a district.
+    {"q": "What neighborhoods are in House District 20?",
+     "figures": lambda: ["Kāhala", "Kapahulu"], "cite": False},
+    # A statewide question with no district anywhere.
+    {"q": "What is the statewide median household income?",
+     "figures": lambda: [profile("HD-1", "median_household_income", "state")]},
+    {"q": "How many people below the poverty line live in House District 13?",
+     "figures": lambda: [count("HD-13", "poverty_rate")]},
+    # Not in the data: say so, give the closest figures or who publishes it, never a dead end.
+    {"q": "How many homeless people are there in House District 25?",
+     "any_of": ["Point-in-Time", "Partners in Care", "Bridging the Gap"]},
+    {"q": "Who is the representative for House District 13?",
+     "any_of": ["capitol.hawaii.gov"]},
+    {"q": "Has poverty gone up in House District 5?",
+     "any_of": ["2020-2024", "2020–2024", "over time", "one period", "trend"]},
+    # A hypothetical household is fine; it is not a real person.
+    {"q": "A family of three in Hilo earns $3,500 a month. Could they get SNAP?",
+     "figures": lambda: [snap_limit(3, 0)],
+     "any_of": ["may qualify", "might qualify", "could qualify", "likely qualify"],
+     "none_of": [r"\b(you|they|famil(y|ies)) (are|is) eligible\b", r"\bcan't help\b",
+                 r"\bcannot help\b"]},
+    # Small talk and "what can you do": short, no lookups.
+    {"q": "Thanks!", "max_lookups": 0, "max_words": 40},
+    {"q": "What can you do?", "max_lookups": 1, "max_words": 150,
+     "any_of": ["ZIP", "rank", "compare"]},
+    # An open question, answered with neutral words.
+    {"q": "How is House District 44 doing?",
+     "any_of": ["state"],
+     "none_of": [r"\bstruggl", r"\bdistressed\b", r"\bhigh[- ]need\b", r"\bunderserved\b",
+                 r"\baffluent\b", r"\bwealthy\b"]},
+    # A format follow-up redoes the previous answer as asked.
+    {"before": ["Compare median household income in House District 18 with its county and the "
+                "state."],
+     "q": "Put that in a table.",
+     "figures": lambda: [profile("HD-18", "median_household_income")],
+     "any_of": ["|"]},
 ]
 
 # Hawaiian words written without the ʻokina or kahakō (case-sensitive, so URLs such as
@@ -193,6 +255,10 @@ def check(item: dict, out: dict) -> list[str]:
     for pat in item.get("none_of", []):
         if re.search(pat, text, re.I):
             problems.append(f"contains forbidden pattern {pat!r}")
+    if "max_lookups" in item and len(out["trace"]) > item["max_lookups"]:
+        problems.append(f"{len(out['trace'])} lookups, expected at most {item['max_lookups']}")
+    if "max_words" in item and len(text.split()) > item["max_words"]:
+        problems.append(f"{len(text.split())} words, expected at most {item['max_words']}")
     # Checks on every answer:
     cited = {sid for g in re.findall(r"\[([^\]]*)\]", text) for sid in re.findall(r"\bS\d+\b", g)}
     unknown = cited - {s["id"] for s in out["sources"]}
@@ -216,7 +282,13 @@ def main() -> None:
     for i, item in enumerate(QUESTIONS, 1):
         if picks and i not in picks:
             continue
-        out = agent.answer([{"role": "user", "content": item["q"]}], item.get("district"))
+        history: list[dict] = []
+        for earlier in item.get("before", []):
+            history.append({"role": "user", "content": earlier})
+            history.append({"role": "assistant",
+                            "content": agent.answer(history, item.get("district"))["answer"]})
+        history.append({"role": "user", "content": item["q"]})
+        out = agent.answer(history, item.get("district"))
         problems = check(item, out)
         ok = not problems
         print(f"[{'PASS' if ok else 'FAIL'}] {i}. {item['q']}" + ("" if ok else f" - {problems}"))

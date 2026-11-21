@@ -268,7 +268,7 @@ const cellDiff = text => text.replace(" points ", " pts ");
 
 // Table of comparisons (district with margin of error, county, state, differences), grouped.
 export function comparisonTable(comps, countyName, { groupRows = true } = {}) {
-  const t = el("table");
+  const t = el("table", { className: "cmp" }); // .cmp: the print builder can drop the county and state columns
   const cn = countyName || "County";
   const head = t.createTHead().insertRow();
   ["Measure", "This district", cn, "State", "Vs " + cn, "Vs state"].forEach(h => head.append(el("th", { scope: "col", textContent: h })));
@@ -812,3 +812,49 @@ export const skTiles = (n = 3) => el("div", { className: "prog-links" }, ...time
 export const skProfile = (pair = false) => [sk("sk-h1", pair ? "70%" : "42%"),
   ...(pair ? [sk("sk-line", "52%"), sk("sk-line", "48%")] : [sk("sk-line", "38%")]),
   sk("sk-switch"), skFacts(6), skButtons(3), skAccordions(3)];
+
+// ---------- report sections (presets.js `sections`), shared by the report page and the print builder ----------
+export function renderSection(s, data, county) {
+  let body = null;
+  if (s.type === "group") {
+    // The section heading already says what the rows are, so drop the repeated label prefix.
+    const comps = data.comparisons.filter(c => c.group === s.group)
+      .map(c => ({ ...c, label: c.label.replace(/^Employed residents working in:\s*/, "") }));
+    if (comps.length) body = el("div", {},
+      comps[0].group_note ? el("p", { className: "muted small", textContent: comps[0].group_note }) : null,
+      comparisonTable(comps, county, { groupRows: false }));
+  } else if (s.type === "taxAreas") body = taxAreasBody(data, county);
+  else if (s.type === "context") body = contextBody(data, county, s.ids);
+  else if (s.type === "programs") body = programsBody(data);
+  else if (s.type === "likelyEligible") body = likelyEligibleBody(data);
+  else if (s.type === "note") body = el("div", { className: "card" }, el("p", { className: "muted", style: "margin:0", textContent: s.text }));
+  return el("section", { className: "block" }, el("h2", { textContent: s.title }),
+    body || el("p", { className: "muted", textContent: "Not available for this district." }));
+}
+
+// A section in comparison mode. Metric groups compare side by side; tax areas, county context
+// and programs describe one district or its county, so they link to each district's own report.
+export function renderPairSection(s, a, b, view = "overview") {
+  let body;
+  if (s.type === "group") {
+    const comps = a.comparisons.filter(c => c.group === s.group);
+    const strip = x => ({ ...x, comparisons: x.comparisons.map(c => ({ ...c, label: c.label.replace(/^Employed residents working in:\s*/, "") })) });
+    body = comps.length ? el("div", {},
+      comps[0].group_note ? el("p", { className: "muted small", textContent: comps[0].group_note }) : null,
+      pairTable(comps.map(c => c.metric_id), strip(a), strip(b))) : null;
+  } else if (s.type === "note") {
+    body = el("div", { className: "card" }, el("p", { className: "muted", style: "margin:0", textContent: s.text }));
+  } else if (s.type === "likelyEligible") {
+    body = likelyEligiblePair(a, b);
+  } else if (s.type === "programs") {
+    body = programsBody(a); // program facts are the same for every district
+  } else {
+    const what = s.type === "taxAreas" ? "Tax areas overlap each district differently"
+      : "These describe each district's county, not the district";
+    const link = d => el("a", { href: reportUrl(d.geo_id, view), textContent: d.name });
+    body = el("div", { className: "card" }, el("p", { className: "muted", style: "margin:0" },
+      `${what}, so they aren't compared. See `, link(a), " and ", link(b), "."));
+  }
+  return el("section", { className: "block" }, el("h2", { textContent: s.title }),
+    body || el("p", { className: "muted", textContent: "Not available for these districts." }));
+}

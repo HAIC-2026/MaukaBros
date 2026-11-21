@@ -3,7 +3,8 @@
 import { fmtMetric, fmtCount, fmtMoe, shortCounty, districtLabel, compareEstimates } from "/js/format.js";
 import { $, el, tableLinks, renderKeyFact, renderPairFact, renderContext, renderTaxAreas, programsHelp, planLine, reportUrl, factKey, cardStyleSwitch, countyOf,
   skeleton, sk, skLines, skProfile, skAccordions } from "/js/render.js";
-import { presetById, presetFor, districtFor } from "/js/presets.js";
+import { presetById, presetFor, districtFor, REPORT_TABS } from "/js/presets.js";
+import { initPrintBuilder } from "/js/print-builder.js";
 import { renderMarkdown } from "/js/markdown.js";
 
 const COLORS = ["#defbe6", "#a7f0ba", "#42be65", "#198038", "#0e6027"]; // Carbon green 10, 20, 40, 60, 70
@@ -65,6 +66,7 @@ function labelSpot(geom) {
 // ---------- summary ----------
 // The map page shows the headline figures; the report page (report.html) has every view.
 let redraw = null; // redraws the current profile, e.g. after the card view changes
+let shown = null;   // the profile on screen, { data, dataVs }, for the print builder
 const popLineOf = data => {
   const pop = data.facts.find(f => f.indicator_id === "pop_total");
   return pop && pop.value_status === "ok"
@@ -79,6 +81,7 @@ const viewSwitch = () => cardStyleSwitch(() => {
 
 function renderProfile(data) {
   redraw = () => renderProfile(data);
+  shown = { data, dataVs: null };
   const comps = data.comparisons;
   const keyComps = presetById("overview").metrics.map(id => comps.find(c => c.metric_id === id)).filter(Boolean);
   const county = comps[0] && comps[0].county ? shortCounty(comps[0].county.name) : "";
@@ -90,7 +93,7 @@ function renderProfile(data) {
   const programs = programsHelp(data.programs, { moreHref: reportUrl(data.geo_id, "programs"), collapsed: true });
   const actions = el("div", { className: "actions" },
     el("a", { className: "btn i-forward", href: reportUrl(data.geo_id), textContent: "Full report" }),
-    el("button", { className: "btn secondary i-print", type: "button", textContent: "Print / PDF", onclick: () => window.print() }),
+    el("button", { className: "btn secondary i-print", type: "button", textContent: "Print / PDF", onclick: () => printBuilder.open() }),
     el("button", { className: "btn secondary i-copy", type: "button", textContent: "Copy link",
       onclick: e => { navigator.clipboard && navigator.clipboard.writeText(location.href); e.target.textContent = "Link copied"; } }));
 
@@ -106,6 +109,7 @@ function renderProfile(data) {
 // against both margins of error. The full comparison (every view) is on the report page.
 function renderPairProfile(a, b) {
   redraw = () => renderPairProfile(a, b);
+  shown = { data: a, dataVs: b };
   const A = { id: a.geo_id, name: a.name }, B = { id: b.geo_id, name: b.name };
   const byId = (d, id) => d.comparisons.find(c => c.metric_id === id);
   const facts = el("div", { className: "facts" });
@@ -118,7 +122,7 @@ function renderPairProfile(a, b) {
   const full = `${reportUrl(a.geo_id)}&vs=${encodeURIComponent(b.geo_id)}`;
   const actions = el("div", { className: "actions" },
     el("a", { className: "btn i-forward", href: full, textContent: "Full comparison" }),
-    el("button", { className: "btn secondary i-print", type: "button", textContent: "Print / PDF", onclick: () => window.print() }),
+    el("button", { className: "btn secondary i-print", type: "button", textContent: "Print / PDF", onclick: () => printBuilder.open() }),
     el("button", { className: "btn secondary i-copy", type: "button", textContent: "Copy link",
       onclick: e => { navigator.clipboard && navigator.clipboard.writeText(location.href); e.target.textContent = "Link copied"; } }),
     // Leaves the comparison, so it looks different from the actions on it: borderless, with a close icon.
@@ -225,6 +229,26 @@ $("chat-open").addEventListener("click", () => { openChat(); $("chat-input").foc
 document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("chat").hidden && $("chat").contains(document.activeElement)) closeChat(); });
 $("chat-clear").addEventListener("click", () => { chat.history = []; $("chat-log").replaceChildren(); $("chat-input").focus(); });
 
+// Print / PDF on a district opens the same print builder as the full report (packet, one-page
+// brief or resident handout). Ctrl+P / Cmd+P opens it too while a district is shown; on the
+// landing page, or from the builder's "Print the screen as is", the browser prints the page.
+const printBuilder = initPrintBuilder(() => {
+  if (!shown) return null;
+  const { data, dataVs } = shown;
+  const year = data.comparisons[0] ? data.comparisons[0].source.year : "";
+  const sub = dataVs
+    ? [year && `Census ACS 5-year ${year}`, "Differences tested against both margins of error"]
+    : [countyOf(data), popLineOf(data), year && `Census ACS 5-year ${year}`];
+  const link = new URL(reportUrl(data.geo_id) + (dataVs ? `&vs=${encodeURIComponent(dataVs.geo_id)}` : ""), location.origin).href;
+  return { data, dataVs, view: "overview", tabs: REPORT_TABS, sub: sub.filter(Boolean).join(" · "), link };
+});
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "p" && shown && !document.querySelector("dialog[open]")) {
+    e.preventDefault();
+    printBuilder.open();
+  }
+});
+
 // Open every section when printing so the page prints as a complete one-pager.
 window.addEventListener("beforeprint", () => document.querySelectorAll("#main details").forEach(d => d.open = true));
 
@@ -249,7 +273,8 @@ function drawSelection(zoom) {
   fillLayer.graphics.forEach(g => { g.symbol = fillSymbol(g); });
   const find = id => id && state.mapData && state.mapData.features.find(x => x.properties.geo_id === id);
   const f = find(state.districtId), fv = find(state.vsId);
-  if (!f) { if (zoom) goExtent(STATE_EXTENT); return; }
+  if (!f) { if (zoom) showState(); return; }
+  holdState = false;
   const geometry = polygon(f.geometry);
   selLayer.addMany([new GraphicCtor({ geometry, symbol: outline([255, 255, 255, 0.95], 3) }),
                     new GraphicCtor({ geometry, symbol: outline("#393939", 1.5) })]);
@@ -265,9 +290,18 @@ function drawSelection(zoom) {
     goTo(ext.expand(fv ? 1.6 : 2.6));
   }
 }
-const goTo = target => view.when(() => view.goTo(target, { animate: !REDUCE_MOTION }).catch(() => {}));
-function goExtent(e) {
-  goTo(new ExtentCtor({ ...e, spatialReference: { wkid: 4326 } }).expand(1.08));
+const goTo = (target, animate = true) => view.when(() => view.goTo(target, { animate: animate && !REDUCE_MOTION }).catch(() => {}));
+function goExtent(e, animate = true) {
+  goTo(new ExtentCtor({ ...e, spatialReference: { wkid: 4326 } }).expand(1.08), animate);
+}
+// With no district chosen the map shows the whole state. Until someone pans or zooms, it re-fits
+// whenever its box changes size (fonts loading, the header settling, the layout switching between
+// the landing page and a district), so the state is never left cropped or off-center.
+let holdState = !/^(HD|SD)-\d{1,2}$/i.test(new URL(location.href).searchParams.get("d") || "");
+function showState(animate = true) {
+  holdState = true;
+  markArea(AREAS[0].label);
+  goExtent(STATE_EXTENT, animate);
 }
 function countyExtent(countyId) {
   if (!state.mapData) return null;
@@ -307,6 +341,7 @@ async function selectDistrict(id, zoom = true) {
   const vs = state.vsId;
   $("district").value = id || "";
   $("intro").hidden = !!id;
+  document.querySelector(".layout").classList.toggle("is-landing", !id);
   fillVsList();
   chatContext();
   $("report-link").hidden = !id;
@@ -316,6 +351,7 @@ async function selectDistrict(id, zoom = true) {
   vs ? url.searchParams.set("vs", vs) : url.searchParams.delete("vs");
   history.replaceState(null, "", url);
   drawSelection(zoom);
+  shown = null;
   if (!id) { renderLanding(); return; }
   $("main").replaceChildren(skeleton(`Loading ${districtLabel(id)}${vs ? ` and ${districtLabel(vs)}` : ""}…`, ...skProfile(!!vs)));
   try {
@@ -329,6 +365,17 @@ async function selectDistrict(id, zoom = true) {
 
 // ---------- find a district by place (no AI: GET /api/find, the assistant's own lookup) ----------
 const KIND = { zip_code: "ZIP code", census_place: "Town", neighborhood: "Neighborhood", tax_area: "DOTAX tax area" };
+// A match's districts as two labeled rows, House then Senate, each in the order the API gives (largest share first).
+function findChambers(ds) {
+  return [["House", "HD-"], ["Senate", "SD-"]].map(([ch, prefix]) => {
+    const mine = ds.filter(d => d.district_id.startsWith(prefix));
+    if (!mine.length) return null;
+    const list = el("div", { className: "find-list" }, ...mine.map(d => el("button", { type: "button", className: "find-go",
+      onclick: () => goFind(d.district_id), ariaLabel: d.name + (d.share_of_residents ? `, ${d.share_of_residents} of residents` : "") },
+      d.name.replace(/^(House|Senate) /, ""), d.share_of_residents ? el("span", { className: "find-share", textContent: d.share_of_residents }) : null)));
+    return el("div", { className: "find-ch" }, el("span", { className: "find-ch-label", textContent: ch }), list);
+  }).filter(Boolean);
+}
 function findResults(r) {
   const out = [];
   r.matches.forEach(m => {
@@ -339,12 +386,10 @@ function findResults(r) {
     }
     const kind = Object.keys(KIND).find(k => m[k]);
     const title = el("p", { className: "find-title" }, el("strong", { textContent: m[kind] }),
-      el("span", { className: "find-kind", textContent: kind === "neighborhood" ? `${KIND[kind]}, ${m.county}` : KIND[kind] }));
-    const list = el("div", { className: "find-list" });
-    (m.districts || []).forEach(d => list.append(el("button", { type: "button", className: "find-go", onclick: () => goFind(d.district_id) },
-      d.name, d.share_of_residents ? el("span", { className: "find-share", textContent: d.share_of_residents }) : null)));
-    if (!(m.districts || []).length) list.append(el("p", { className: "muted small", textContent: "No residents found for this ZIP code (it may be PO-box only)." }));
-    out.push(el("div", { className: "find-hit" }, title, list));
+      el("span", { className: "find-kind", textContent: m.county ? `${KIND[kind]}, ${m.county}` : KIND[kind] }));
+    const body = (m.districts || []).length ? findChambers(m.districts)
+      : [el("p", { className: "muted small", textContent: "No residents found for this ZIP code (it may be PO-box only)." })];
+    out.push(el("div", { className: "find-hit" }, title, ...body));
   });
   if (!out.length) return [el("p", { className: "small", textContent: "No match. Try a town, neighborhood, ZIP code or district number. Street addresses aren't supported." })];
   const shares = r.matches.some(m => (m.districts || []).some(d => d.share_of_residents));
@@ -523,7 +568,10 @@ require(["esri/Map", "esri/views/MapView", "esri/layers/GraphicsLayer", "esri/Gr
       view.constraints.geometry = view.spatialReference.isWebMercator ? webMercatorUtils.geographicToWebMercator(box) : box;
       limitZoomOut();
     });
-    view.on("resize", limitZoomOut);
+    view.on("resize", () => { limitZoomOut(); if (holdState) goExtent(STATE_EXTENT, false); });
+    // Moving the map by hand (drag, wheel, keys, double-click or the zoom buttons) lets it stay put.
+    view.on(["drag", "mouse-wheel", "double-click", "key-down"], () => { holdState = false; });
+    view.when(() => view.container.addEventListener("click", e => { if (e.target.closest(".esri-zoom")) holdState = false; }));
 
     const quantileEdges = (values, n) => {
       const v = values.filter(x => x !== null).sort((a, b) => a - b);
@@ -671,7 +719,7 @@ function markArea(label) {
 }
 function buildIslandButtons() {
   $("islands").replaceChildren(...AREAS.map(a => el("button", { type: "button", textContent: a.label,
-    onclick: () => { markArea(a.label); goExtent(a.county ? countyExtent(a.county) || STATE_EXTENT : STATE_EXTENT); } })));
+    onclick: () => { if (!a.county) return showState(); holdState = false; markArea(a.label); goExtent(countyExtent(a.county) || STATE_EXTENT); } })));
   markArea(AREAS[0].label);
 }
 
@@ -700,7 +748,7 @@ async function init() {
     fillDistrictList();
     await drawMap();
     if (state.districtId) { $("district").value = state.districtId; selectDistrict(state.districtId, true); }
-    else renderLanding();
+    else { renderLanding(); showState(false); } // land on the whole state, fitted to the map's final size
   } catch (err) {
     $("main").replaceChildren(el("p", { className: "error", textContent: "Could not load. " + err.message }));
   }
@@ -723,6 +771,7 @@ $("metric").addEventListener("change", () => drawMap());
   const d = (q.get("d") || "").toUpperCase(), vs = (q.get("vs") || "").toUpperCase();
   if (/^(HD|SD)-\d{1,2}$/.test(d)) {
     $("intro").hidden = true;
+    document.querySelector(".layout").classList.remove("is-landing");
     $("main").replaceChildren(skeleton(`Loading ${districtLabel(d)}…`, ...skProfile(/^(HD|SD)-\d{1,2}$/.test(vs))));
   } else landingSkeleton();
   $("vs").closest(".field").hidden = !/^(HD|SD)-\d{1,2}$/.test(d);
@@ -735,8 +784,7 @@ $("brand").addEventListener("click", e => {
   e.preventDefault();
   closeFind();
   state.vsId = null;
-  markArea(AREAS[0].label);
-  selectDistrict(null, true);
+  selectDistrict(null, true); // re-fits the whole state and marks "Statewide"
   window.scrollTo({ top: 0, behavior: REDUCE_MOTION ? "auto" : "smooth" });
 });
 

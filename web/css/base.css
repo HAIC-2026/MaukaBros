@@ -11,6 +11,7 @@
 :root {
   /* Carbon White theme */
   --bg: #ffffff;              /* background */
+  --bg-glass: rgba(255, 255, 255, 0.78); /* translucent background behind the blurred sticky nav */
   --layer: #f4f4f4;           /* layer-01: tiles, fields, table rows */
   --layer-hover: #e8e8e8;     /* layer-hover-01 */
   --layer-accent: #e0e0e0;    /* layer-accent-01: table headers */
@@ -23,7 +24,10 @@
   --accent: #198038;          /* green 60: buttons, links, selected states (5:1 with white) */
   --accent-dark: #0e6027;     /* green 70: hover */
   --accent-soft: #defbe6;     /* green 10 */
-  --focus: #0f62fe;           /* Carbon focus */
+  --focus: #198038;           /* focus ring: the brand accent (5:1 on white, 3.6:1 on the dark shell) */
+  --selection: rgba(25, 128, 56, 0.2); /* text selection: a soft tint of the accent */
+  --scrollbar: #c6c6c6;       /* scrollbar thumb */
+  --scrollbar-hover: #8d8d8d;
   --warn: #684e00;            /* yellow 70 text */
   --warn-bg: #fcf4d6;         /* notification warning background */
   --warn-border: #f1c21b;     /* support-warning */
@@ -54,9 +58,25 @@ body { margin: 0; font-family: var(--font); background: var(--bg); color: var(--
 h1, h2, h3, h4 { font-weight: 600; letter-spacing: 0; }
 a { color: var(--accent); text-underline-offset: 2px; }
 a:hover { color: var(--accent-dark); }
-a:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible,
-textarea:focus-visible, summary:focus-visible, [tabindex]:focus-visible {
-  outline: 2px solid var(--focus); outline-offset: -2px; }
+/* Focus: no browser default ring; keyboard focus gets a 2px accent ring on every focusable element.
+   Filled controls (primary buttons, the pressed chamber switch) add a white inner ring so the green
+   ring still shows against a green or dark fill. Text links get the ring outside the text instead. */
+:focus:not(:focus-visible) { outline: none; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.btn:focus-visible, .seg button:focus-visible { box-shadow: inset 0 0 0 3px var(--bg); }
+a:not(.btn):focus-visible { outline-offset: 2px; }
+
+::selection { background: var(--selection); }
+
+/* Thin, quiet scrollbars: the standard properties where supported, WebKit pseudo-elements elsewhere (Safari) */
+:root { scrollbar-color: var(--scrollbar) transparent; }
+* { scrollbar-width: thin; }
+@supports not (scrollbar-width: thin) {
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); background-clip: padding-box; }
+}
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* Icons: add i-launch, i-forward, i-back, i-print, i-copy or i-chat to a .btn; the icon sits at the right, as in Carbon */
@@ -260,9 +280,9 @@ details.prog-details ul { margin: 0.25rem 0; padding-left: 1.25rem; font-size: 0
 .fact .calc ul { font-size: 0.75rem; }
 
 /* Where to apply (programLinks / programsHelp): one tile per program with its official page */
-.prog-help { margin: 2.5rem 0 0; padding-top: 1.5rem; border-top: 1px solid var(--border); scroll-margin-top: calc(var(--hdr, 0px) + 1rem); }
+.prog-help { margin: 2.5rem 0 0; padding-top: 1.5rem; border-top: 1px solid var(--border); scroll-margin-top: calc(var(--hdr, 0px) + var(--nav, 0px) + 1rem); }
 .prog-help > h3 { margin: 0 0 0.5rem; font-size: 1.5rem; font-weight: 400; line-height: 1.3; }
-#prog-help-h { scroll-margin-top: calc(var(--hdr, 0px) + 1rem); }
+#prog-help-h { scroll-margin-top: calc(var(--hdr, 0px) + var(--nav, 0px) + 1rem); }
 .prog-help .prog-more, .prog-drop .prog-more { margin: 1rem 0 0; font-size: 0.875rem; }
 details.prog-drop > summary .count { color: var(--muted); font-size: 0.75rem; margin-left: 0.5rem; }
 details.prog-drop .prog-links { grid-template-columns: repeat(auto-fill, minmax(min(16rem, 100%), 1fr)); }
@@ -318,6 +338,20 @@ details.prog-drop .prog-links { grid-template-columns: repeat(auto-fill, minmax(
 .msg.thinking .sk-lines { max-width: 22rem; }
 .msg.thinking .sk { background: var(--layer-hover); }
 
+/* Sticky top nav: frosted glass over the page, with a bottom border that js/nav.js turns on
+   once the page has scrolled 20px. The border stays in the box (transparent) so the height never shifts. */
+.nav-glass { position: sticky; top: 0; z-index: 10; background: var(--bg-glass);
+             -webkit-backdrop-filter: blur(12px) saturate(180%); backdrop-filter: blur(12px) saturate(180%);
+             border-bottom: 1px solid transparent; transition: border-color 150ms ease; }
+.nav-glass.is-scrolled { border-bottom-color: var(--border); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .nav-glass { background: var(--bg); }
+}
+/* On small screens the control bar wraps to several rows, too tall to pin over the content */
+@media (max-width: 900px) {
+  .nav-glass { position: static; }
+}
+
 /* Narrow screens: wide data tables keep readable columns and scroll sideways inside their box
    (the two-district table restacks itself instead) */
 @media screen and (max-width: 600px) {
@@ -340,3 +374,7 @@ details.prog-drop .prog-links { grid-template-columns: repeat(auto-fill, minmax(
   .prog-go { display: none !important; }
   .print-url { display: block; margin: 0; font-size: 0.75rem; word-break: break-all; }
 }
+
+/* Logo mark beside the brand name in the header */
+.brand { display: inline-flex; align-items: center; gap: 0.5rem; }
+.brand-mark { width: 1.75rem; height: 1.75rem; flex: none; display: block; }

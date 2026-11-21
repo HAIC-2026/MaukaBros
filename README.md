@@ -130,7 +130,8 @@ How districts are linked to smaller areas: [docs/GEOGRAPHY_METHOD.md](docs/GEOGR
 ```
 python validation/validate.py        # 70 data checks
 python validation/test_security.py   # 39 security checks, no AI calls
-python validation/test_agent.py      # 21 assistant questions (uses the Anthropic API)
+python validation/test_lookup.py     # 37 checks of how place and district names are read, no AI calls
+python validation/test_agent.py      # 36 assistant questions (uses the Anthropic API)
 ```
 
 - Our district figures match DBEDT's published ACS district profiles exactly: 1,064 estimates and

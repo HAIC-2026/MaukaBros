@@ -1,9 +1,10 @@
 // Report page (report.html): district report, views, comparison of two districts.
 // Kept out of the HTML so the Content Security Policy can forbid inline scripts.
-import { $, el, renderKeyFact, renderPairFact, missingFact, comparisonTable, renderDetails, contextBody, taxAreasBody, programsBody, planLine, countyOf, pairTable, reportUrl, takeQuestion, likelyEligibleBody, likelyEligiblePair, factKey, cardStyleSwitch,
+import { $, el, renderSection, renderPairSection, renderKeyFact, renderPairFact, missingFact, comparisonTable, renderDetails, contextBody, taxAreasBody, programsBody, planLine, countyOf, pairTable, reportUrl, takeQuestion, likelyEligibleBody, likelyEligiblePair, factKey, cardStyleSwitch,
   skeleton, sk, skLines, skFacts, skTable } from "/js/render.js";
 import { fmtCount, fmtMoe, fmtToday } from "/js/format.js";
-import { PRESETS, presetById } from "/js/presets.js";
+import { presetById, REPORT_TABS } from "/js/presets.js";
+import { initPrintBuilder } from "/js/print-builder.js";
 
 const params = new URL(location.href).searchParams;
 const state = {
@@ -28,9 +29,7 @@ function syncUrl() {
 }
 
 // ---------- tabs (WAI-ARIA tabs pattern, automatic activation) ----------
-// Programs sits right after Overview. (PRESETS keeps its own order: the assistant's view
-// matching depends on it.)
-const TABS = [PRESETS[0], presetById("programs"), ...PRESETS.slice(1).filter(p => p.id !== "programs")];
+const TABS = REPORT_TABS; // Programs right after Overview (presets.js)
 function buildTabs() {
   $("tabs").replaceChildren(...TABS.map(p => el("button", {
     type: "button", role: "tab", id: "tab-" + p.id, textContent: p.label,
@@ -65,51 +64,6 @@ function selectView(id, focusTab) {
 }
 
 // ---------- panel ----------
-function renderSection(s, data, county) {
-  let body = null;
-  if (s.type === "group") {
-    // The section heading already says what the rows are, so drop the repeated label prefix.
-    const comps = data.comparisons.filter(c => c.group === s.group)
-      .map(c => ({ ...c, label: c.label.replace(/^Employed residents working in:\s*/, "") }));
-    if (comps.length) body = el("div", {},
-      comps[0].group_note ? el("p", { className: "muted small", textContent: comps[0].group_note }) : null,
-      comparisonTable(comps, county, { groupRows: false }));
-  } else if (s.type === "taxAreas") body = taxAreasBody(data, county);
-  else if (s.type === "context") body = contextBody(data, county, s.ids);
-  else if (s.type === "programs") body = programsBody(data);
-  else if (s.type === "likelyEligible") body = likelyEligibleBody(data);
-  else if (s.type === "note") body = el("div", { className: "card" }, el("p", { className: "muted", style: "margin:0", textContent: s.text }));
-  return el("section", { className: "block" }, el("h2", { textContent: s.title }),
-    body || el("p", { className: "muted", textContent: "Not available for this district." }));
-}
-
-// A section in comparison mode. Metric groups compare side by side; tax areas, county context
-// and programs describe one district or its county, so they link to each district's own report.
-function renderPairSection(s, a, b) {
-  let body;
-  if (s.type === "group") {
-    const comps = a.comparisons.filter(c => c.group === s.group);
-    const strip = x => ({ ...x, comparisons: x.comparisons.map(c => ({ ...c, label: c.label.replace(/^Employed residents working in:\s*/, "") })) });
-    body = comps.length ? el("div", {},
-      comps[0].group_note ? el("p", { className: "muted small", textContent: comps[0].group_note }) : null,
-      pairTable(comps.map(c => c.metric_id), strip(a), strip(b))) : null;
-  } else if (s.type === "note") {
-    body = el("div", { className: "card" }, el("p", { className: "muted", style: "margin:0", textContent: s.text }));
-  } else if (s.type === "likelyEligible") {
-    body = likelyEligiblePair(a, b);
-  } else if (s.type === "programs") {
-    body = programsBody(a); // program facts are the same for every district
-  } else {
-    const what = s.type === "taxAreas" ? "Tax areas overlap each district differently"
-      : "These describe each district's county, not the district";
-    const link = d => el("a", { href: reportUrl(d.geo_id, state.view), textContent: d.name });
-    body = el("div", { className: "card" }, el("p", { className: "muted", style: "margin:0" },
-      `${what}, so they aren't compared. See `, link(a), " and ", link(b), "."));
-  }
-  return el("section", { className: "block" }, el("h2", { textContent: s.title }),
-    body || el("p", { className: "muted", textContent: "Not available for these districts." }));
-}
-
 function printLine(label) {
   const data = state.data;
   const year = data && data.comparisons[0] ? data.comparisons[0].source.year : "";
@@ -137,7 +91,7 @@ function renderPanel() {
     });
     $("panel").replaceChildren(el("p", { className: "blurb", textContent: `${p.label}: both districts side by side, with the state for reference.` }), notes,
       viewSwitch(), facts, ...[factKey(undefined, { a: a.id, b: b.id })].filter(Boolean),
- ...p.sections.map(s => renderPairSection(s, a, b)));
+ ...p.sections.map(s => renderPairSection(s, a, b, state.view)));
     document.title = `${data.geo_id} compared with ${state.dataVs.geo_id} · ${p.label} · District Insight`;
     return;
   }
@@ -277,7 +231,21 @@ $("district").addEventListener("change", e => {
   load();
 });
 $("vs").addEventListener("change", e => { state.vs = e.target.value; load(); });
-$("print").addEventListener("click", () => window.print());
+// Print / PDF opens the print builder (packet, one-page brief or resident handout). Ctrl+P / Cmd+P
+// opens it too once a report has loaded; the builder still offers the plain browser print.
+const printBuilder = initPrintBuilder(() => {
+  if (!state.data) return null;
+  const u = new URL(location.href);
+  u.searchParams.delete("qid"); u.searchParams.delete("q");
+  return { data: state.data, dataVs: state.dataVs, view: state.view, tabs: TABS, sub: $("sub").textContent, link: u.href };
+});
+$("print").addEventListener("click", () => state.data ? printBuilder.open() : window.print());
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "p" && state.data && !document.querySelector("dialog[open]")) {
+    e.preventDefault();
+    printBuilder.open();
+  }
+});
 $("copy").addEventListener("click", e => {
   const u = new URL(location.href);
   u.searchParams.delete("qid"); // the question was the sender's; the report stands alone

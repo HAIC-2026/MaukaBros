@@ -94,6 +94,10 @@ export const PRESETS = [
 
 export const presetById = id => PRESETS.find(p => p.id === id) || PRESETS[0];
 
+// The report's tab order: Programs right after Overview. (PRESETS keeps its own order: the
+// assistant's view matching depends on it.)
+export const REPORT_TABS = [PRESETS[0], presetById("programs"), ...PRESETS.slice(1).filter(p => p.id !== "programs")];
+
 const plain = s => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[ʻ'‘]/g, "");
 
 // Pick the report view that best matches a chat answer: the question's words first, then the

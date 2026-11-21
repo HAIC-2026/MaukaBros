@@ -1,0 +1,228 @@
+/* Print builder (js/print-builder.js): the dialog on screen, and the document it prints.
+   Dialog follows the Carbon modal (grey container, half-width footer buttons). */
+
+/* ---------- dialog ---------- */
+dialog.pb { padding: 0; border: 0; border-radius: 0; background: var(--layer); color: var(--text);
+  width: min(46rem, calc(100vw - 2rem)); max-height: calc(100dvh - 3rem); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); }
+dialog.pb::backdrop { background: rgba(22, 22, 22, 0.5); }
+dialog.pb[open] { display: flex; }
+.pb form { display: flex; flex-direction: column; width: 100%; min-height: 0; }
+.pb-head { position: relative; padding: 1rem 3.5rem 0.5rem 1rem; }
+.pb-kicker { margin: 0; font-size: 0.75rem; letter-spacing: 0.32px; color: var(--muted); }
+.pb-head h2 { margin: 0.25rem 0 0.5rem; font-size: 1.25rem; font-weight: 400; line-height: 1.4; }
+.pb-lead { margin: 0; font-size: 0.875rem; color: var(--muted); max-width: 38rem; }
+.pb-x { position: absolute; top: 0; right: 0; width: 3rem; height: 3rem; border: 0; background: transparent; cursor: pointer; color: var(--text); }
+.pb-x::after { content: ""; position: absolute; inset: 0; margin: auto; width: 1.25rem; height: 1.25rem; background: currentColor;
+  -webkit-mask: var(--i-close) no-repeat center / contain; mask: var(--i-close) no-repeat center / contain; }
+.pb-x:hover { background: var(--layer-hover); }
+
+.pb-body { overflow-y: auto; padding: 0.5rem 1rem 1.5rem; flex: 1 1 auto; min-height: 0; }
+.pb fieldset { border: 0; margin: 1.25rem 0 0; padding: 0; min-width: 0; }
+.pb fieldset[hidden], .pb [data-for][hidden] { display: none; }
+.pb legend { padding: 0; margin-bottom: 0.5rem; font-size: 0.875rem; font-weight: 600; }
+.pb-help { display: block; font-size: 0.75rem; letter-spacing: 0.32px; color: var(--muted); margin-top: 0.125rem; font-weight: 400; }
+.pb input[type="checkbox"], .pb input[type="radio"] { accent-color: var(--accent); width: 1rem; height: 1rem; margin: 0.125rem 0 0; flex: none; }
+
+/* Kind of printout: selectable tiles, each with a small drawing of the page */
+.pb-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; }
+.pb-tile { position: relative; display: flex; flex-direction: column; gap: 0.75rem; padding: 1rem; background: var(--bg);
+  border: 1px solid transparent; cursor: pointer; }
+.pb-tile:hover { background: #f8f8f8; }
+.pb-tile input { position: absolute; top: 1rem; right: 1rem; }
+.pb-tile:has(input:checked) { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.pb-tile:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: -2px; }
+.pb-tile-text strong { display: block; font-size: 0.875rem; }
+.pb-tile-text span { display: block; font-size: 0.75rem; letter-spacing: 0.32px; color: var(--muted); margin-top: 0.25rem; }
+
+.pb-thumb { position: relative; display: flex; flex-direction: column; gap: 3px; width: 2.75rem; height: 3.5rem; padding: 5px;
+  background: #fff; border: 1px solid var(--border-strong); }
+.pb-thumb.t-packet { box-shadow: 3px 3px 0 -1px #fff, 3px 3px 0 0 var(--border-strong), 6px 6px 0 -1px #fff, 6px 6px 0 0 var(--border-strong); }
+.pb-thumb span { display: block; height: 2px; background: #c6c6c6; flex: none; }
+.pb-thumb .bar { height: 4px; background: var(--accent); }
+.pb-thumb .w60 { width: 60%; } .pb-thumb .w70 { width: 70%; } .pb-thumb .w80 { width: 80%; }
+.pb-thumb .grid2, .pb-thumb .grid3 { height: 12px; background:
+  linear-gradient(90deg, #e0e0e0 0 47%, transparent 47% 53%, #e0e0e0 53%); }
+.pb-thumb .grid3 { height: 14px; background:
+  linear-gradient(#fff 0 0) 0 6px / 100% 2px no-repeat,
+  linear-gradient(90deg, #e0e0e0 0 30%, transparent 30% 35%, #e0e0e0 35% 65%, transparent 65% 70%, #e0e0e0 70%); }
+.pb-thumb .big { height: 4px; width: 75%; background: var(--text); }
+.pb-thumb .thick { height: 3px; }
+
+/* Views and options: checkbox rows */
+.pb-quick { display: flex; flex-wrap: wrap; gap: 0 1rem; margin: -0.25rem 0 0.5rem; }
+.pb-link { font: inherit; font-size: 0.75rem; letter-spacing: 0.32px; color: var(--accent); background: none; border: 0; padding: 0.25rem 0;
+  cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.pb-link:hover { color: var(--accent-dark); }
+.pb-views { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; }
+.pb-opts { display: grid; gap: 1px; }
+.pb-check { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.625rem 0.75rem; background: var(--bg); cursor: pointer; font-size: 0.875rem; }
+.pb-check:hover { background: #f8f8f8; }
+.pb-check strong { font-weight: 600; }
+.pb-appendix { grid-column: 1 / -1; }
+.pb-here { display: inline-block; margin-left: 0.5rem; padding: 0 0.5rem; font-size: 0.75rem; line-height: 1.25rem;
+  background: var(--accent-soft); color: var(--accent-dark); border-radius: 1rem; vertical-align: 1px; }
+
+/* Figure style: a segmented switch of radios */
+.pb-seg { display: inline-flex; gap: 1px; }
+.pb-seg label { position: relative; cursor: pointer; }
+.pb-seg input { position: absolute; opacity: 0; inset: 0; margin: 0; width: 100%; height: 100%; cursor: pointer; }
+.pb-seg span { display: block; min-width: 6rem; padding: 0 1rem; line-height: 2.5rem; font-size: 0.875rem; text-align: center;
+  background: var(--bg); color: var(--muted); border: 1px solid var(--border); }
+.pb-seg input:checked + span { background: var(--text); color: #fff; border-color: var(--text); }
+.pb-seg input:focus-visible + span { outline: 2px solid var(--focus); outline-offset: 1px; }
+#pb-style-hint { margin-top: 0.5rem; }
+
+/* Personalize */
+.pb-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.pb .field input, .pb .field textarea { width: 100%; background: var(--bg); }
+.pb .field textarea { resize: vertical; min-height: 4rem; }
+
+/* Footer: summary line, then two half-width buttons */
+.pb-foot { flex: none; border-top: 1px solid var(--border); background: var(--layer); }
+.pb-foot-text { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 0.25rem 1rem; padding: 0.75rem 1rem; }
+.pb-summary { margin: 0; font-size: 0.875rem; font-weight: 600; }
+.pb-buttons { display: grid; grid-template-columns: 1fr 1fr; }
+.pb-buttons .btn { min-height: 4rem; align-items: flex-start; padding-top: 0.875rem; font-size: 0.875rem; }
+.pb-cancel { background: #393939; }
+.pb-cancel:hover { background: #4c4c4c; }
+
+@media (max-width: 600px) {
+  dialog.pb { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; }
+  .pb-tiles, .pb-views, .pb-fields { grid-template-columns: 1fr; }
+  .pb-tile { flex-direction: row; align-items: center; }
+  .pb-seg { display: flex; }
+  .pb-seg label { flex: 1 1 0; }
+  .pb-seg span { min-width: 0; }
+}
+
+/* ---------- the printed document ---------- */
+#print-doc { display: none; }
+
+@media print {
+  html.pd-on body > *:not(#print-doc) { display: none !important; }
+  html.pd-on #print-doc { display: block; }
+  html.pd-on { font-size: 14px !important; }
+  html.pd-on.pd-f-brief { font-size: 12px !important; }
+  html.pd-on.pd-f-handout { font-size: 16px !important; }
+  html.pd-on.pd-large { font-size: 17px !important; }
+  html.pd-on.pd-large.pd-f-brief { font-size: 13.5px !important; }
+  html.pd-on.pd-large.pd-f-handout { font-size: 20px !important; }
+}
+
+/* Measuring (print-builder.js fitOnePage): for one synchronous layout, before anything is painted,
+   the page takes the printed type size and the document sits off screen at the printable width of
+   A4 (the narrower of A4 and Letter), so the one-page brief can be scaled to fit. */
+html.pd-measure { font-size: 12px !important; }
+html.pd-measure.pd-large { font-size: 13.5px !important; }
+#print-doc.pd-measuring { display: block; position: absolute; left: -10000px; top: 0; width: 678px; visibility: hidden; }
+
+/* The document's own styles apply on paper and while it is measured; on screen it is never shown. */
+@media all {
+  .pd { color: #161616; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .pd h1, .pd h2, .pd h3 { break-after: avoid; }
+
+  /* Masthead: green rule, kicker, district, then a strip of who / when / where */
+  .pd-top { margin-bottom: 1.25rem; }
+  .pd-mast { border-top: 6px solid var(--accent); padding-top: 0.75rem; }
+  .pd-kicker { margin: 0; font-size: 0.75rem; letter-spacing: 0.32px; text-transform: uppercase; color: var(--muted); }
+  .pd-kicker span { font-weight: 600; color: var(--accent); }
+  .pd-mast h1 { margin: 0.25rem 0 0; font-size: 2rem; font-weight: 400; line-height: 1.2; }
+  .pd-sub { margin: 0.25rem 0 0; font-size: 0.875rem; color: var(--muted); }
+  .pd-meta { display: flex; flex-wrap: wrap; gap: 0; margin: 1rem 0 0; border-top: 1px solid #c6c6c6; border-bottom: 1px solid #c6c6c6; }
+  .pd-meta > div { flex: 1 1 0; min-width: 8rem; padding: 0.5rem 0.75rem; border-left: 1px solid #e0e0e0; }
+  .pd-meta > div:first-child { border-left: 0; padding-left: 0; }
+  .pd-meta dt { font-size: 0.6875rem; letter-spacing: 0.32px; text-transform: uppercase; color: var(--muted); }
+  .pd-meta dd { margin: 0.125rem 0 0; font-size: 0.8125rem; word-break: break-word; }
+  .pd-note { margin: 1rem 0 0; padding: 0.75rem 1rem; background: var(--accent-soft); border-left: 3px solid var(--accent); break-inside: avoid; }
+  .pd-note p { margin: 0; font-size: 0.875rem; white-space: pre-line; }
+  .pd-note .pd-note-label { font-size: 0.75rem; font-weight: 600; margin-bottom: 0.25rem; }
+  .pd-plan details.plan { margin: 0 0 1rem; font-size: 0.8125rem; }
+
+  /* Contents */
+  .pd-toc { margin: 1.5rem 0 0; }
+  .pd-toc h2 { font-size: 1rem; font-weight: 600; margin: 0 0 0.5rem; }
+  .pd-toc ol { margin: 0; padding: 0; list-style: none; counter-reset: toc; }
+  .pd-toc li { counter-increment: toc; display: grid; grid-template-columns: 2rem 10rem 1fr; gap: 0.75rem; padding: 0.5rem 0;
+    border-top: 1px solid #e0e0e0; font-size: 0.875rem; }
+  .pd-toc li::before { content: counter(toc); font-weight: 600; color: var(--accent); }
+  .pd-toc li span { color: var(--muted); }
+
+  /* Each view */
+  .pd-view { margin-top: 2rem; }
+  .pd-view.pd-break { break-before: page; margin-top: 0; }
+  .pd-view-head { display: flex; gap: 0.75rem; align-items: flex-start; padding-bottom: 0.5rem; margin-bottom: 1rem;
+    border-bottom: 2px solid #161616; break-after: avoid; }
+  .pd-num { flex: none; width: 2rem; height: 2rem; line-height: 2rem; text-align: center; background: var(--accent); color: #fff; font-weight: 600; }
+  .pd-view-head h2 { margin: 0; font-size: 1.5rem; font-weight: 400; line-height: 1.3; }
+  .pd-view-head p { margin: 0.125rem 0 0; font-size: 0.875rem; color: var(--muted); }
+  .pd .block { margin-top: 1.5rem; }
+  .pd .block > h2, .pd .pd-h { font-size: 1.125rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+  .pd .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; }
+  .pd .fact { padding: 0.875rem 1rem 1rem; break-inside: avoid; }
+  .pd .fact .big { font-size: 1.625rem; margin-bottom: 0.5rem; }
+  .pd table { font-size: 0.8125rem; }
+  .pd th, .pd td { padding: 0.375rem 0.5rem; }
+  .pd tr { break-inside: avoid; }
+  .pd .prog-row { break-inside: avoid; }
+  .pd .prog-go, .pd .cs-switch { display: none !important; }
+  .pd details > summary { list-style: none; font-weight: 600; }
+  .pd details > summary::-webkit-details-marker { display: none; }
+  .pd-nocalc .calc { display: none; }
+
+  /* County and state comparisons off */
+  .pd-norefs .fact .vs, .pd-norefs .cs-legend { display: none; }
+  .pd-norefs table.cmp tr > :nth-child(n+3) { display: none; }
+
+  /* One-page brief: three cards across, tight type */
+  .pd-brief .pd-mast h1 { font-size: 1.75rem; }
+  .pd-brief .facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pd-brief .fact { padding: 0.625rem 0.75rem 0.75rem; font-size: 0.8125rem; }
+  .pd-brief .fact h3 { min-height: 0; font-size: 0.8125rem; }
+  .pd-brief .fact .big { font-size: 1.375rem; margin: 0.125rem 0 0.375rem; }
+  .pd-brief .vs, .pd-brief .cs-text li { font-size: 0.75rem; margin-bottom: 0.25rem; }
+  .pd-brief .calc { display: none; }
+  .pd-brief .pd-h { margin-top: 1rem; }
+  .pd-brief .pd-top { margin-bottom: 0.75rem; }
+  .pd-brief .pd-meta { margin-top: 0.5rem; }
+  .pd-brief .pd-meta > div { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+  .pd-brief .fact .src { margin-top: 0.25rem; }
+  .pd-brief .cs-legend { margin-top: 0.375rem; }
+  .pd-brief .pd-progs th, .pd-brief .pd-progs td { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+  .pd-brief .pd-colophon { margin-top: 0.5rem; }
+  .pd-brief .pd-h { margin-bottom: 0.375rem; }
+  .pd-brief .facts { gap: 0.375rem; }
+  .pd-progs thead th { white-space: nowrap; }
+  .pd-progs th[scope="row"] { width: 22%; font-weight: 600; }
+  .pd-progs td:last-child { width: 26%; }
+  .pd-phone, .pd-url { display: block; white-space: nowrap; }
+  .pd-url { font-size: 0.75rem; color: var(--muted); white-space: normal; word-break: break-all; }
+  .pd-fine { margin: 0.5rem 0 0; font-size: 0.6875rem; color: var(--muted); }
+
+  /* Resident handout: plain cards, larger type, no statistics */
+  .pd-handout .pd-mast h1 { font-size: 1.75rem; }
+  .pd-lead { margin: 0 0 1rem; font-size: 1rem; }
+  .pd-card { margin: 0 0 0.75rem; padding: 0.75rem 1rem; border: 1px solid #c6c6c6; border-left: 6px solid var(--accent); break-inside: avoid; }
+  .pd-card-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 1.5rem; }
+  html.pd-large .pd-card-cols { grid-template-columns: 1fr; }
+  .pd-agency { font-size: 0.75rem; color: var(--muted); }
+  .pd-card h2 { margin: 0; font-size: 1.125rem; font-weight: 600; }
+  .pd-card h3 { margin: 0.625rem 0 0.125rem; font-size: 0.8125rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.32px; color: var(--muted); }
+  .pd-card ul { margin: 0; padding-left: 1.1rem; font-size: 0.875rem; }
+  .pd-card li { margin: 0.125rem 0; }
+  .pd-serves { margin: 0.25rem 0 0; font-size: 0.875rem; }
+  .pd-web { margin: 0.625rem 0 0; font-size: 0.875rem; }
+  .pd-web strong { overflow-wrap: anywhere; }
+
+  /* Colophon */
+  .pd-colophon { margin-top: 1.5rem; padding-top: 0.5rem; border-top: 1px solid #c6c6c6; font-size: 0.6875rem; color: var(--muted); break-inside: avoid; }
+  .pd-colophon p { margin: 0.125rem 0; }
+  .pd-made { font-weight: 600; color: #161616; }
+
+  /* Ink saver: white panels with hairlines, no filled bars */
+  .pd-ink { -webkit-print-color-adjust: economy; print-color-adjust: economy; }
+  .pd-ink .fact, .pd-ink .pd-note, .pd-ink .card, .pd-ink .block > .card { background: #fff !important; border: 1px solid #c6c6c6; }
+  .pd-ink th, .pd-ink thead th { background: #fff !important; }
+  .pd-ink .pd-num { background: #fff; color: #161616; border: 1px solid #161616; }
+  .pd-ink .pd-mast { border-top-width: 2px; border-top-color: #161616; }
+  .pd-ink .pd-card { border-left-width: 1px; }
+}

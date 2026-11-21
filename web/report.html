@@ -3,15 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <title>District report · District Insight</title>
   <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/print-builder.css">
   <style>
     /* Carbon UI shell (dark 48px) above a white control bar */
     .shell { background: var(--shell); min-height: 3rem; display: flex; align-items: center; padding: 0 1.5rem; }
     .brand { font-size: 0.875rem; font-weight: 600; letter-spacing: 0.1px; color: #f4f4f4; text-decoration: none; }
     .brand span { font-weight: 400; color: #c6c6c6; }
     .brand:hover { color: #fff; }
-    .bar { background: var(--bg); border-bottom: 1px solid var(--border); padding: 0.75rem 1.5rem 1rem;
+    .bar { padding: 0.75rem 1.5rem 1rem;
            display: flex; flex-wrap: wrap; align-items: end; gap: 1rem 1.5rem; }
     .bar #back { margin-right: auto; padding-left: 0; }
     .bar select { min-width: 14rem; }
@@ -98,8 +100,8 @@
   </style>
 </head>
 <body>
-  <div class="shell"><a class="brand" href="/">District Insight <span>· Hawaiʻi legislative districts</span></a></div>
-  <header class="bar">
+  <div class="shell"><a class="brand" href="/"><img class="brand-mark" src="/favicon.svg" alt="" width="28" height="28">District Insight <span>· Hawaiʻi legislative districts</span></a></div>
+  <header class="bar nav-glass">
     <a class="btn ghost i-back" id="back" href="/">Back to map</a>
     <div class="field">
       <label for="district">District</label>
@@ -137,6 +139,7 @@
     <p>Privacy: assistant questions go to Anthropic's Claude AI. No conversations are stored. Esri (map) and jsDelivr (fonts) see your IP address.</p>
   </footer>
 
+  <script type="module" src="/js/nav.js"></script>
   <script type="module" src="/js/report-page.js"></script>
 </body>
 </html>

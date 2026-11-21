@@ -3,15 +3,17 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <title>District Insight</title>
   <!-- ArcGIS Maps SDK for JavaScript 4.31 (Esri CDN) -->
   <link rel="stylesheet" href="https://js.arcgis.com/4.31/esri/themes/light/main.css">
   <script src="https://js.arcgis.com/4.31/"></script>
   <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/print-builder.css">
   <style>
-    :root { --hdr: 8.75rem; }
-    /* Carbon UI shell: dark 48px bar with the product name and the assistant search */
-    header.top { position: sticky; top: 0; z-index: 10; background: var(--bg); border-bottom: 1px solid var(--border); }
+    :root { --hdr: 3rem; }
+    /* Carbon UI shell: dark 48px bar with the product name and the assistant search, pinned full width */
+    header.top { position: sticky; top: 0; z-index: 11; }
     .toprow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 2rem; background: var(--shell);
               min-height: 3rem; padding: 0.25rem 1rem 0.25rem 1.5rem; }
     header.top h1 { margin: 0; font-size: 0.875rem; font-weight: 600; letter-spacing: 0.1px; color: #f4f4f4; white-space: nowrap; }
@@ -19,7 +21,11 @@
     header.top h1 a { color: inherit; text-decoration: none; }
     header.top h1 a:hover, header.top h1 a:hover span { color: #fff; }
     header.top h1 a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-    .controls { display: flex; flex-wrap: wrap; gap: 1rem 1rem; align-items: end; padding: 0.75rem 1.5rem 1rem; }
+    /* The district controls run the full width of the page, edge to edge, and stick under the dark bar
+       (frosted, js/nav.js). On the landing page they cover the left column only (.layout.is-landing). */
+    .controls { grid-area: controls; display: flex; flex-wrap: wrap; gap: 1rem 1rem; align-items: end;
+                padding: 0.75rem 2rem 1rem; margin: 0 -2rem var(--map-top); }
+    .controls.nav-glass { top: var(--hdr); }
     select { min-width: 12rem; }
     .controls .field { min-width: 0; max-width: 100%; }
     /* "Color map by" sits right above the map it controls */
@@ -45,6 +51,9 @@
     .find-title { margin: 0 2rem 0.375rem 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.5rem; }
     .find-kind { font-size: 0.75rem; letter-spacing: 0.32px; color: var(--muted); }
     .find-list { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+    .find-ch { display: grid; grid-template-columns: 3.5rem minmax(0, 1fr); gap: 0.5rem; align-items: start; }
+    .find-ch + .find-ch { margin-top: 0.25rem; }
+    .find-ch-label { font-size: 0.75rem; letter-spacing: 0.32px; color: var(--muted); line-height: 2rem; }
     .find-go { font: inherit; font-size: 0.8125rem; display: inline-flex; gap: 0.375rem; align-items: center; min-height: 2rem;
                padding: 0 0.625rem; border: 1px solid var(--border-strong); background: var(--bg); color: var(--accent); cursor: pointer; }
     .find-go:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -76,18 +85,33 @@
     .actions .stop-compare { min-width: 0; color: var(--muted); }
     .actions .stop-compare:hover { color: var(--text); }
 
-    /* Profile gets the wider column so tiles have room. The map column never moves: it sticks at
-       the same place it starts (2rem under the header), fills the window to 1rem from the bottom,
-       and its grid area runs to the end of the page (the footer sits in the left column). */
-    .layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 0 3rem;
-              grid-template-areas: "intro map" "main map" "foot map"; grid-template-rows: auto 1fr auto;
-              padding: 2rem 2rem 1rem; max-width: 120rem; margin: 0 auto; }
+    /* Profile gets the wider column so tiles have room. The control bar and the footer run the full
+       width; between them the left column (intro, profile) sits beside the map. The map starts just
+       under the control bar and sticks there (--nav is the bar's height, kept current by js/nav.js),
+       filling the window to 1rem from the bottom, until the footer scrolls it away. */
+    .layout { --map-top: 1.5rem; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 0 3rem;
+              grid-template-rows: auto 1fr auto; grid-template-areas: "controls controls" "left map" "foot foot";
+              padding: 0 2rem; max-width: 120rem; margin: 0 auto; }
+    .col-main { grid-area: left; display: flex; flex-direction: column; min-width: 0; }
     .intro { grid-area: intro; }
-    #main { grid-area: main; }
-    .layout > .site-footer { grid-area: foot; margin-top: 3rem; padding: 1.25rem 1.5rem; }
-    .col-map { grid-area: map; position: sticky; top: calc(var(--hdr) + 2rem); align-self: start;
-               height: calc(100vh - var(--hdr) - 3rem); min-height: 18rem;
+    #main { grid-area: main; flex: 1 0 auto; }
+    .layout > .site-footer { grid-area: foot; margin: 3rem -2rem 0; }
+    /* The wrapper fills the map's grid area, so the sticky map inside it stops where that area ends
+       (a sticky grid item on its own would ride over the footer) */
+    .map-area { grid-area: map; min-width: 0; }
+    .col-map { position: sticky; top: calc(var(--hdr) + var(--nav, 0px) + var(--map-top)); align-self: start;
+               height: calc(100vh - var(--hdr) - var(--nav, 0px) - var(--map-top) - 1rem); min-height: 18rem;
                display: flex; flex-direction: column; gap: 0.5rem; }
+    /* Landing page: the control bar and the footer stay in the left column, reaching out to the page's
+       left edge, and the map column runs the full height beside them. It starts right under the dark
+       bar, level with the controls ("Color map by" lines up with their fields), and sticks there. */
+    @media (min-width: 901px) {
+      .layout.is-landing { --map-top: 2.25rem; grid-template-areas: "controls map" "left map" "foot map"; }
+      .layout.is-landing .controls { margin: 0 0 2rem -2rem; padding-right: 0; }
+      .layout.is-landing > .site-footer { margin: 3rem 0 0 -2rem; padding-right: 0; }
+      .layout.is-landing .col-map { margin-top: var(--map-top); top: calc(var(--hdr) + var(--map-top));
+                                    height: calc(100vh - var(--hdr) - var(--map-top) - 1rem); }
+    }
     .islands { display: flex; flex-wrap: wrap; gap: 0; }
     .islands button { font: inherit; font-size: 0.875rem; min-height: 2rem; padding: 0 0.75rem; border: 0;
                       border-bottom: 2px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; }
@@ -237,16 +261,19 @@
     .chat-head .icon-btn .icon { --icon: var(--i-close); }
 
     @media (max-width: 900px) {
-      .layout { grid-template-columns: minmax(0, 1fr); grid-template-areas: "intro" "map" "main" "foot"; grid-template-rows: none; padding: 1rem 1rem 0; }
+      /* One column; the left column's wrapper steps aside so the map can sit between the intro and the profile */
+      .layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: none;
+                grid-template-areas: "controls" "intro" "map" "main" "foot"; padding: 0 1rem; }
+      .col-main { display: contents; }
+      header.top { position: static; }
       .col-map { position: static; height: auto; min-height: 0; padding-bottom: 0; margin-top: 1.5rem; }
       .map-wrap { flex: none; height: clamp(15rem, 58vh, 34rem); }
       .col-map .hover { display: none; }
       .map-key { padding-right: 0; }
       .layout > .site-footer { margin: 2rem -1rem 0; }
       .intro { padding-bottom: 0; }
-      header.top { position: static; }
       .toprow { padding: 0.5rem 1rem; }
-      .controls { padding: 0.75rem 1rem 1rem; }
+      .controls { padding: 0.75rem 1rem 1rem; margin: 0 -1rem 1rem; }
     }
     @media (max-width: 600px) {
       .controls .field, .controls select, #report-link { width: 100%; }
@@ -262,7 +289,7 @@
       .outreach h2 { font-size: 1.25rem; }
     }
     @media print {
-      header.top, .col-map, .actions, .chat, .chat-fab, .cs-switch, .intro { display: none !important; }
+      header.top, .controls, .col-map, .actions, .chat, .chat-fab, .cs-switch, .intro { display: none !important; }
       .layout { display: block; padding: 0; }
     }
   </style>
@@ -270,14 +297,17 @@
 <body>
   <header class="top" id="hdr">
     <div class="toprow">
-      <h1><a class="brand" id="brand" href="/">District Insight <span>· Hawaiʻi legislative districts</span></a></h1>
+      <h1><a class="brand" id="brand" href="/"><img class="brand-mark" src="/favicon.svg" alt="" width="28" height="28">District Insight <span>· Hawaiʻi legislative districts</span></a></h1>
       <form class="ask" id="ask-form" aria-label="Ask the research assistant">
         <label for="ask-input" class="sr-only">Ask a question about a district</label>
         <input id="ask-input" type="text" autocomplete="off" maxlength="1000" aria-describedby="privacy-note" placeholder='Ask, e.g. "How many kūpuna live on fixed incomes?"'>
         <button class="btn i-chat" type="submit">Ask</button>
       </form>
     </div>
-    <div class="controls">
+  </header>
+
+  <div class="layout is-landing">
+    <div class="controls nav-glass" id="controls">
       <div class="field">
         <span id="chamber-label">Chamber</span>
         <div class="seg" role="group" aria-labelledby="chamber-label">
@@ -303,46 +333,46 @@
       </form>
       <a class="btn secondary i-forward" id="report-link" href="/report.html" hidden>Full report</a>
     </div>
-  </header>
-
-  <div class="layout">
-    <section class="intro" id="intro" aria-labelledby="intro-h">
-      <h2 id="intro-h">Who lives in your district, and what help is available?</h2>
-      <ol class="steps">
-        <li><span class="n" aria-hidden="true">1</span>Pick a district</li>
-        <li><span class="n" aria-hidden="true">2</span>Read its profile</li>
-        <li><span class="n" aria-hidden="true">3</span>Find programs that can help</li>
-      </ol>
-      <div class="intro-actions">
-        <button class="btn" type="button" id="intro-find">Find a district</button>
-        <button class="btn secondary i-chat" type="button" id="intro-ask">Ask a question</button>
-      </div>
-    </section>
-    <main id="main" aria-live="polite"></main>
-
-    <div class="col-map">
-      <div class="map-metric">
-        <label for="metric">Color map by</label>
-        <select id="metric"><option>Loading...</option></select>
-      </div>
-      <div class="islands" role="group" aria-label="Zoom the map to an area" id="islands"><span class="sk" style="width:min(30rem, 100%);height:2rem" aria-hidden="true"></span></div>
-      <div class="map-wrap">
-        <div class="map-sk" id="map-sk" aria-hidden="true"></div>
-        <div id="viewDiv" role="application" aria-label="Map of Hawaiʻi legislative districts. The district list at the top is a keyboard-accessible alternative."></div>
-        <div class="map-tip" id="map-tip" aria-hidden="true" hidden></div>
-      </div>
-      <p class="hover" id="hover" aria-live="off"></p>
-      <div class="map-key">
-        <div class="legend" id="legend" role="group"><span class="sk sk-line" style="width:40%"></span><span class="sk" style="height:0.625rem;margin-top:1.5rem"></span><span class="sk sk-line" style="width:100%;height:0.5rem"></span></div>
-        <p class="mapnote" id="mapnote" aria-live="polite"></p>
+    <div class="col-main">
+      <section class="intro" id="intro" aria-labelledby="intro-h">
+        <h2 id="intro-h">Who lives in your district, and what help is available?</h2>
+        <ol class="steps">
+          <li><span class="n" aria-hidden="true">1</span>Pick a district</li>
+          <li><span class="n" aria-hidden="true">2</span>Read its profile</li>
+          <li><span class="n" aria-hidden="true">3</span>Find programs that can help</li>
+        </ol>
+        <div class="intro-actions">
+          <button class="btn" type="button" id="intro-find">Find a district</button>
+          <button class="btn secondary i-chat" type="button" id="intro-ask">Ask a question</button>
+        </div>
+      </section>
+      <main id="main" aria-live="polite"></main>
+    </div>
+    <div class="map-area">
+      <div class="col-map">
+        <div class="map-metric">
+          <label for="metric">Color map by</label>
+          <select id="metric"><option>Loading...</option></select>
+        </div>
+        <div class="islands" role="group" aria-label="Zoom the map to an area" id="islands"><span class="sk" style="width:min(30rem, 100%);height:2rem" aria-hidden="true"></span></div>
+        <div class="map-wrap">
+          <div class="map-sk" id="map-sk" aria-hidden="true"></div>
+          <div id="viewDiv" role="application" aria-label="Map of Hawaiʻi legislative districts. The district list at the top is a keyboard-accessible alternative."></div>
+          <div class="map-tip" id="map-tip" aria-hidden="true" hidden></div>
+        </div>
+        <p class="hover" id="hover" aria-live="off"></p>
+        <div class="map-key">
+          <div class="legend" id="legend" role="group"><span class="sk sk-line" style="width:40%"></span><span class="sk" style="height:0.625rem;margin-top:1.5rem"></span><span class="sk sk-line" style="width:100%;height:0.5rem"></span></div>
+          <p class="mapnote" id="mapnote" aria-live="polite"></p>
+        </div>
       </div>
     </div>
-
     <footer class="site-footer">
       <p>This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.</p>
       <p>Figures marked "about" are our calculations from published Census figures. Informational only, not eligibility advice.</p>
       <p id="privacy-note">Privacy: assistant questions go to Anthropic's Claude AI. No conversations are stored. Esri (map) and jsDelivr (fonts) see your IP address.</p>
     </footer>
+
   </div>
 
   <aside class="chat" id="chat" aria-label="Research assistant" hidden>
@@ -364,6 +394,7 @@
   <button class="chat-fab" type="button" id="chat-open" aria-label="Open the research assistant" title="Research assistant"><span class="icon" aria-hidden="true"></span></button>
 
 
+  <script type="module" src="/js/nav.js"></script>
   <script type="module" src="/js/map-page.js"></script>
 </body>
 </html>

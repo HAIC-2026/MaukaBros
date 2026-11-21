@@ -92,8 +92,13 @@ SHA-256 fingerprint; `pipeline/build.py` refuses a file whose fingerprint does n
 ## Research assistant answers (`validation/test_agent.py`)
 
 The assistant (`api/agent.py`) can only read figures through tools that query this fact store, and
-each figure it gives must carry a numbered source. `validation/test_agent.py` sends 15 questions
-to the real model and checks the answers:
+each figure it gives must carry a numbered source. `validation/test_agent.py` sends 36 questions
+to the real model and checks the answers. Questions 22-36 test how questions are read: follow-ups
+that refer back to an earlier district, a bare district number, misspelled towns, island names,
+statewide questions, "how many" counts, topics outside the data (which must point somewhere
+useful, not dead-end), hypothetical households, small talk, open questions, and format requests.
+`validation/test_lookup.py` checks the place and district lookups behind them for free, with no
+model calls. The table below covers the original questions:
 
 | Kind of question | Check | What a pass shows |
 |---|---|---|
