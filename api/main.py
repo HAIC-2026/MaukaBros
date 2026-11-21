@@ -38,14 +38,37 @@ app.add_middleware(security.SecurityHeaders)
 
 UNAVAILABLE = "This information is not available right now. Please try again later."
 
-def table_links(table_ids: str, period: str) -> list[dict]:
-    """Links to the official Census page for each ACS table behind a figure.
+# data.census.gov geography codes, read from the Census API's GEO_ID field (2024 ACS 5-year).
+# District codes include the boundary vintage ("900" = the 2024 districts), so they are only
+# valid for that data year; for other years the table opens without a geography filter.
+CENSUS_GEO_YEAR = "2024"
 
-    The page lists the table's variables. The year in the URL is the last year of the 5-year
-    period (e.g. "2020-2024" -> 2024), which is how the Census API names the dataset.
+
+def census_geo_code(geo_id: str) -> str | None:
+    kind, _, num = geo_id.partition("-")
+    if kind == "HD":
+        return f"620L900US15{int(num):03d}"
+    if kind == "SD":
+        return f"610U900US15{int(num):03d}"
+    if kind == "COUNTY":
+        return f"0500000US15{num}"
+    if kind == "STATE":
+        return "0400000US15"
+    return None
+
+
+def table_links(table_ids: str, period: str, geo_ids: list[str] | None = None) -> list[dict]:
+    """Links to each ACS table behind a figure on data.census.gov, the Census Bureau's
+    human-readable table viewer, filtered to the given geographies when possible.
+
+    The year is the last year of the 5-year period (e.g. "2020-2024" -> 2024), which is how the
+    Census Bureau names the dataset.
     """
     end_year = period.split("-")[-1].strip()
-    return [{"table_id": t, "url": f"https://api.census.gov/data/{end_year}/acs/acs5/groups/{t}.html"}
+    codes = ([c for g in geo_ids or [] if (c := census_geo_code(g))]
+             if end_year == CENSUS_GEO_YEAR else [])
+    geo = f"?g={','.join(codes)}" if codes else ""
+    return [{"table_id": t, "url": f"https://data.census.gov/table/ACSDT5Y{end_year}.{t}{geo}"}
             for t in table_ids.split(",") if t]
 
 
@@ -111,6 +134,9 @@ def get_district(geo_id: str) -> dict:
     """, [geo_id])
 
     geography = GEOGRAPHY_LABELS.get(district[0]["geo_type"], district[0]["geo_type"])
+    county_id = district_county(geo_id) if district[0]["geo_type"] in ("house", "senate") else None
+    link_geos = [geo_id] + ([county_id] if county_id else []) + (
+        ["STATE-15"] if geo_id != "STATE-15" else [])
     facts = [
         {
             "indicator_id": r["indicator_id"],
@@ -125,7 +151,7 @@ def get_district(geo_id: str) -> dict:
                 "publisher": r["publisher"],
                 "dataset": r["dataset"],
                 "table_ids": r["table_ids"],
-                "tables": table_links(r["table_ids"], r["year"]),
+                "tables": table_links(r["table_ids"], r["year"], link_geos),
                 "year": r["year"],
                 "url": r["url"],
                 "geography": geography,
@@ -203,7 +229,7 @@ def build_likely_eligible(spec: dict | None, geo_id: str | None) -> dict | None:
         out.update(label=d["label"], unit=d["unit"], source={
             "publisher": d["publisher"], "dataset": d["dataset"], "year": d["year"],
             "url": d["url"], "table_ids": d["table_ids"],
-            "tables": table_links(d["table_ids"], d["year"]),
+            "tables": table_links(d["table_ids"], d["year"], geos),
             "geography": GEOGRAPHY_LABELS.get(d["geo_type"], d["geo_type"])})
     out.update(district=entry(geo_id), county=entry(county_id), state=entry("STATE-15"))
     return out
@@ -621,8 +647,35 @@ def reliability(value: float | None, moe: float | None) -> dict:
     return {"cv": cv, "low_reliability": cv > CV_THRESHOLD}
 
 
+_indicator_rows: dict[str, int] | None = None
+
+
+def indicator_row_count(indicator_id: str) -> int:
+    """How many published table rows an indicator adds up (pipeline/indicators.yaml)."""
+    global _indicator_rows
+    if _indicator_rows is None:
+        import yaml
+        spec = yaml.safe_load((ROOT / "pipeline" / "indicators.yaml").read_text(encoding="utf-8"))
+        _indicator_rows = {i["id"]: len(i["variables"]) for i in spec["indicators"]}
+    return _indicator_rows.get(indicator_id, 1)
+
+
+def calculation(metric: dict, vals: dict, labels: dict) -> dict | None:
+    """The two published counts a percentage is calculated from, so a reader can find them in
+    the linked Census table. None for figures published directly (e.g. medians)."""
+    if "value" in metric:
+        return None
+
+    def part(i: str) -> dict:
+        value, moe = vals.get(i, (None, None))
+        return {"label": labels[i]["label"], "unit": labels[i]["unit"], "value": value,
+                "moe": moe, "rows": indicator_row_count(i)}
+    return {"numerator": part(metric["numerator"]), "denominator": part(metric["denominator"])}
+
+
 def build_comparisons(geo_id: str, geo_type: str) -> list[dict]:
     county_id = district_county(geo_id)
+    labels = {r["indicator_id"]: r for r in query("SELECT indicator_id, label, unit FROM indicator")}
     ind_tables = {r["indicator_id"]: r["table_ids"]
                   for r in query("SELECT indicator_id, table_ids FROM indicator")}
     src = query("SELECT publisher, dataset, year, url FROM source WHERE source_id = 'acs5'")[0]
@@ -635,14 +688,15 @@ def build_comparisons(geo_id: str, geo_type: str) -> list[dict]:
         d_value, d_moe = metric_estimate(metric, vals.get(geo_id, {}))
         used = [metric["value"]] if "value" in metric else [metric["numerator"],
                                                             metric["denominator"]]
-        tables = {t["table_id"]: t for i in used for t in table_links(ind_tables[i], src["year"])}
+        tables = {t["table_id"]: t for i in used for t in table_links(ind_tables[i], src["year"], geos)}
         out.append({
             "metric_id": metric_id, "label": metric["label"], "format": metric["format"],
             "group": metric.get("group", "District profile"),
             "group_note": METRIC_GROUPS[metric.get("group", "District profile")],
             "source": {**src, "geography": GEOGRAPHY_LABELS[geo_type],
                        "tables": list(tables.values())},
-            "district": {"value": d_value, "moe": d_moe, **reliability(d_value, d_moe)},
+            "district": {"value": d_value, "moe": d_moe, **reliability(d_value, d_moe),
+                         "calculation": calculation(metric, vals.get(geo_id, {}), labels)},
             "state": {"geo_id": "STATE-15", "name": names.get("STATE-15"),
                       **(compare(metric_id, vals.get(geo_id, {}), vals.get("STATE-15")) or {})},
             "county": ({"geo_id": county_id, "name": names.get(county_id),

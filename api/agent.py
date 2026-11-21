@@ -294,7 +294,7 @@ def tool_get_district_profile(args: dict, src: Sources) -> dict:
         "population": {"value": fmt_value(pop, "people"), "moe": fmt_moe(pop_moe, "people"),
                        "cite": src.cite(acs["publisher"], acs["dataset"], acs["year"],
                                         f"{district_name(gid)}",
-                                        kyd.table_links("B01001,B11001", acs["year"]))},
+                                        kyd.table_links("B01001,B11001", acs["year"], [gid]))},
         "households": {"value": fmt_value(hh, "households"), "moe": fmt_moe(hh_moe, "households")},
         **({"official_permanent_resident_population": {
             "value": fmt_value(plan["permanent_residents"], "people"),

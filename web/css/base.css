@@ -109,6 +109,11 @@ input::placeholder, textarea::placeholder { color: var(--helper); }
          margin-top: 0.25rem; border-radius: 1rem; background: #e5e0df; color: #3c3838; font-size: 0.75rem;
          letter-spacing: 0.32px; white-space: nowrap; }
 .src { margin: 0.5rem 0 0; font-size: 0.75rem; letter-spacing: 0.32px; color: var(--muted); }
+.calc { margin: 0.5rem 0 0; font-size: 0.75rem; color: var(--muted); }
+.calc summary { cursor: pointer; }
+.calc p, .calc ul { margin: 0.25rem 0; }
+.calc ul { padding-left: 1.1rem; }
+.fact .calc .moe { display: inline; margin: 0; }
 
 /* Collapsible sections (Carbon accordion) */
 details { background: transparent; border-top: 1px solid var(--border); margin-top: 0; }

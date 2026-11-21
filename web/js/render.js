@@ -41,7 +41,24 @@ export function renderKeyFact(c) {
   if (c.county) vs.append(line(shortCounty(c.county.name), c.county));
   vs.append(line("the state", c.state));
   card.append(vs, srcLine(c.source));
+  const calc = calcDetails(c.district.calculation);
+  if (calc) card.append(calc);
   return card;
+}
+
+// The two published counts behind a percentage, so the reader can find them in the Census table.
+export function calcDetails(calc) {
+  if (!calc || calc.numerator.value == null || calc.denominator.value == null) return null;
+  const { numerator: n, denominator: d } = calc;
+  const item = p => el("li", {}, el("strong", { textContent: fmtCount(p.value) }),
+    ` ${p.label.charAt(0).toLowerCase() + p.label.slice(1)}`,
+    p.rows > 1 ? ` (${p.rows} table rows added together)` : "",
+    p.moe != null ? el("span", { className: "moe", textContent: ` plus or minus ${fmtCount(p.moe)}` }) : "");
+  return el("details", { className: "calc" },
+    el("summary", { textContent: "How this percentage is calculated" }),
+    el("p", { textContent: `${fmtCount(n.value)} ÷ ${fmtCount(d.value)} = ${(100 * n.value / d.value).toFixed(1)}%` }),
+    el("ul", {}, item(n), item(d)),
+    el("p", { textContent: "Both counts are published in the linked Census table for this district." }));
 }
 
 // Card shown when a view asks for a figure the data store does not have.
