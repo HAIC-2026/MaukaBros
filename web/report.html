@@ -85,7 +85,8 @@
       table.pair td::before { content: attr(data-label); grid-row: 1 / span 4; font-size: 0.75rem; letter-spacing: 0.32px; color: var(--muted); }
     }
     @media print {
-      .shell, .bar, .tabs, .actions, .from-q { display: none !important; }
+      .shell, .bar, .tabs, .actions, .from-q, .cs-switch { display: none !important; }
+
       .print-only { display: block; }
       main { max-width: none; padding: 0; }
       #pair { grid-template-columns: 1fr 1fr; }
@@ -118,19 +119,19 @@
     <div class="tabs" role="tablist" aria-label="Report views" id="tabs"></div>
     <section id="panel" role="tabpanel" tabindex="0" aria-live="polite"></section>
     <details id="all">
-      <summary>Source data: every figure and how to check it</summary>
+      <summary>Source data: every figure, for checking</summary>
       <div class="inner" id="all-inner"></div>
     </details>
     <div class="actions">
-      <button class="btn i-print" type="button" id="print">Print or save as PDF</button>
-      <button class="btn secondary i-copy" type="button" id="copy">Copy link to this report</button>
+      <button class="btn i-print" type="button" id="print">Print / PDF</button>
+      <button class="btn secondary i-copy" type="button" id="copy">Copy link</button>
     </div>
   </main>
 
   <footer class="site-footer">
     <p>This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.</p>
-    <p>Percentages and margins of error marked "calculated" or "about" are our own calculations from published Census figures. Informational only; not legal or eligibility advice. Final program eligibility is always decided by the program's agency.</p>
-    <p>Privacy: the research assistant on the map page sends your questions to Anthropic's Claude AI service to answer them. Please don't include names, addresses or other personal details. Conversations are not stored by this site. Loading the map and fonts also shares your IP address with Esri (the map library) and jsDelivr (the font service), as any website does when it loads files from them.</p>
+    <p>Figures marked "calculated" or "about" are our calculations from published Census figures. Informational only; not legal or eligibility advice. Each program's agency decides final eligibility.</p>
+    <p>Privacy: the assistant (map page) sends questions to Anthropic's Claude AI; don't include names, addresses or other personal details. This site stores no conversations. Esri (map) and jsDelivr (fonts) receive your IP address when their files load.</p>
   </footer>
 
   <script type="module" src="/js/report-page.js"></script>

@@ -23,27 +23,230 @@ export function srcLine(src) {
   return p;
 }
 
-// One headline figure: value, margin of error, comparison with county and state, source.
-export function renderKeyFact(c) {
-  const card = el("article", { className: "fact" }, el("h3", { textContent: c.label }));
-  card.append(el("p", { className: "big", textContent: fmtMetric(c.district.value, c.format) }));
-  card.append(el("p", { className: "moe", textContent: c.district.value != null ? fmtMoe(c.district.moe, c.format)
-    : "The Census Bureau did not publish this figure for this district" }));
-  if (c.district.low_reliability) card.append(el("p", { className: "flag small", style: "margin:0 0 0.5rem", textContent: "Low reliability: large margin of error. Treat with caution." }));
-  const vs = el("div", { className: "vs" });
-  const line = (name, ref) => {
-    const d = diffText(ref && ref.difference, c.format);
-    const row = el("div", { className: "row" }, el("span", { className: "hl", textContent: d.text }),
-      ` than ${name} (${fmtMetric(ref && ref.value, c.format)})`);
-    if (d.short) row.append(el("em", { textContent: d.short, title: d.flag }));
-    return row;
-  };
-  if (c.county) vs.append(line(shortCounty(c.county.name), c.county));
-  vs.append(line("the state", c.state));
-  card.append(vs, srcLine(c.source));
+// ---------- headline cards: three views ----------
+// The same figures, drawn three ways. Each view answers a different question:
+//   range  "Is the gap real?"  district estimate with its margin-of-error band, county and state marked
+//   bars   "How big is it?"    bars from zero, so sizes compare at a glance
+//   text   "What do I quote?"  plain sentences with a Copy button that includes the source
+// Range and bars are drawn for sighted readers; their full sentence is in screen-reader text.
+export const CARD_STYLES = [
+  ["range", "Range", "Is each gap real? The shaded band is the margin of error."],
+  ["bars", "Bars", "How big is each figure? Bars start at zero."],
+  ["text", "Text", "Plain sentences you can copy into a memo, with the source."],
+];
+const CS_KEY = "di-card-style";
+export function cardStyle() {
+  let s = new URL(location.href).searchParams.get("card");
+  try { s = s || localStorage.getItem(CS_KEY); } catch { /* storage blocked */ }
+  return CARD_STYLES.some(([k]) => k === s) ? s : "range";
+}
+export function cardStyleSwitch(onChange) {
+  const cur = cardStyle();
+  const wrap = el("div", { className: "cs-switch", role: "group" }, el("span", { className: "cs-label", textContent: "View" }));
+  wrap.setAttribute("aria-label", "Card view");
+  CARD_STYLES.forEach(([k, label]) => {
+    const b = el("button", { type: "button", textContent: label, onclick: () => {
+      try { localStorage.setItem(CS_KEY, k); } catch { /* storage blocked */ }
+      const u = new URL(location.href); u.searchParams.delete("card"); history.replaceState(null, "", u);
+      onChange(k);
+    } });
+    b.setAttribute("aria-pressed", k === cur);
+    wrap.append(b);
+  });
+  wrap.append(el("span", { className: "cs-hint", textContent: CARD_STYLES.find(([k]) => k === cur)[2] }));
+  return wrap;
+}
+
+const GLYPH = { 1: "▲", "-1": "▼", 0: "=" };
+const VERDICT = { real: "Clear difference", within: "Within margin of error", unknown: "No margin of error published" };
+const verdictOf = d => d.dir === 0 || d.text === "not available" ? "" : VERDICT[d.sure];
+const capital = t => t.charAt(0).toUpperCase() + t.slice(1);
+
+// The comparisons on one card: name, value, and the difference in compact and sentence form.
+function refsOf(c) {
+  const refs = [];
+  if (c.county) refs.push({ key: "co", name: shortCounty(c.county.name), ref: c.county });
+  refs.push({ key: "st", name: "State", ref: c.state });
+  return refs.map(r => {
+    const d = diffText(r.ref && r.ref.difference, c.format);
+    const value = r.ref ? r.ref.value : null;
+    const whom = r.key === "st" ? "the state" : r.name;
+    const v = fmtMetric(value, c.format);
+    const say = d.text === "not available" ? `${r.name}: ${v}`
+      : d.dir === 0 ? `About the same as ${whom} (${v})`
+      : `${capital(d.text)} than ${whom} (${v}). ${verdictOf(d)}`;
+    return { ...r, value, d, whom, say };
+  });
+}
+// Delta chip: ▲ 2.1 pts. Solid for a clear difference; dashed outline inside the margin of error.
+function chip(d) {
+  if (d.text === "not available") return el("span", { className: "cs-chip na", textContent: "n/a" });
+  return el("span", { className: `cs-chip ${d.dir === 0 ? "within" : d.sure}`, title: verdictOf(d) || d.text },
+    el("b", { textContent: GLYPH[d.dir] }), d.dir === 0 ? "same" : d.size);
+}
+// Scale for a number line around the given points, padded, kept inside 0-100% for rates.
+function scale(pts, c) {
+  let lo = Math.min(...pts), hi = Math.max(...pts);
+  const pad = (hi - lo) * 0.12 || Math.abs(pts[0]) * 0.1 || 0.01;
+  lo -= pad; hi += pad;
+  if (c.format !== "dollars") { lo = Math.max(0, lo); hi = Math.min(1, hi); }
+  return x => `${(100 * (x - lo) / (hi - lo)).toFixed(2)}%`;
+}
+const band = (at, v, m, cls = "") => el("span", { className: `cs-band ${cls}`, style: `left:${at(v - m)};width:calc(${at(v + m)} - ${at(v - m)})` });
+const dot = (at, v, cls = "") => el("span", { className: `cs-dot ${cls}`, style: `left:${at(v)}` });
+const whiskerAt = (w, v, m) => el("span", { className: "cs-whisker", style: `left:${w(v - m)};width:calc(${w(v + m)} - ${w(v - m)})` });
+
+// Range: the estimate, its margin of error, and where the county and state fall.
+function styleRange(c, refs) {
+  const v = c.district.value, m = c.district.moe || 0;
+  const at = scale([v, v - m, v + m, ...refs.map(r => r.value).filter(x => x != null)], c);
+  const track = el("div", { className: "cs-track" }, band(at, v, m),
+    ...refs.filter(r => r.value != null).map(r => el("span", { className: `cs-tick ${r.key}`, style: `left:${at(r.value)}` })),
+    dot(at, v));
+  const rows = el("div", { className: "cs-rows" }, ...refs.map(r => el("div", { className: "cs-row" },
+    el("span", { className: `cs-key ${r.key}` }), el("span", { className: "cs-name", textContent: r.name }),
+    el("span", { className: "cs-val", textContent: fmtMetric(r.value, c.format) }), chip(r.d))));
+  return [el("div", { className: "cs-range" }, track), rows];
+}
+// Bars: sizes from zero. The district bar carries a whisker for its margin of error.
+function barRow(cls, label, value, c, w, extra, tail) {
+  return el("div", { className: `cs-bar ${cls}` }, el("span", { className: "cs-name", textContent: label }),
+    el("span", { className: "cs-barwrap" }, el("span", { className: "cs-fill", style: `width:${w(value || 0)}` }), extra),
+    el("span", { className: "cs-val" }, fmtMetric(value, c.format), tail));
+}
+function styleBars(c, refs) {
+  const v = c.district.value, m = c.district.moe || 0;
+  const max = Math.max(v + m, ...refs.map(r => r.value || 0)) * 1.04 || 1;
+  const w = x => `${(100 * Math.max(0, x) / max).toFixed(2)}%`;
+  return [el("div", { className: "cs-bars" }, barRow("me", "District", v, c, w, whiskerAt(w, v, m), null),
+    ...refs.map(r => barRow(r.key, r.name.replace(/ County$/, ""), r.value, c, w, null,
+      r.d.sure === "real" || r.d.dir === 0 ? null : el("b", { className: "cs-approx", textContent: " ≈", title: verdictOf(r.d) }))))];
+}
+// Text: one sentence per comparison, and a Copy button for the whole figure with its source.
+function copyButton(text) {
+  return el("button", { className: "cs-copy", type: "button", textContent: "Copy", title: "Copy this figure with its source",
+    onclick: e => {
+      const b = e.currentTarget;
+      if (!navigator.clipboard) return;
+      navigator.clipboard.writeText(text).then(() => { b.textContent = "Copied"; setTimeout(() => { b.textContent = "Copy"; }, 1500); });
+    } });
+}
+const sourceText = src => `Source: ${src.publisher || "U.S. Census Bureau"}, ACS 5-year ${src.year}, ${(src.tables || []).map(t => "Table " + t.table_id).join(", ")}, ${shortGeo(src.geography)}.`;
+function styleText(c, refs, place) {
+  const list = el("ul", { className: "cs-text" }, ...refs.map(r => {
+    if (r.d.text === "not available") return el("li", { textContent: r.say + "." });
+    if (r.d.dir === 0) return el("li", {}, el("b", { textContent: "About the same" }), ` as ${r.whom} (${fmtMetric(r.value, c.format)}).`);
+    return el("li", {}, el("b", { textContent: capital(r.d.text) }), ` than ${r.whom} (${fmtMetric(r.value, c.format)}). `,
+      el("span", { className: `cs-verdict ${r.d.sure}`, textContent: verdictOf(r.d) + "." }));
+  }));
+  const copy = `${place ? place + ", " : ""}${c.label.charAt(0).toLowerCase() + c.label.slice(1)}: ${fmtMetric(c.district.value, c.format)} (${fmtMoe(c.district.moe, c.format)}). `
+    + refs.map(r => r.say.replace(/\.$/, "")).join(". ") + ". " + sourceText(c.source);
+  return [list, copyButton(copy)];
+}
+
+// How a figure was made: a percentage from two published counts, or a median published as is.
+function howCalculated(c) {
   const calc = calcDetails(c.district.calculation);
-  if (calc) card.append(calc);
+  if (calc || c.district.value == null || c.format !== "dollars") return calc;
+  const tables = (c.source.tables || []).map(t => "Table " + t.table_id).join(", ");
+  return el("details", { className: "calc" }, el("summary", { textContent: "How it's calculated" }),
+    el("p", { textContent: `Not calculated by us. The Census Bureau publishes this median for the district in ${tables}, with its margin of error. A median can't be rebuilt from published counts, so it is shown exactly as published.` }));
+}
+
+// One headline figure: value with its margin of error, comparison with county and state, source.
+// `place` (the district's name) goes into the text view's copied sentence.
+export function renderKeyFact(c, { style = cardStyle(), place = "" } = {}) {
+  const card = el("article", { className: `fact card-${style}` }, el("h3", { textContent: c.label }));
+  const has = c.district.value != null;
+  card.append(el("p", { className: "big" }, fmtMetric(c.district.value, c.format),
+    has ? el("span", { className: "pm", textContent: ` ${fmtMoe(c.district.moe, c.format)}` }) : null));
+  if (!has) card.append(el("p", { className: "moe", textContent: "Not published for this district" }));
+  if (c.district.low_reliability) card.append(el("p", { className: "flag", textContent: "Low reliability: large margin of error" }));
+  const refs = refsOf(c);
+  const vs = el("div", { className: "vs" });
+  if (has && style === "text") vs.append(...styleText(c, refs, place));
+  else {
+    vs.append(el("p", { className: "sr-only", textContent: refs.map(r => r.say).join(". ") + "." }));
+    if (has) (style === "bars" ? styleBars : styleRange)(c, refs).forEach(n => { n.setAttribute("aria-hidden", "true"); vs.append(n); });
+  }
+  card.append(vs, srcLine(c.source));
+  const how = howCalculated(c);
+  if (how) card.append(how);
   return card;
+}
+
+// Two districts on one card: both values with margins of error, the difference tested against
+// both margins (same rule as pairTable), and the state for reference.
+// `a` and `b` are { id, name }; `ca` and `cb` are each district's comparison for this measure.
+export function renderPairFact(ca, cb, a, b, style = cardStyle()) {
+  const c = ca || cb;
+  const card = el("article", { className: `fact pair card-${style}` }, el("h3", { textContent: c.label }));
+  const A = ca && ca.district, B = cb && cb.district, S = c.state && c.state.value;
+  const val = (e, who, cls) => el("div", { className: `pv ${cls}` }, el("span", { className: "pv-id", textContent: who.id }),
+    el("span", { className: "pv-big", textContent: fmtMetric(e && e.value, c.format) }),
+    e && e.value != null ? el("span", { className: "pm", textContent: fmtMoe(e.moe, c.format) }) : el("span", { className: "pm", textContent: "Not published" }));
+  card.append(el("div", { className: "pv-row" }, val(A, a, "a"), val(B, b, "b")));
+  [[A, a], [B, b]].forEach(([e, who]) => { if (e && e.low_reliability) card.append(el("p", { className: "flag", textContent: `${who.id}: low reliability, large margin of error` })); });
+  const both = A && B && A.value != null && B.value != null;
+  const d = diffText(both ? compareEstimates(A, B) : null, c.format);
+  const sentence = !both ? "Not available for both districts"
+    : d.dir === 0 ? `About the same in ${a.id} and ${b.id}`
+    : `${capital(d.text)} in ${a.id} than ${b.id}. ${verdictOf(d)}`;
+  const stateLine = `State: ${fmtMetric(S, c.format)}`;
+  const vs = el("div", { className: "vs" });
+  if (style === "text") {
+    vs.append(el("ul", { className: "cs-text" },
+      el("li", {}, both && d.dir !== 0 ? el("b", { textContent: capital(d.text) }) : el("b", { textContent: both ? "About the same" : "Not available" }),
+        both && d.dir !== 0 ? ` in ${a.id} than ${b.id}. ` : both ? ` in ${a.id} and ${b.id}.` : " for both districts.",
+        both && d.dir !== 0 ? el("span", { className: `cs-verdict ${d.sure}`, textContent: verdictOf(d) + "." }) : null),
+      el("li", { textContent: stateLine + "." })));
+    if (both) vs.append(copyButton(`${c.label}: ${a.name} ${fmtMetric(A.value, c.format)} (${fmtMoe(A.moe, c.format)}), ${b.name} ${fmtMetric(B.value, c.format)} (${fmtMoe(B.moe, c.format)}). ${sentence}. ${stateLine}. ${sourceText(c.source)}`));
+  } else {
+    vs.append(el("p", { className: "sr-only", textContent: `${a.name}: ${fmtMetric(A && A.value, c.format)}${A && A.value != null ? `, ${fmtMoe(A.moe, c.format)}` : ""}. ${b.name}: ${fmtMetric(B && B.value, c.format)}${B && B.value != null ? `, ${fmtMoe(B.moe, c.format)}` : ""}. ${sentence}. ${stateLine}.` }));
+    if (both) {
+      let pic;
+      if (style === "bars") {
+        const max = Math.max(A.value + (A.moe || 0), B.value + (B.moe || 0), S || 0) * 1.04 || 1;
+        const w = x => `${(100 * Math.max(0, x) / max).toFixed(2)}%`;
+        pic = el("div", { className: "cs-bars" }, barRow("me", a.id, A.value, c, w, whiskerAt(w, A.value, A.moe || 0), null),
+          barRow("b", b.id, B.value, c, w, whiskerAt(w, B.value, B.moe || 0), null), barRow("st", "State", S, c, w, null, null));
+      } else {
+        const at = scale([A.value, A.value - (A.moe || 0), A.value + (A.moe || 0), B.value - (B.moe || 0), B.value + (B.moe || 0), ...(S != null ? [S] : [])], c);
+        pic = el("div", { className: "cs-range" }, el("div", { className: "cs-track" },
+          band(at, A.value, A.moe || 0), band(at, B.value, B.moe || 0, "b"),
+          S != null ? el("span", { className: "cs-tick st", style: `left:${at(S)}` }) : null, dot(at, B.value, "b"), dot(at, A.value)));
+      }
+      pic.setAttribute("aria-hidden", "true");
+      const verdict = el("div", { className: "cs-pair-verdict" }, chip(d),
+        el("span", { className: "cs-name", textContent: `${a.id} vs ${b.id}${d.dir === 0 ? "" : ": " + verdictOf(d).toLowerCase()}` }));
+      verdict.setAttribute("aria-hidden", "true");
+      vs.append(pic, verdict);
+      if (style !== "bars") vs.append(el("p", { className: "cs-state", textContent: stateLine, ariaHidden: "true" }));
+
+    }
+  }
+  const geos = [...new Set([ca, cb].filter(Boolean).map(x => shortGeo(x.source.geography)))];
+  card.append(vs, srcLine({ ...c.source, geography: geos.join(" and ") }));
+  return card;
+}
+
+// One-line key under a grid of headline cards, matching the view. `pair` = { a, b } ids when comparing.
+export function factKey(style = cardStyle(), pair = null) {
+  if (style === "text") return null;
+  const k = el("p", { className: "cs-legend" });
+  k.setAttribute("aria-hidden", "true"); // each card carries its own screen-reader sentence
+  if (style === "range" && pair) k.append(el("span", { className: "cs-dot sw" }), pair.a, el("span", { className: "cs-dot b sw" }), pair.b,
+    el("span", { className: "cs-band sw" }), "Margin of error", el("span", { className: "cs-key st" }), "State");
+  else if (style === "range") k.append(el("span", { className: "cs-dot sw" }), "District", el("span", { className: "cs-band sw" }), "Margin of error",
+    el("span", { className: "cs-key co" }), "County", el("span", { className: "cs-key st" }), "State");
+  else k.append(el("span", { className: "cs-whisker sw" }), "Margin of error");
+  if (style === "bars" && !pair) {
+    k.append(el("b", { className: "cs-approx", textContent: "≈" }), "Within margin of error");
+    return k;
+  }
+  k.append(el("span", { className: "cs-chip real" }, el("b", { textContent: "▲" }), "Clear difference"),
+    el("span", { className: "cs-chip within" }, el("b", { textContent: "▲" }), "Within margin of error"));
+  return k;
 }
 
 // The two published counts behind a percentage, so the reader can find them in the Census table.
@@ -52,13 +255,13 @@ export function calcDetails(calc) {
   const { numerator: n, denominator: d } = calc;
   const item = p => el("li", {}, el("strong", { textContent: fmtCount(p.value) }),
     ` ${p.label.charAt(0).toLowerCase() + p.label.slice(1)}`,
-    p.rows > 1 ? ` (${p.rows} table rows added together)` : "",
-    p.moe != null ? el("span", { className: "moe", textContent: ` plus or minus ${fmtCount(p.moe)}` }) : "");
+    p.rows > 1 ? `, ${p.rows} table rows added together` : "",
+    p.moe != null ? el("span", { className: "moe", textContent: ` ±${fmtCount(p.moe)}` }) : "");
   return el("details", { className: "calc" },
-    el("summary", { textContent: "How this percentage is calculated" }),
+    el("summary", { textContent: "How it's calculated" }),
     el("p", { textContent: `${fmtCount(n.value)} ÷ ${fmtCount(d.value)} = ${(100 * n.value / d.value).toFixed(1)}%` }),
     el("ul", {}, item(n), item(d)),
-    el("p", { textContent: "Both counts are published in the linked Census table for this district." }));
+    el("p", { textContent: "Both counts are in the linked Census table." }));
 }
 
 // Card shown when a view asks for a figure the data store does not have.
@@ -67,6 +270,9 @@ export function missingFact(label) {
     el("p", { className: "big", textContent: "Not available" }),
     el("p", { className: "moe", textContent: "Not in this tool's data yet" }));
 }
+
+// Plain-language comparison for table cells: "2.1 pts higher" or "14% lower".
+const cellDiff = text => text.replace(" points ", " pts ");
 
 // Table of comparisons (district with margin of error, county, state, differences), grouped.
 export function comparisonTable(comps, countyName, { groupRows = true } = {}) {
@@ -93,12 +299,12 @@ export function comparisonTable(comps, countyName, { groupRows = true } = {}) {
     const v = (e, withMoe) => {
       const td = el("td", {}, fmtMetric(e && e.value, c.format));
       if (withMoe && e && e.value != null) td.append(el("span", { className: "moe", textContent: fmtMoe(e.moe, c.format) }));
-      if (withMoe && e && e.low_reliability) td.append(el("span", { className: "flag", textContent: "Low reliability: the margin of error is large compared with the estimate. Treat with caution." }));
+      if (withMoe && e && e.low_reliability) td.append(el("span", { className: "flag", textContent: "Low reliability: large margin of error" }));
       return td;
     };
     const d = ref => {
       const x = diffText(ref && ref.difference, c.format);
-      const td = el("td", {}, x.text);
+      const td = el("td", {}, cellDiff(x.text));
       if (x.flag) td.append(el("span", { className: "flag", textContent: x.flag }));
       return td;
     };
@@ -115,12 +321,12 @@ export function pairTable(metricIds, a, b) {
   const byId = (d, id) => d.comparisons.find(c => c.metric_id === id);
   const t = el("table", { className: "pair" });
   t.setAttribute("role", "table");
-  const cols = ["Measure", a.name, b.name, `Difference, ${a.id} compared with ${b.id}`, "State"];
+  const cols = ["Measure", a.name, b.name, `Difference (${a.id} vs ${b.id})`, "State"];
   const head = t.createTHead().insertRow();
   head.setAttribute("role", "row");
   // District codes never break at their hyphen.
   const nb = id => el("span", { style: "white-space:nowrap", textContent: id });
-  const heads = [cols[0], cols[1], cols[2], el("span", {}, "Difference, ", nb(a.id), " compared with ", nb(b.id)), cols[4]];
+  const heads = [cols[0], cols[1], cols[2], el("span", {}, "Difference (", nb(a.id), " vs ", nb(b.id), ")"), cols[4]];
   heads.forEach(h => { const th = el("th", { scope: "col" }, h); th.setAttribute("role", "columnheader"); head.append(th); });
   const body = t.createTBody();
   const cell = (label, ...kids) => {
@@ -134,7 +340,7 @@ export function pairTable(metricIds, a, b) {
       el("span", { className: "flag", textContent: "Not published for this district" })];
     const out = [el("span", { className: "val", textContent: fmtMetric(e.value, c.format) }),
       el("span", { className: "moe", textContent: fmtMoe(e.moe, c.format) })];
-    if (e.low_reliability) out.push(el("span", { className: "flag", textContent: "Low reliability: large margin of error. Treat with caution." }));
+    if (e.low_reliability) out.push(el("span", { className: "flag", textContent: "Low reliability: large margin of error" }));
     return out;
   };
   metricIds.forEach(id => {
@@ -157,7 +363,7 @@ export function pairTable(metricIds, a, b) {
     const diff = ca && cb ? compareEstimates(ca.district, cb.district) : null;
     const d = diffText(diff, c.format);
     const same = d.text === "about the same" || d.text === "not available";
-    const text = same ? d.text : `${diff.within_margin_of_error ? "about " : ""}${d.text} in ${a.id}`;
+    const text = same ? d.text : `${diff.within_margin_of_error ? "about " : ""}${cellDiff(d.text)} in ${a.id}`;
     const diffCell = cell("Difference", el("span", { className: diff && diff.within_margin_of_error === false ? "diff real" : "diff", textContent: text }));
     if (d.flag) diffCell.append(el("span", { className: "flag", textContent: d.flag }));
     tr.append(cell(a.id, ...value(ca && ca.district, c)), cell(b.id, ...value(cb && cb.district, c)), diffCell,
@@ -188,7 +394,7 @@ export function renderDetails(data) {
   const county = countyOf(data);
   const wrap = el("div", { className: "source-data" });
   wrap.append(el("p", { className: "muted small", textContent:
-    "For checking. Every measure for this district with its county and state, and the published Census counts behind each percentage. Percentages are calculated from those counts; margins of error use the Census Bureau's method for proportions. A difference inside its margin of error may not be a real difference." }));
+    "For checking: every measure with its county and state, and the published Census counts behind each percentage. Margins of error use the Census Bureau's formula for proportions. A difference inside its margin of error is not a clear difference." }));
 
   const sections = [];
   const placed = new Set();
@@ -221,9 +427,9 @@ export function renderDetails(data) {
     if (f.value_status === "ok") {
       vt.append(unitFmt(f.value));
       vt.append(el("span", { className: "moe", textContent: f.moe == null ? "margin of error not available"
-        : `${f.moe_status === "derived" ? "about " : ""}plus or minus ${unitFmt(f.moe)}` }));
+        : `${f.moe_status === "derived" ? "about " : ""}±${unitFmt(f.moe)}` }));
     } else {
-      vt.append("Not available", el("span", { className: "flag", textContent: "Too few cases for the source to publish" }));
+      vt.append("Not available", el("span", { className: "flag", textContent: "Too few cases to publish" }));
     }
     const st = el("td");
     tableLinks({ tables: f.source.tables }, st);
@@ -270,15 +476,15 @@ export function contextBody(data, countyName, ids) {
     st.append(el("span", { className: "moe", textContent: `${c.source.vintage ? c.source.vintage + ". " : ""}Downloaded ${c.source.retrieved_at}.` }));
     tr.append(st);
   });
-  const notes = ["These sources publish figures for counties (or islands) and the state only, not for legislative districts. They describe the county this district is in, not the district itself, and cover different years from the district figures. No margin of error is published for them."];
+  const notes = ["County (or island) and state figures only: they describe the district's county, not the district, cover different years, and have no published margin of error."];
   if (ctx.some(c => /^(snap_|medquest_|dotax_.*_claims$)/.test(c.indicator_id)))
-    notes.push("SNAP and Med-QUEST counts are program records from the Hawaiʻi Department of Human Services, and tax-credit claims are DOTAX records: how many people actually used each program.");
+    notes.push("SNAP and Med-QUEST counts are Hawaiʻi DHS program records; tax-credit claims are DOTAX records. Both show actual program use.");
   return el("div", {}, ...notes.map(n => el("p", { className: "muted small", textContent: n })), el("div", { className: "table-wrap" }, t));
 }
 
 export function renderContext(data, countyName) {
   const body = contextBody(data, countyName);
-  return body && el("details", {}, el("summary", { textContent: "County and state context (not figures for this district)" }),
+  return body && el("details", {}, el("summary", { textContent: "County and state context (not district figures)" }),
     el("div", { className: "inner" }, body));
 }
 
@@ -291,13 +497,13 @@ export function taxAreasBody(data, countyName) {
   const ctx = (data.county_context || []).find(c => c.indicator_id === "dotax_median_agi");
   const t = el("table");
   const h = t.createTHead().insertRow();
-  ["Tax area", ta.label, "Resident tax returns", "Returns claiming the Hawaiʻi EITC", "Share of this district's residents in the area", "Share of the area's residents in this district"]
+  ["Tax area", ta.label, "Resident returns", "Returns claiming Hawaiʻi EITC", "District's residents in area", "Area's residents in district"]
     .forEach(x => h.append(el("th", { scope: "col", textContent: x })));
   const b = t.createTBody();
   ta.areas.forEach(a => {
     const tr = b.insertRow();
     const th = el("th", { scope: "row", textContent: a.name });
-    if (a.relation !== "overlaps") th.append(el("span", { className: "flag", textContent: "Touches the edge of the district only (under 1% of its residents)" }));
+    if (a.relation !== "overlaps") th.append(el("span", { className: "flag", textContent: "Edge only (under 1% of district residents)" }));
     tr.append(th, el("td", { textContent: money(a.median_agi) }),
       el("td", { textContent: a.returns == null ? "Not available" : Math.round(a.returns).toLocaleString("en-US") }),
       el("td", { textContent: a.eitc_share == null ? "Not available" : (100 * a.eitc_share).toFixed(1) + "%" }),
@@ -321,31 +527,31 @@ export function taxAreasBody(data, countyName) {
       `. Downloaded ${ta.credits.source.retrieved_at}. ${ta.credits.note}`);
   }
   const notes = [ta.applies_to,
-    "Residents are 2020 Census counts, used only to match areas to the district.",
+    "Resident shares use 2020 Census counts, only to match areas to the district.",
     ta.caveat];
   if (ta.district_residents_in_no_tax_area >= 0.01)
-    notes.push(`${pct(ta.district_residents_in_no_tax_area)} of this district's 2020 residents live in ZIP code areas that DOTAX does not list.`);
+    notes.push(`${pct(ta.district_residents_in_no_tax_area)} of the district's 2020 residents live in ZIP codes DOTAX does not list.`);
   return el("div", {}, ...notes.filter(Boolean).map(n => el("p", { className: "muted small", textContent: n })),
     el("div", { className: "table-wrap" }, t), src);
 }
 
 export function renderTaxAreas(data, countyName) {
   const body = taxAreasBody(data, countyName);
-  return body && el("details", {}, el("summary", { textContent: "Income by tax area (areas that overlap this district)" }),
+  return body && el("details", {}, el("summary", { textContent: "Income by tax area" }),
     el("div", { className: "inner" }, body));
 }
 
 // "Residents likely eligible" estimates (programs.yaml `likely_eligible`, docs/ELIGIBILITY_METHOD.md).
 // Counts of people, so no "higher/lower than" comparison: districts, counties and the state differ in size.
 const STATUS_TEXT = {
-  suppressed: "Not published: too few survey responses for this area",
+  suppressed: "Not published: too few survey responses",
   not_applicable: "Not applicable for this area",
 };
 const leCount = e => e && e.value != null ? fmtCount(e.value) : "Not available";
 const leMoe = e => !e ? "Not in this tool's data"
   : e.value == null ? (STATUS_TEXT[e.value_status] || "Not published for this area")
   : e.moe == null ? "margin of error not available"
-  : `${e.moe_status === "derived" ? "about " : ""}plus or minus ${fmtCount(e.moe)}`;
+  : `${e.moe_status === "derived" ? "about " : ""}±${fmtCount(e.moe)}`;
 const leTitle = (le, p) => le.label ? le.label.split(":")[0] : `${p.name}: residents likely eligible`;
 const LE_DIRECTION = { low: "Likely counts too few.", high: "Likely counts too many.", uncertain: "Could count too many or too few." };
 const leProgs = data => (data.programs || []).filter(p => p.likely_eligible);
@@ -355,7 +561,7 @@ function leCard(p, countyName) {
   if (!le.estimated) {
     return el("article", { className: "fact missing" }, el("h3", { textContent: `${p.name}: residents likely eligible` }),
       el("p", { className: "big", textContent: "No estimate" }),
-      el("p", { className: "moe", textContent: "The survey has no defensible measure for this program" }),
+      el("p", { className: "moe", textContent: "No survey measure fits this program" }),
       el("p", { className: "muted small", style: "margin:0 0 0.5rem", textContent: le.reason }),
       el("p", { className: "src", textContent: le.final_eligibility }));
   }
@@ -363,10 +569,9 @@ function leCard(p, countyName) {
   const card = el("article", { className: "fact" }, el("h3", { textContent: leTitle(le, p) }),
     el("p", { className: "big", textContent: leCount(d) }),
     el("p", { className: "moe", textContent: `${d && d.value != null ? "residents, " : ""}${leMoe(d)}` }));
-  if (d && d.low_reliability) card.append(el("p", { className: "flag small", style: "margin:0 0 0.5rem", textContent: "Low reliability: large margin of error. Treat with caution." }));
+  if (d && d.low_reliability) card.append(el("p", { className: "flag", textContent: "Low reliability: large margin of error" }));
   card.append(el("p", { className: "small", style: "margin:0 0 0.5rem", textContent: `Cut used: ${le.acs_cut}.` }),
-    el("p", { className: "muted small", style: "margin:0 0 0.5rem", textContent: le.caveat }),
-    el("p", { className: "muted small", style: "margin:0 0 1rem", textContent: `${LE_DIRECTION[le.direction] || ""} Why: see this program below. ${le.final_eligibility}` }));
+    el("p", { className: "muted small", style: "margin:0 0 1rem", textContent: `${le.caveat} ${LE_DIRECTION[le.direction] || ""}` }));
   const vs = el("div", { className: "vs" });
   [[le.county, countyName || "the county"], [le.state, "the state"]].forEach(([e, name]) => {
     if (e) vs.append(el("div", { className: "row" }, `In ${name}: `, el("span", { className: "hl", textContent: leCount(e) }), ` (${leMoe(e)})`));
@@ -382,7 +587,7 @@ export function likelyEligibleBody(data) {
   const county = countyOf(data);
   return el("div", {},
     el("p", { className: "muted small", textContent:
-      "Estimates of residents whose income is under each program's limit, from the Census survey. They apply the income test only: rules on immigration status, work, assets and who counts in a household are not applied, so these are estimates, not eligibility counts. Each card says which way its estimate likely errs. Final eligibility is decided by the agency that runs the program. The full method notes are under each program in the section below." }),
+      "Residents with income under each program's limit, from the Census survey. Only the income test is applied (not immigration, work, asset or household rules), so these are estimates, not eligibility counts. Each card says which way it likely errs; full method notes are under each program below. Final eligibility is decided by the agency that runs the program." }),
     el("div", { className: "facts" }, ...progs.map(p => leCard(p, county))));
 }
 
@@ -424,7 +629,7 @@ function leProgramBlock(p, body, countyName) {
   const ul = el("ul");
   [[le.district, "This district"], [le.county, countyName || "County"], [le.state, "State"]].forEach(([e, name]) => {
     if (e) ul.append(el("li", {}, `${name}: `, el("strong", { textContent: leCount(e) }), ` (${leMoe(e)})`,
-      e.low_reliability ? el("span", { className: "flag", textContent: " Low reliability: treat with caution." }) : null));
+      e.low_reliability ? el("span", { className: "flag", textContent: " Low reliability" }) : null));
   });
   body.append(ul, ...[`Cut used: ${le.acs_cut}.`, `Program rule it approximates: ${le.rule}`,
     `Counted among: ${le.universe_label} ${le.unit_note}`, le.direction_text]
@@ -445,7 +650,7 @@ export function programsBody(data) {
   if (!progs.length) return null;
   const inner = el("div", {},
     el("p", { className: "muted small", textContent:
-      "Programs that serve groups found in this district. Figures under \"In this district\" are the district's own Census figures, chosen by us to show where each program may matter; they are not counts of eligible people. "
+      "Programs that serve groups in this district. \"In this district\" figures are the district's own Census figures, chosen to show where each program may matter; they are not counts of eligible people. "
       + (progs[0].note || "") }));
   const val = (v, f) => v == null ? "Not available" : f === "dollars" ? "$" + Math.round(v).toLocaleString("en-US") : f === "percent" ? (100 * v).toFixed(1) + "%" : Math.round(v).toLocaleString("en-US");
   const money = v => "$" + Number(v).toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(v) ? 0 : 2, maximumFractionDigits: 2 });
@@ -456,7 +661,7 @@ export function programsBody(data) {
       const ul = el("ul");
       p.district_measures.forEach(m => {
         const li = el("li", {}, `${m.label}: `, el("strong", { textContent: val(m.district, m.format) }), ` (state ${val(m.state, m.format)})`);
-        if (m.low_reliability) li.append(el("span", { className: "flag", textContent: " Low reliability: treat with caution." }));
+        if (m.low_reliability) li.append(el("span", { className: "flag", textContent: " Low reliability" }));
         ul.append(li);
       });
       body.append(el("h4", { textContent: "In this district" }), ul);
@@ -490,7 +695,7 @@ export function programsBody(data) {
         vals.forEach(v => tr.append(el("td", { textContent: money(v) })));
       });
       body.append(el("h4", { textContent: "Income limits" }),
-        el("p", { className: "muted small", textContent: `${lim.description} ${lim.valid_for}.${rowsKey === "by_household_size" ? " Larger households: see the official source." : ""}` }),
+        el("p", { className: "muted small", textContent: `${lim.description} ${lim.valid_for}.${rowsKey === "by_household_size" ? " Larger households: see official source." : ""}` }),
         el("div", { className: "table-wrap" }, t));
     }
     section("How to apply", ["apply", "contact"]);
@@ -512,14 +717,19 @@ export function renderPrograms(data) {
 }
 
 // Official permanent-resident population from the 2021 Reapportionment Plan, when available.
+// One short line that still names its source and year (Business Rules: every figure cites source,
+// year and geography); why it differs from the ACS estimate, and the page reference, open on demand.
+// Printing opens it (beforeprint handlers), so exported summaries carry the full note.
 export function planLine(data) {
   if (!data.plan) return null;
-  return el("p", { className: "muted small plan" },
-    `Official permanent-resident population (2021 Reapportionment Plan, 2020 Census base): ${data.plan.permanent_residents.toLocaleString("en-US")}. `,
-    el("span", { textContent: data.plan.note + " " }),
-    el("a", { href: data.plan.source.url, target: "_blank", rel: "noopener", textContent: "Reapportionment Commission Final Report" }),
-    `, Tables 9-10 (${data.plan.source.page}).`);
+  return el("details", { className: "plan" },
+    el("summary", {}, "Official redistricting population: ", el("strong", { textContent: data.plan.permanent_residents.toLocaleString("en-US") }),
+      " · 2021 Reapportionment Plan (2020 Census base)"),
+    el("p", {}, `${data.plan.note} `,
+      el("a", { href: data.plan.source.url, target: "_blank", rel: "noopener", textContent: "Reapportionment Commission Final Report" }),
+      `, Tables 9-10 (${data.plan.source.page}).`));
 }
+
 
 // A question asked in chat travels to the report page through this browser's storage, never the
 // link, so it stays out of browser history, server logs and the Referer sent to other sites.

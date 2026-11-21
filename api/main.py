@@ -14,7 +14,7 @@ from typing import Literal
 
 import duckdb
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -536,13 +536,11 @@ for _id, _label in INDUSTRIES.items():
 METRIC_GROUPS = {
     "District profile": None,
     "Program need and uptake": (
-        "Income compared with the federal poverty line, and whether residents say they receive "
-        "help. These are not eligibility counts: each program has its own rules, and final "
-        "eligibility is always decided by the agency. Survey answers under-count program use: "
-        "statewide the survey finds about 68% of the SNAP households and 68% of the Med-QUEST "
-        "members in DHS records (see County and state context). So the shares receiving SNAP or "
-        "Medicaid are likely understated, and the share of households not receiving SNAP is "
-        "likely overstated."),
+        "Income against the federal poverty line, and whether residents say they get help. Not "
+        "eligibility counts: each program has its own rules and the agency decides. The survey "
+        "finds only about 68% of the SNAP households and Med-QUEST members in DHS records (see "
+        "County and state context), so SNAP and Medicaid shares are likely understated and the "
+        "share not receiving SNAP likely overstated."),
     "Ethnic background": (
         "Share of residents. \"Alone or in combination\" counts a person in every group they "
         "report, so the shares add up to more than 100%."),
@@ -769,6 +767,37 @@ def map_layer(metric_id: str, chamber: str) -> dict:
         "uncertainty": "Margins of error are shown in each district's comparison table.",
     }
     return collection
+
+
+_hawaiian_spelling: dict[str, str] | None = None
+
+
+def hawaiian_spelling(name: str) -> str:
+    """Census place names drop the ʻokina and kahakō (Kaneohe). Use the USGS GNIS spelling of the
+    same name (Kāneʻohe) when GNIS has exactly one spelling for it; otherwise keep the Census name."""
+    global _hawaiian_spelling
+    if _hawaiian_spelling is None:
+        from api.agent import plain  # imported here: agent.py imports this module
+        spellings: dict[str, set[str]] = {}
+        for r in query("SELECT DISTINCT name FROM named_place"):
+            spellings.setdefault(plain(r["name"]), set()).add(r["name"])
+        _hawaiian_spelling = {k: next(iter(v)) for k, v in spellings.items() if len(v) == 1}
+    from api.agent import plain
+    return _hawaiian_spelling.get(plain(name), name)
+
+
+@app.get("/api/find")
+def find_place(q: str = Query(..., min_length=1, max_length=100)) -> dict:
+    """Find districts by district number, ZIP code, town, neighborhood or DOTAX tax area, without
+    the AI assistant: the same lookup the assistant's find_district tool uses (GEOGRAPHY_METHOD.md).
+    Read-only and deterministic, so it costs nothing per search."""
+    from api import agent  # imported here: agent.py imports this module
+    out = agent.tool_find_district({"query": q}, agent.Sources())
+    for m in out["matches"]:
+        m.pop("cite", None)
+        if "census_place" in m:
+            m["census_place"] = hawaiian_spelling(m["census_place"])
+    return out
 
 
 @app.get("/api/outreach")

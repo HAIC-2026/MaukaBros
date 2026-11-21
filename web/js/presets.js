@@ -14,7 +14,7 @@
 export const PRESETS = [
   {
     id: "overview", label: "Overview",
-    blurb: "The headline figures for this district, each compared with its county and the state.",
+    blurb: "Headline figures, compared with the county and state.",
     // Six cards fill the grid evenly. Health coverage is covered by the low-income uninsured rate
     // on the Program need view.
     metrics: ["median_household_income", "poverty_rate", "share_65_plus", "rent_burden_rate",
@@ -23,7 +23,7 @@ export const PRESETS = [
   },
   {
     id: "kupuna", label: "Kūpuna",
-    blurb: "Older residents: how many there are, how many live alone, and how many have low incomes.",
+    blurb: "Older residents: how many, how many live alone, how many have low incomes.",
     metrics: ["share_65_plus", "kupuna_poverty_rate", "kupuna_alone_share", "social_security_share",
               "disability_rate"],
     notes: ["The disability figure covers residents of all ages, not only kūpuna."],
@@ -41,7 +41,7 @@ export const PRESETS = [
   },
   {
     id: "income", label: "Income & jobs",
-    blurb: "Household income across the range, unemployment, and the industries residents work in.",
+    blurb: "Household income, unemployment, and the industries residents work in.",
     metrics: ["median_household_income", "income_under_50k_share", "income_200k_plus_share",
               "poverty_rate", "unemployment_rate"],
     keywords: ["income", "earn", "wage", "job", "work", "employ", "industr", "tax", "wealth", "afford"],
@@ -54,7 +54,7 @@ export const PRESETS = [
   },
   {
     id: "housing", label: "Housing",
-    blurb: "What housing costs compared with what households earn.",
+    blurb: "Housing costs compared with what households earn.",
     metrics: ["median_gross_rent", "rent_burden_rate", "owner_cost_burden_rate",
               "median_household_income", "income_under_50k_share"],
     // Not "hous": it would match "House District".
@@ -76,7 +76,8 @@ export const PRESETS = [
   },
   {
     id: "programs", label: "Program need",
-    blurb: "Residents with low incomes compared with the poverty line, how many use SNAP and Medicaid, and estimates of how many are likely eligible on income. None of these are eligibility counts.",
+    blurb: "Low incomes against the poverty line, SNAP and Medicaid use, and who is likely eligible on income. None are eligibility counts.",
+
     metrics: ["under_125pct_poverty_share", "under_200pct_poverty_share", "poor_households_without_snap_share",
               "low_income_uninsured_rate", "snap_share", "medicaid_share"],
     keywords: ["snap", "food stamp", "medicaid", "med-quest", "medquest", "program", "eligib",

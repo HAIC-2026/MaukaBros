@@ -5,10 +5,11 @@ export const fmtMetric = (v, f) => v == null ? "Not available"
 
 export const fmtCount = v => v == null ? "Not available" : Math.round(v).toLocaleString("en-US");
 
+// "±" is read aloud as "plus or minus"; "pts" are percentage points.
 export const fmtMoe = (m, f) => m == null ? "margin of error not available"
-  : f === "dollars" ? "plus or minus $" + Math.round(m).toLocaleString("en-US")
-  : f === "count" ? "plus or minus " + Math.round(m).toLocaleString("en-US")
-  : "plus or minus " + (m * 100).toFixed(1) + " points";
+  : f === "dollars" ? "±$" + Math.round(m).toLocaleString("en-US")
+  : f === "count" ? "±" + Math.round(m).toLocaleString("en-US")
+  : "±" + (m * 100).toFixed(1) + " pts";
 
 // Census county names lack the ʻokina ("Kauai County, Hawaii"); show the Hawaiian spelling.
 export const shortCounty = n => n
@@ -47,9 +48,11 @@ export function diffText(diff, f) {
     const p = diff.absolute * 100;
     text = Math.abs(p) < 0.05 ? "about the same" : `${Math.abs(p).toFixed(1)} points ${p > 0 ? "higher" : "lower"}`;
   }
-  const flag = diff.within_margin_of_error === true ? "Within the margin of error: may not be a real difference"
-    : diff.within_margin_of_error === null ? "Margin of error not available: treat as uncertain" : "";
-  const short = diff.within_margin_of_error === true ? "within margin of error"
-    : diff.within_margin_of_error === null ? "margin not available" : "";
-  return { text, flag, short };
+  const flag = diff.within_margin_of_error === true ? "Within margin of error"
+    : diff.within_margin_of_error === null ? "No margin of error published" : "";
+  // Compact form for the headline cards: size only ("14%" or "2.1 pts"), direction in `dir`.
+  const size = f === "dollars" ? `${Math.abs((diff.relative || 0) * 100).toFixed(0)}%` : `${Math.abs(diff.absolute * 100).toFixed(1)} pts`;
+  const dir = text === "about the same" ? 0 : diff.absolute > 0 ? 1 : -1;
+  const sure = diff.within_margin_of_error === false ? "real" : diff.within_margin_of_error === true ? "within" : "unknown";
+  return { text, flag, size, dir, sure };
 }

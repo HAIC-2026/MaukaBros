@@ -1,7 +1,7 @@
 // Map page (index.html): district list, map, profile and research assistant.
 // Kept out of the HTML so the Content Security Policy can forbid inline scripts.
 import { fmtMetric, fmtCount, fmtMoe, shortCounty, districtLabel, compareEstimates } from "/js/format.js";
-import { $, el, tableLinks, renderKeyFact, renderContext, renderTaxAreas, renderPrograms, planLine, reportUrl } from "/js/render.js";
+import { $, el, tableLinks, renderKeyFact, renderPairFact, renderContext, renderTaxAreas, renderPrograms, planLine, reportUrl, factKey, cardStyleSwitch, countyOf } from "/js/render.js";
 import { presetById, presetFor, districtFor } from "/js/presets.js";
 import { renderMarkdown } from "/js/markdown.js";
 
@@ -20,29 +20,50 @@ const AREAS = [ // quick zoom buttons; county ids come from the boundary file
   { label: "Oʻahu", county: "COUNTY-003" },
   { label: "Kauaʻi", county: "COUNTY-007" },
 ];
-const state = { chamber: "house", districtId: null, mapData: null, districts: [], edges: [] };
+// The map offers a short list of headline measures (the brief's core indicators and the outreach
+// example). The API serves every measure; the report and the assistant still use all of them.
+const MAP_CHOICES = [
+  ["median_household_income", "Household income"],
+  ["poverty_rate", "Poverty"],
+  ["share_65_plus", "Kūpuna (65+)"],
+  ["rent_burden_rate", "Rent burden"],
+  ["unemployment_rate", "Unemployment"],
+  ["poor_households_without_snap_share", "Below poverty, no SNAP"],
+];
+const state = { chamber: "house", districtId: null, vsId: null, mapData: null, districts: [], edges: [] };
 let view, fillLayer, hoverLayer, selLayer, GraphicCtor, ExtentCtor;
 
 // ---------- summary ----------
 // The map page shows the headline figures; the report page (report.html) has every view.
+let redraw = null; // redraws the current profile, e.g. after the card view changes
+const popLineOf = data => {
+  const pop = data.facts.find(f => f.indicator_id === "pop_total");
+  return pop && pop.value_status === "ok"
+    ? `About ${fmtCount(pop.value)} residents (${fmtMoe(pop.moe, "count")})` : "Population not available";
+};
+// Switching the card view redraws in place and keeps focus on the switch.
+const viewSwitch = () => cardStyleSwitch(() => {
+  if (redraw) redraw();
+  const b = document.querySelector('#main .cs-switch button[aria-pressed="true"]');
+  if (b) b.focus();
+});
+
 function renderProfile(data) {
+  redraw = () => renderProfile(data);
   const comps = data.comparisons;
   const keyComps = presetById("overview").metrics.map(id => comps.find(c => c.metric_id === id)).filter(Boolean);
-  const pop = data.facts.find(f => f.indicator_id === "pop_total");
   const county = comps[0] && comps[0].county ? shortCounty(comps[0].county.name) : "";
-
-  const popLine = pop && pop.value_status === "ok"
-    ? `About ${fmtCount(pop.value)} residents (${fmtMoe(pop.moe, "count")})` : "Population not available";
+  const popLine = popLineOf(data);
 
   const facts = el("div", { className: "facts" });
-  keyComps.forEach(c => facts.append(renderKeyFact(c)));
+  keyComps.forEach(c => facts.append(renderKeyFact(c, { place: data.name })));
 
   const programs = renderPrograms(data);
   const actions = el("div", { className: "actions" },
     el("a", { className: "btn i-launch", href: reportUrl(data.geo_id), target: "_blank", rel: "noopener" },
-      "Open full report", el("span", { className: "sr-only", textContent: " (opens in a new tab)" })),
-    el("button", { className: "btn secondary i-print", type: "button", textContent: "Print or save as PDF", onclick: () => window.print() }),
-    el("button", { className: "btn secondary i-copy", type: "button", textContent: "Copy link to this district",
+      "Full report", el("span", { className: "sr-only", textContent: " (opens in a new tab)" })),
+    el("button", { className: "btn secondary i-print", type: "button", textContent: "Print / PDF", onclick: () => window.print() }),
+    el("button", { className: "btn secondary i-copy", type: "button", textContent: "Copy link",
       onclick: e => { navigator.clipboard && navigator.clipboard.writeText(location.href); e.target.textContent = "Link copied"; } }));
 
   const context = renderContext(data, county);
@@ -50,7 +71,38 @@ function renderProfile(data) {
   $("main").replaceChildren(
     el("h2", { className: "district", textContent: data.name }),
     el("p", { className: "sub", textContent: county ? `${county} · ${popLine}` : popLine }),
-    ...[planLine(data), facts, actions, taxAreas, context, programs].filter(Boolean));
+    ...[planLine(data), viewSwitch(), facts, factKey(), actions, taxAreas, context, programs].filter(Boolean));
+}
+
+// Two districts side by side: the overview figures as paired cards, each difference tested
+// against both margins of error. The full comparison (every view) is on the report page.
+function renderPairProfile(a, b) {
+  redraw = () => renderPairProfile(a, b);
+  const A = { id: a.geo_id, name: a.name }, B = { id: b.geo_id, name: b.name };
+  const byId = (d, id) => d.comparisons.find(c => c.metric_id === id);
+  const facts = el("div", { className: "facts" });
+  presetById("overview").metrics.forEach(id => {
+    const ca = byId(a, id), cb = byId(b, id);
+    if (ca || cb) facts.append(renderPairFact(ca, cb, A, B));
+  });
+  const who = (d, cls) => el("p", { className: `pair-who ${cls}` }, el("strong", { textContent: d.geo_id }),
+    ` · ${[countyOf(d), popLineOf(d)].filter(Boolean).join(" · ")}`);
+  const full = `${reportUrl(a.geo_id)}&vs=${encodeURIComponent(b.geo_id)}`;
+  const actions = el("div", { className: "actions" },
+    el("a", { className: "btn i-launch", href: full, target: "_blank", rel: "noopener" },
+      "Full comparison", el("span", { className: "sr-only", textContent: " (opens in a new tab)" })),
+    el("button", { className: "btn secondary", type: "button", textContent: "Swap",
+      onclick: () => { const x = state.districtId; state.vsId = x; openDistrict(b.geo_id); } }),
+    el("button", { className: "btn secondary", type: "button", textContent: "Stop comparing",
+      onclick: () => { state.vsId = null; selectDistrict(a.geo_id, true); } }),
+    el("button", { className: "btn secondary i-copy", type: "button", textContent: "Copy link",
+      onclick: e => { navigator.clipboard && navigator.clipboard.writeText(location.href); e.target.textContent = "Link copied"; } }));
+  const note = a.geo_type !== b.geo_type ? el("p", { className: "pair-note", textContent:
+    "House and Senate districts overlap, so some residents are in both. Rates and medians compare; the margin-of-error test is approximate." }) : null;
+  $("main").replaceChildren(
+    el("h2", { className: "district", textContent: `${a.name} vs ${b.name}` }),
+    ...[who(a, "a"), who(b, "b"), note, viewSwitch(), facts, factKey(undefined, { a: A.id, b: B.id }), actions].filter(Boolean));
+
 }
 
 // ---------- research assistant ----------
@@ -58,9 +110,11 @@ function renderProfile(data) {
 const chat = { history: [], busy: false, n: 0 };
 
 function chatContext() {
-  $("chat-ctx").textContent = state.districtId ? `Selected: ${districtLabel(state.districtId)}` : "No district selected";
+  $("chat-ctx").textContent = !state.districtId ? "No district selected"
+    : `Selected: ${districtLabel(state.districtId)}${state.vsId ? `, compared with ${districtLabel(state.vsId)}` : ""}`;
 }
-function openChat() { $("chat").hidden = false; chatContext(); }
+function openChat() { $("chat").hidden = false; $("chat-open").hidden = true; chatContext(); }
+function closeChat() { $("chat").hidden = true; $("chat-open").hidden = false; $("chat-open").focus(); }
 
 function reportCard(question, trace) {
   const id = districtFor(trace, state.districtId);
@@ -68,7 +122,7 @@ function reportCard(question, trace) {
   const preset = presetById(presetFor(question, trace));
   return el("a", { className: "report-card", href: reportUrl(id, preset.id, question), target: "_blank", rel: "noopener" },
     el("div", {}, el("strong", { textContent: "Open full report" }),
-      el("span", { className: "meta", textContent: `${districtLabel(id)} · ${preset.label} · opens in a new tab` })),
+      el("span", { className: "meta", textContent: `${districtLabel(id)} · ${preset.label} · new tab` })),
     el("span", { className: "go", textContent: "↗", ariaHidden: "true" }));
 }
 
@@ -106,11 +160,11 @@ async function ask(question) {
     // Numbers the server could not match to the data the assistant looked up.
     if (data.unverified_numbers && data.unverified_numbers.length) {
       box.append(el("p", { className: "flag answer-check", textContent:
-        `Check before using: ${data.unverified_numbers.join(", ")} ${data.unverified_numbers.length === 1 ? "was" : "were"} not found in the data the assistant looked up. Rely on the sources below and the district pages.` }));
+        `Check before using: ${data.unverified_numbers.join(", ")} ${data.unverified_numbers.length === 1 ? "is" : "are"} not in the data looked up. Rely on the sources below.` }));
     }
     if (data.sources && data.sources.length) box.append(sourcesBlock(data.sources, id));
     if (data.trace && data.trace.length) {
-      box.append(el("details", {}, el("summary", { textContent: `What the assistant looked up (${data.trace.length})` }),
+      box.append(el("details", {}, el("summary", { textContent: `Data looked up (${data.trace.length})` }),
         el("pre", { textContent: data.trace.map(t => `${t.tool}(${JSON.stringify(t.input)})${t.error ? "  → error" : ""}`).join("\n") })));
     }
     pending.replaceWith(box);
@@ -136,7 +190,9 @@ $("chat-log").addEventListener("click", e => {
 $("ask-form").addEventListener("submit", e => { e.preventDefault(); const q = $("ask-input").value; $("ask-input").value = ""; ask(q); });
 $("chat-form").addEventListener("submit", e => { e.preventDefault(); const q = $("chat-input").value; $("chat-input").value = ""; ask(q); });
 $("chat-input").addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("chat-form").requestSubmit(); } });
-$("chat-close").addEventListener("click", () => { $("chat").hidden = true; $("ask-input").focus(); });
+$("chat-close").addEventListener("click", closeChat);
+$("chat-open").addEventListener("click", () => { openChat(); $("chat-input").focus(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("chat").hidden && $("chat").contains(document.activeElement)) closeChat(); });
 $("chat-clear").addEventListener("click", () => { chat.history = []; $("chat-log").replaceChildren(); $("chat-input").focus(); });
 
 // Open every section when printing so the page prints as a complete one-pager.
@@ -155,16 +211,28 @@ function fillSymbol(g) {
 }
 const outline = (color, width) => ({ type: "simple-fill", color: [0, 0, 0, 0], outline: { color, width } });
 
-// Selected district: the others fade, and it gets a slim dark edge over a white halo.
+// Selected district: the others fade, and it gets a slim dark edge over a white halo. A district
+// being compared (same chamber only, since the map shows one chamber) gets a dashed edge.
 function drawSelection(zoom) {
   selLayer.removeAll();
   fillLayer.graphics.forEach(g => { g.symbol = fillSymbol(g); });
-  const f = state.mapData && state.mapData.features.find(x => x.properties.geo_id === state.districtId);
+  const find = id => id && state.mapData && state.mapData.features.find(x => x.properties.geo_id === id);
+  const f = find(state.districtId), fv = find(state.vsId);
   if (!f) { if (zoom) goExtent(STATE_EXTENT); return; }
   const geometry = polygon(f.geometry);
   selLayer.addMany([new GraphicCtor({ geometry, symbol: outline([255, 255, 255, 0.95], 3) }),
                     new GraphicCtor({ geometry, symbol: outline("#393939", 1.5) })]);
-  if (zoom) { markArea(null); goTo(selLayer.graphics.getItemAt(0).geometry.extent.expand(2.6)); }
+  if (fv) {
+    const gv = polygon(fv.geometry);
+    selLayer.addMany([new GraphicCtor({ geometry: gv, symbol: outline([255, 255, 255, 0.95], 3) }),
+                      new GraphicCtor({ geometry: gv, symbol: { ...outline("#393939", 1.5), outline: { color: "#393939", width: 1.5, style: "dash" } } })]);
+  }
+  if (zoom) {
+    markArea(null);
+    let ext = selLayer.graphics.getItemAt(0).geometry.extent;
+    if (fv) ext = ext.clone().union(selLayer.graphics.getItemAt(2).geometry.extent);
+    goTo(ext.expand(fv ? 1.6 : 2.6));
+  }
 }
 const goTo = target => view.when(() => view.goTo(target, { animate: !REDUCE_MOTION }).catch(() => {}));
 function goExtent(e) {
@@ -178,28 +246,101 @@ function countyExtent(countyId) {
   return x0 === 999 ? null : { xmin: x0, ymin: y0, xmax: x1, ymax: y1 };
 }
 
+// District data, fetched once per page visit.
+const loaded = new Map();
+function fetchDistrict(id) {
+  if (!loaded.has(id)) loaded.set(id, fetch("/api/districts/" + encodeURIComponent(id)).then(async res => {
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+    return res.json();
+  }).catch(err => { loaded.delete(id); throw err; }));
+  return loaded.get(id);
+}
+
+// "Compare with": every district except the one chosen, both chambers.
+function fillVsList() {
+  const sel = $("vs");
+  sel.replaceChildren(new Option("None", ""));
+  [["house", "House"], ["senate", "Senate"]].forEach(([type, label]) => {
+    const g = el("optgroup", { label });
+    state.districts.filter(d => d.geo_type === type && d.geo_id !== state.districtId).forEach(d => g.append(new Option(d.name, d.geo_id)));
+    sel.append(g);
+  });
+  sel.disabled = !state.districtId;
+  sel.value = state.vsId || "";
+}
+
 async function selectDistrict(id, zoom = true) {
   state.districtId = id || null;
+  if (!state.districtId || state.vsId === state.districtId) state.vsId = null;
+  const vs = state.vsId;
   $("district").value = id || "";
+  fillVsList();
   chatContext();
   $("report-link").hidden = !id;
-  if (id) $("report-link").href = reportUrl(id);
+  if (id) $("report-link").href = vs ? `${reportUrl(id)}&vs=${encodeURIComponent(vs)}` : reportUrl(id);
   const url = new URL(location.href);
   id ? url.searchParams.set("d", id) : url.searchParams.delete("d");
+  vs ? url.searchParams.set("vs", vs) : url.searchParams.delete("vs");
   history.replaceState(null, "", url);
   drawSelection(zoom);
   if (!id) { renderLanding(); return; }
   $("main").replaceChildren(el("p", { className: "muted", textContent: "Loading..." }));
   try {
-    const res = await fetch("/api/districts/" + encodeURIComponent(id));
-    if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
-    const data = await res.json();
-    if (state.districtId !== id) return; // user already moved on
-    renderProfile(data);
+    const [data, dataVs] = await Promise.all([fetchDistrict(id), vs ? fetchDistrict(vs) : null]);
+    if (state.districtId !== id || state.vsId !== vs) return; // user already moved on
+    dataVs ? renderPairProfile(data, dataVs) : renderProfile(data);
   } catch (err) {
     $("main").replaceChildren(el("p", { className: "error", textContent: "Could not load this district. " + err.message }));
   }
 }
+
+// ---------- find a district by place (no AI: GET /api/find, the assistant's own lookup) ----------
+const KIND = { zip_code: "ZIP code", census_place: "Town", neighborhood: "Neighborhood", tax_area: "DOTAX tax area" };
+function findResults(r) {
+  const out = [];
+  r.matches.forEach(m => {
+    if (m.district_id) { // a district number
+      out.push(el("div", { className: "find-hit" }, el("button", { type: "button", className: "find-go",
+        textContent: m.name, onclick: () => goFind(m.district_id) })));
+      return;
+    }
+    const kind = Object.keys(KIND).find(k => m[k]);
+    const title = el("p", { className: "find-title" }, el("strong", { textContent: m[kind] }),
+      el("span", { className: "find-kind", textContent: kind === "neighborhood" ? `${KIND[kind]}, ${m.county}` : KIND[kind] }));
+    const list = el("div", { className: "find-list" });
+    (m.districts || []).forEach(d => list.append(el("button", { type: "button", className: "find-go", onclick: () => goFind(d.district_id) },
+      d.name, d.share_of_residents ? el("span", { className: "find-share", textContent: d.share_of_residents }) : null)));
+    if (!(m.districts || []).length) list.append(el("p", { className: "muted small", textContent: "No residents found for this ZIP code (it may be PO-box only)." }));
+    out.push(el("div", { className: "find-hit" }, title, list));
+  });
+  if (!out.length) return [el("p", { className: "small", textContent: "No match. Try a town, neighborhood, ZIP code or district number. Street addresses aren't supported." })];
+  const shares = r.matches.some(m => (m.districts || []).some(d => d.share_of_residents));
+  const hood = r.matches.some(m => m.neighborhood);
+  if (shares) out.push(el("p", { className: "find-note", textContent: "% = share of the area's 2020 residents in each district (2020 Census blocks)." }));
+  if (hood) out.push(el("p", { className: "find-note", textContent: "Neighborhoods are placed by their official USGS reference point; parts near a district line may be in the next district." }));
+  return out;
+}
+function closeFind() { $("find-results").hidden = true; }
+function goFind(id) { closeFind(); openDistrict(id); }
+$("find-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const q = $("find-input").value.trim();
+  if (!q) return;
+  const box = $("find-results");
+  box.hidden = false;
+  box.replaceChildren(el("p", { className: "muted small", textContent: "Searching…" }));
+  try {
+    const res = await fetch("/api/find?q=" + encodeURIComponent(q.slice(0, 100)));
+    if (!res.ok) throw new Error(res.statusText);
+    const r = await res.json();
+    box.replaceChildren(el("button", { type: "button", className: "find-close", ariaLabel: "Close results", textContent: "×", onclick: () => { closeFind(); $("find-input").focus(); } }),
+      ...findResults(r));
+  } catch (err) {
+    box.replaceChildren(el("p", { className: "error small", textContent: "Search failed. " + err.message }));
+  }
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("find-results").hidden) { closeFind(); $("find-input").focus(); } });
+document.addEventListener("click", e => { if (!$("find-form").contains(e.target)) closeFind(); });
 
 // ---------- landing: one outreach opportunity, statewide ----------
 // Households below the poverty level that did not receive SNAP (ACS B22003), with the districts
@@ -208,7 +349,7 @@ let outreachData = null;
 
 function renderLanding() {
   const intro = el("div", { className: "empty" }, el("h2", { textContent: "Who lives in your district?" }),
-    el("p", { textContent: "Choose a district above, or click one on the map, to see a sourced profile of its residents." }));
+    el("p", { textContent: "Pick a district above or on the map." }));
   const slot = el("section", { className: "outreach" });
   slot.setAttribute("aria-labelledby", "outreach-h");
   $("main").replaceChildren(intro, slot);
@@ -243,31 +384,30 @@ function outreachSection(d) {
       el("span", { className: "name", textContent: r.name }),
       el("span", { className: "n", textContent: fmtCount(r.count) + " households" }),
       el("span", { className: "detail", textContent:
-        `${fmtMoe(r.count_moe, "count")} · ${fmtMetric(r.share, "percent")} of its households below poverty (${fmtMoe(r.share_moe, "percent")})`
-        + (r.low_reliability ? " · low reliability: large margin of error" : "") })))));
+        `${fmtMoe(r.count_moe, "count")} · ${fmtMetric(r.share, "percent")} of its poor households (${fmtMoe(r.share_moe, "percent")})`
+        + (r.low_reliability ? " · low reliability" : "") })))));
     const [a, b] = rows;
     const close = a && b && compareEstimates({ value: a.count, moe: a.count_moe }, { value: b.count, moe: b.count_moe });
     return el("div", {}, el("h3", { textContent: title }), ol,
       close && close.within_margin_of_error !== false
-        ? el("p", { className: "order-note", textContent: `The order of ${a.name} and ${b.name} may not be a real difference: it is within the margin of error.` })
+        ? el("p", { className: "order-note", textContent: `${a.name} and ${b.name} are within each other's margin of error, so treat them as tied.` })
         : null);
   };
   const src = el("p", { className: "src" }, `Source: ${d.source.publisher}, ACS 5-year ${d.source.year}, `);
   tableLinks(d.source, src);
-  src.append(". State of Hawaiʻi and Census state legislative districts. Income rule: ",
+  src.append(" · State and legislative districts · Income rule: ",
     el("a", { href: d.program.url, target: "_blank", rel: "noopener", textContent: "Hawaiʻi DHS SNAP page" }), ".");
   return [
     el("p", { className: "kicker", textContent: "Outreach opportunity · SNAP" }),
-    el("h2", { id: "outreach-h", textContent: `${pct(s.share)} of Hawaiʻi households below the poverty level did not receive SNAP` }),
+    el("h2", { id: "outreach-h", textContent: `${pct(s.share)} of Hawaiʻi households below poverty did not receive SNAP` }),
     el("div", { className: "headline" },
       el("p", { className: "big", textContent: fmtCount(s.count) }),
-      el("p", { className: "big-label", textContent: `households statewide had incomes below the poverty level and did not receive SNAP in the past 12 months: ${fmtMetric(s.share, "percent")} of all households below poverty.` }),
-      el("p", { className: "moe", textContent: `Count ${fmtMoe(s.count_moe, "count")} households; share ${fmtMoe(s.share_moe, "percent")}.` })),
-    el("p", { className: "why", textContent: `These households have incomes under the poverty level, well inside SNAP's income limit. ${d.income_rule}` }),
+      el("p", { className: "big-label", textContent: `households statewide (${fmtMoe(s.count_moe, "count")}), ${fmtMetric(s.share, "percent")} (${fmtMoe(s.share_moe, "percent")}) of those below poverty, got no SNAP in the past 12 months.` })),
+    el("p", { className: "why", textContent: `Their incomes are well under SNAP's limit. ${d.income_rule}` }),
     el("div", { className: "where" }, list("Most households, House", d.house), list("Most households, Senate", d.senate)),
-    el("p", { className: "caveat", textContent: `${d.caveat} Final eligibility is always decided by ${d.program.agency.split(" (")[0]}.` }),
+    el("p", { className: "caveat", textContent: `${d.caveat} Final eligibility is decided by ${d.program.agency.split(" (")[0]}.` }),
     el("div", { className: "actions" },
-      el("button", { className: "btn secondary", type: "button", textContent: "Color the map by this measure",
+      el("button", { className: "btn secondary", type: "button", textContent: "Show on map",
         onclick: () => { $("metric").value = d.metric_id; drawMap(); } })),
     src,
   ];
@@ -345,7 +485,7 @@ require(["esri/Map", "esri/views/MapView", "esri/layers/GraphicsLayer", "esri/Gr
       const s = data.meta.source;
       const note = el("span", {}, `Census ACS 5-year ${s.year}, `);
       tableLinks(s, note);
-      note.append(`. Districts drawn from the Hawaiʻi Statewide GIS Program (OPSD) 2022 boundaries.`);
+      note.append(` · Boundaries: Hawaiʻi Statewide GIS Program (OPSD), 2022`);
       $("mapnote").replaceChildren(note);
       drawSelection(false);
     };
@@ -376,8 +516,8 @@ require(["esri/Map", "esri/views/MapView", "esri/layers/GraphicsLayer", "esri/Gr
           hoverLayer.add(new Graphic({ geometry: g.geometry, symbol: outline([255, 255, 255, 1], 2) }));
           tip.replaceChildren(el("strong", { textContent: a.name }),
             el("span", { className: "tip-value", textContent: value }),
-            el("span", { className: "tip-note", textContent: a.k < 0 ? "Not published for this district"
-              : `In the ${FIFTHS[a.k]} of ${state.chamber === "house" ? "House" : "Senate"} districts` }));
+            el("span", { className: "tip-note", textContent: a.k < 0 ? "Not published"
+              : `${FIFTHS[a.k][0].toUpperCase() + FIFTHS[a.k].slice(1)} of ${state.chamber === "house" ? "House" : "Senate"} districts` }));
           $("hover").textContent = `${a.name}: ${value}`;
         }
         // Keep the tooltip inside the map: flip it left or up near the right or bottom edge.
@@ -432,16 +572,19 @@ async function init() {
     if (!dRes.ok || !mRes.ok) throw new Error("Data service unavailable");
     state.districts = await dRes.json();
     const metrics = await mRes.json();
-    const groups = {};
-    metrics.forEach(m => (groups[m.group] = groups[m.group] || el("optgroup", { label: m.group })).append(new Option(m.label, m.metric_id)));
-    $("metric").replaceChildren(...Object.values(groups));
-    $("metric").value = "median_household_income";
+    const served = new Set(metrics.map(m => m.metric_id));
+    $("metric").replaceChildren(...MAP_CHOICES.filter(([id]) => served.has(id)).map(([id, label]) => new Option(label, id)));
+    $("metric").value = MAP_CHOICES[0][0];
+
     buildIslandButtons();
 
-    const wanted = new URL(location.href).searchParams.get("d");
-    if (wanted && /^(HD|SD)-\d+$/i.test(wanted)) {
-      state.districtId = wanted.toUpperCase();
+    const params = new URL(location.href).searchParams;
+    const known = id => id && state.districts.some(d => d.geo_id === id);
+    const wanted = (params.get("d") || "").toUpperCase(), wantedVs = (params.get("vs") || "").toUpperCase();
+    if (known(wanted)) {
+      state.districtId = wanted;
       state.chamber = state.districtId.startsWith("HD") ? "house" : "senate";
+      if (known(wantedVs) && wantedVs !== wanted) state.vsId = wantedVs;
     }
     $("ch-house").setAttribute("aria-pressed", state.chamber === "house");
     $("ch-senate").setAttribute("aria-pressed", state.chamber === "senate");
@@ -461,4 +604,6 @@ window.addEventListener("resize", setHdr); window.addEventListener("load", setHd
 $("ch-house").addEventListener("click", () => setChamber("house"));
 $("ch-senate").addEventListener("click", () => setChamber("senate"));
 $("district").addEventListener("change", e => selectDistrict(e.target.value, true));
+$("vs").addEventListener("change", e => { state.vsId = e.target.value || null; selectDistrict(state.districtId, true); });
+
 $("metric").addEventListener("change", () => drawMap());

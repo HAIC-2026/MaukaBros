@@ -12,15 +12,21 @@ use case "Know Your District", championed by DBEDT's Research and Economic Analy
 
 - **District profile.** Pick a district from the list or the map and see six headline figures
   (household income, poverty, kūpuna, rent burden, SNAP use, unemployment), each compared with
-  the county and the state.
+  the county and the state. Three card views: **Range** (is each gap real? the margin-of-error band
+  against the county and state), **Bars** (how big? bars from zero) and **Text** (plain sentences
+  with a Copy button that includes the source).
+- **Find by place.** Type a town, neighborhood, ZIP code or DOTAX tax area (e.g. Kāneʻohe, Kāhala,
+  96816, North Shore) to see which districts its residents live in. No AI involved, so it is free
+  and instant.
 - **Honest numbers.** Every figure shows its source, year and Census table, with its margin of
-  error. Differences inside the margin are labeled "may not be a real difference", estimates too
+  error. Each difference is labeled "Clear difference" or "Within margin of error", estimates too
   uncertain to rely on are flagged, and anything a source does not publish says "Not available".
 - **Full report.** Topic views for kūpuna, families and keiki, income and jobs, housing, who lives
   here, and program need, plus a source-data section with every figure and the published counts
   behind it.
-- **Compare two districts** side by side, including a House district against a Senate district.
-- **Interactive map** of all districts, colored by any measure.
+- **Compare two districts** side by side on the map page or the report, including a House district
+  against a Senate district. Each difference is tested against both margins of error.
+- **Interactive map** of all districts, colored by one of six headline measures (income, poverty, kūpuna, rent burden, unemployment, poor households without SNAP).
 - **Smaller areas.** The towns, ZIP codes and DOTAX tax areas each district's residents live in,
   with income and tax-credit figures for those areas.
 - **Programs.** SNAP, Med-QUEST, Hawaiʻi EITC, the food/excise tax credit, WIC, Kūpuna Care and

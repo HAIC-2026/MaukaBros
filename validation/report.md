@@ -1,6 +1,6 @@
 # Validation report
 
-Run on 2026-11-16 against ACS 5-year 2020-2024. 70 of 70 checks passed.
+Run on 2026-11-20 against ACS 5-year 2020-2024. 70 of 70 checks passed.
 
 | Result | Group | Check | Detail |
 |---|---|---|---|

@@ -1,6 +1,6 @@
 # District Insight: build checklist
 
-Status as of 2026-11-16. Source for each item: the HAIC use case brief (section named in brackets) or
+Status as of 2026-11-20. Source for each item: the HAIC use case brief (section named in brackets) or
 Seth Colby's kickoff video ("Seth").
 
 - `[x]` done   `[~]` partly done or not yet verified   `[ ]` not started
@@ -20,6 +20,7 @@ Seth Colby's kickoff video ("Seth").
     - [x] Kāhala is found in HD-20 (2026-11-16): neighborhood lookup from USGS GNIS reference points in the OPSD shapes, cited in the answer; question 10 now checks HD-20's rent, the whole-district caveat and the kahakō
   - [x] Questions are sent to Anthropic's API: stated in the page footer's privacy note and under the chat box
 - [x] Find a district by place name: ZIP codes, 163 Census places (towns/CDPs), 465 USGS neighborhood and village names (e.g. Kāhala, Kaimukī, Hawaiʻi Kai) and DOTAX tax areas, through the assistant's find_district. Method in `docs/GEOGRAPHY_METHOD.md`. No street-address lookup [Basic Flow 1; Seth]
+  - [x] Also on the map page without the AI (2026-11-20): "Find by place or ZIP" field, `GET /api/find` (same lookup, free and instant). Town names shown in Hawaiian spelling (Kāneʻohe) from USGS GNIS where GNIS has one spelling
 - [x] Choose a district by chamber and number (House 51, Senate 25)
 
 ## 2. District profile (data on screen)
@@ -30,11 +31,13 @@ Seth Colby's kickoff video ("Seth").
 - [x] Every figure shows source, year, table link and geography [Business Rules]
 - [x] "Not available" shown when the source suppresses a value [Business Rules]
 - [x] Derived margins of error labeled "about" [Business Rules]
-- [x] Employment by industry [Calculations]: ACS C24050, 13 industries as shares of employed residents, compared with county and state, and selectable on the map. These are jobs held by residents, not jobs located in the district.
+- [x] Employment by industry [Calculations]: ACS C24050, 13 industries as shares of employed residents, compared with county and state (report and assistant; the map offers six headline measures only). These are jobs held by residents, not jobs located in the district.
 - [ ] Other indicators DBEDT/READ prioritizes [Calculations]. Ask the champion (Slack #c_dbedt_agent) which.
-- [ ] Team decision on the headline statistics (`KEY_METRICS` in `web/index.html`). Seth: fewer, well-chosen figures rank higher.
+- [ ] Team decision on the headline statistics (the `overview` view in `web/js/presets.js`; currently six). Seth: fewer, well-chosen figures rank higher.
+- [x] Headline cards in three views, switchable on both pages (2026-11-20): Range (margin-of-error band against county and state), Bars (sizes from zero), Text (sentences with a Copy button that includes the source). Each difference labeled "Clear difference" or "Within margin of error". Medians (income, rent) now explain in "How it's calculated" that they are published as is, not calculated
 - [x] Compare two districts side by side [Seth]: "Compare with" picker on the report page (`/report.html?d=HD-47&vs=HD-24`, `pairTable` in `web/js/render.js`); each difference is tested against both margins of error (same rule as the county comparison), works across chambers with an overlap note
-- [ ] Detail finer than the district (e.g. North Shore vs Waialua) [Seth]
+  - [x] Also on the map page (2026-11-20): "Compare with" picker, paired cards for the six headline figures in all three views, both districts outlined on the map (the second dashed, same chamber only), Swap / Stop comparing, link to the full comparison. Shareable as `/?d=HD-47&vs=HD-24`. The report's comparison uses the same paired cards for its headline figures
+- [~] Detail finer than the district (e.g. North Shore vs Waialua) [Seth]. Have: DOTAX tax areas per district with median income and EITC share (e.g. Oʻahu North Shore), and "Find by place" shows how a town splits across districts (Waialua: 85% HD-47, 15% HD-46). Missing: survey figures for parts of a district. Needs ACS 5-year by Census place or tract (Census API download) and a written method for showing parts of a district; see the Sub-district detail item in section 6. Team decision: worth building before judging?
 - [x] Check a high-income district reads sensibly, not only struggling ones [Seth]: HD-20 (Kāhala), income above the state but within the margin of error of the county, and the page says so (`docs/DEMO_SCRIPT.md` step 4; test question 17)
 
 ## 3. Programs and outreach (other group)
@@ -52,7 +55,7 @@ Seth Colby's kickoff video ("Seth").
 
 ## 4. Map
 
-- [x] ArcGIS map of House and Senate districts, colored by a chosen measure
+- [x] ArcGIS map of House and Senate districts, colored by one of six headline measures (`MAP_CHOICES` in `web/js/map-page.js`)
 - [x] Selected district outlined and zoomed to
 - [x] Legend, island zoom buttons, hover label
 - [~] Clicking a district in the landing's outreach list (including a chamber switch) tested in Playwright 2026-11-16. Clicking the map itself, hover and the island buttons still to try by hand
@@ -76,7 +79,7 @@ Seth Colby's kickoff video ("Seth").
 - [x] Census 2020 blocks loaded (2024 district equivalency, block populations, block-to-ZCTA, places): population-weighted tax-area, place and ZIP matching; independent cross-check against the Census district-to-ZCTA files passes
 - [x] Low-reliability flag (CV over 30%) on the page and in the assistant's data: 179 of 3,344 district figures
 - [x] DOTAX tax credits 2023: Hawaiʻi EITC, food/excise and renters' credit claims by county (A-4) and share of returns claiming them by tax area (A-7), shown with the tax areas
-- [x] Official permanent-resident population per district (2021 Reapportionment Commission report, Tables 9-10), shown under the district name; both chambers add to the report's 1,348,054
+- [x] Official permanent-resident population per district (2021 Reapportionment Commission report, Tables 9-10), shown under the district name as one line with source and year, the explanation (why it differs from the ACS estimate) expandable and opened when printing; both chambers add to the report's 1,348,054
 - [x] Cross-check against DBEDT's published ACS district profiles: 1,064 estimates and 910 margins of error, 14 measures, all 76 districts, 0 differences (validation group H)
 - [x] Med-QUEST managed-care enrollment by county and state, April 2026 (Hawaiʻi Medicaid Enrollment Report 2026, downloaded by hand; latest month at least six months old). Survey Medicaid coverage is 68% of these records, so it is labeled as likely understated
 - [x] Recommended data set applied (`docs/DATA_SOURCES.md`): kept ACS, SNAP 11.03-11.04, BLS rate, BEA per capita; added DOTAX; dropped Data Book 1.06 and 11.05; skipped the other Data Book candidates
@@ -100,7 +103,8 @@ Seth Colby's kickoff video ("Seth").
 
 ## 7. Accuracy and validation [Model Validation; Seth: accuracy is the main judging axis]
 
-- [x] `validation/validate.py`: 70 checks pass (2026-11-16): cross-check against ACS subject tables and DBEDT's profiles, internal consistency, provenance, mapping (incl. USGS place points vs Census blocks), county/state context, tax-area overlap, programs, likely-eligible estimates
+- [x] `validation/validate.py`: 70 checks pass (rerun 2026-11-20): cross-check against ACS subject tables and DBEDT's profiles, internal consistency, provenance, mapping (incl. USGS place points vs Census blocks), county/state context, tax-area overlap, programs, likely-eligible estimates
+
 - [x] Written protocol, `validation/PROTOCOL.md`
 - [ ] Subject-matter expert (DBEDT/READ) fills in `validation/spot_check_sample.csv`. Ask in #c_dbedt_agent. All six sampled indicators are already machine-checked against a second publication (PROTOCOL.md); the expert's sign-off is what the Success Scenario asks for
 - [ ] Run `validate.py` again after every data rebuild and before each demo

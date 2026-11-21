@@ -1,6 +1,6 @@
 // Report page (report.html): district report, views, comparison of two districts.
 // Kept out of the HTML so the Content Security Policy can forbid inline scripts.
-import { $, el, renderKeyFact, missingFact, comparisonTable, renderDetails, contextBody, taxAreasBody, programsBody, planLine, countyOf, pairTable, reportUrl, takeQuestion, likelyEligibleBody, likelyEligiblePair } from "/js/render.js";
+import { $, el, renderKeyFact, renderPairFact, missingFact, comparisonTable, renderDetails, contextBody, taxAreasBody, programsBody, planLine, countyOf, pairTable, reportUrl, takeQuestion, likelyEligibleBody, likelyEligiblePair, factKey, cardStyleSwitch } from "/js/render.js";
 import { fmtCount, fmtMoe, fmtToday } from "/js/format.js";
 import { PRESETS, presetById } from "/js/presets.js";
 
@@ -13,7 +13,7 @@ const comparing = () => !!(state.data && state.dataVs);
 
 // The question (if any) comes from browser storage by a one-time id; it is never in the link.
 const question = takeQuestion(params.get("qid")).trim();
-if (question) { $("from-q").hidden = false; $("from-q").textContent = `Opened from the assistant for your question: “${question}”`; }
+if (question) { $("from-q").hidden = false; $("from-q").textContent = `From your question: “${question}”`; }
 
 function syncUrl() {
   const u = new URL(location.href);
@@ -76,7 +76,7 @@ function renderSection(s, data, county) {
   else if (s.type === "likelyEligible") body = likelyEligibleBody(data);
   else if (s.type === "note") body = el("div", { className: "card" }, el("p", { className: "muted", style: "margin:0", textContent: s.text }));
   return el("section", { className: "block" }, el("h2", { textContent: s.title }),
-    body || el("p", { className: "muted", textContent: "Not available for this district in this tool's data." }));
+    body || el("p", { className: "muted", textContent: "Not available for this district." }));
 }
 
 // A section in comparison mode. Metric groups compare side by side; tax areas, county context
@@ -96,13 +96,13 @@ function renderPairSection(s, a, b) {
   } else {
     const what = s.type === "taxAreas" ? "Tax areas overlap each district differently"
       : s.type === "programs" ? "Program details are the same for every district"
-      : "These figures describe each district's county, not the district";
+      : "These describe each district's county, not the district";
     const link = d => el("a", { href: reportUrl(d.geo_id, state.view), textContent: d.name });
     body = el("div", { className: "card" }, el("p", { className: "muted", style: "margin:0" },
-      `${what}, so they are not compared here. See them in each district's report: `, link(a), " and ", link(b), "."));
+      `${what}, so they aren't compared. See `, link(a), " and ", link(b), "."));
   }
   return el("section", { className: "block" }, el("h2", { textContent: s.title }),
-    body || el("p", { className: "muted", textContent: "Not available for these districts in this tool's data." }));
+    body || el("p", { className: "muted", textContent: "Not available for these districts." }));
 }
 
 function printLine(label) {
@@ -117,11 +117,22 @@ function renderPanel() {
   const p = presetById(state.view);
   const notes = el("div", { className: "notes" }, ...(p.notes || []).map(n => el("p", { className: "muted small", textContent: n })));
   printLine(p.label);
+  const viewSwitch = () => cardStyleSwitch(() => {
+    renderPanel();
+    const b = document.querySelector('#panel .cs-switch button[aria-pressed="true"]');
+    if (b) b.focus();
+  });
   if (comparing()) {
     const a = { ...data, id: data.geo_id }, b = { ...state.dataVs, id: state.dataVs.geo_id };
-    $("panel").replaceChildren(
-      el("p", { className: "blurb", textContent: `The ${p.label.toLowerCase()} figures for both districts. Each difference is tested against both districts' margins of error.` }),
-      notes, pairTable(p.metrics, a, b), ...p.sections.map(s => renderPairSection(s, a, b)));
+    const byId = (d, id) => d.comparisons.find(c => c.metric_id === id);
+    const facts = el("div", { className: "facts" });
+    p.metrics.forEach(id => {
+      const ca = byId(a, id), cb = byId(b, id);
+      facts.append(ca || cb ? renderPairFact(ca, cb, { id: a.id, name: a.name }, { id: b.id, name: b.name }) : missingFact(id));
+    });
+    $("panel").replaceChildren(el("p", { className: "blurb", textContent: `${p.label}: both districts side by side, with the state for reference.` }), notes, viewSwitch(),
+      facts, factKey(undefined, { a: a.id, b: b.id }),
+ ...p.sections.map(s => renderPairSection(s, a, b)));
     document.title = `${data.geo_id} compared with ${state.dataVs.geo_id} · ${p.label} · District Insight`;
     return;
   }
@@ -129,10 +140,10 @@ function renderPanel() {
   const facts = el("div", { className: "facts" });
   p.metrics.forEach(id => {
     const c = data.comparisons.find(x => x.metric_id === id);
-    facts.append(c ? renderKeyFact(c) : missingFact(id));
+    facts.append(c ? renderKeyFact(c, { place: data.name }) : missingFact(id));
   });
-  $("panel").replaceChildren(el("p", { className: "blurb", textContent: p.blurb }), notes, facts,
-    ...p.sections.map(s => renderSection(s, data, county)));
+  $("panel").replaceChildren(el("p", { className: "blurb", textContent: p.blurb }), notes, viewSwitch(),
+    facts, factKey(), ...p.sections.map(s => renderSection(s, data, county)));
   document.title = `${data.name} · ${p.label} · District Insight`;
 }
 
@@ -153,8 +164,8 @@ function pairCard(data, cls) {
   const card = el("article", { className: "pcard " + cls }, el("h2", { textContent: data.name }),
     el("p", { textContent: countyOf(data) || "County not known" }), el("p", { textContent: popLine(data) }));
   if (data.plan) card.append(el("p", { className: "muted", textContent:
-    `Official permanent residents (2021 Reapportionment Plan): ${data.plan.permanent_residents.toLocaleString("en-US")}` }));
-  card.append(el("a", { href: reportUrl(data.geo_id, state.view), textContent: "Open this district's full report" }));
+    `Redistricting population (2021 plan): ${data.plan.permanent_residents.toLocaleString("en-US")}` }));
+  card.append(el("a", { href: reportUrl(data.geo_id, state.view), textContent: "Full report" }));
   return card;
 }
 
@@ -180,7 +191,7 @@ async function load() {
   $("pair").hidden = true; $("pair-note").hidden = true;
   if (!id) {
     $("title").textContent = "Choose a district";
-    $("sub").textContent = "Pick a House or Senate district above to see its report.";
+    $("sub").textContent = "Pick a district above.";
     $("plan").replaceChildren(); $("panel").replaceChildren(); $("all-inner").replaceChildren();
     return;
   }
@@ -192,12 +203,13 @@ async function load() {
     const year = data.comparisons[0] ? data.comparisons[0].source.year : "";
     if (dataVs) {
       $("title").textContent = `${data.name} compared with ${dataVs.name}`;
-      $("sub").textContent = [year && `Census ACS 5-year ${year}`, "Every difference is tested against both margins of error"].filter(Boolean).join(" · ");
+      $("sub").textContent = [year && `Census ACS 5-year ${year}`, "Differences tested against both margins of error"].filter(Boolean).join(" · ");
       $("plan").replaceChildren();
       $("pair").replaceChildren(pairCard(data, "a"), pairCard(dataVs, "b"));
       $("pair").hidden = false;
       if (data.geo_type !== dataVs.geo_type) {
-        $("pair-note").textContent = "House and Senate districts overlap and differ in size. Rates and medians can be compared, but the same residents may be counted in both, so the margin-of-error test is only approximate.";
+        $("pair-note").textContent = "House and Senate districts overlap. Rates and medians compare, but some residents are in both, so the margin-of-error test is approximate.";
+
         $("pair-note").hidden = false;
       }
       $("all").hidden = true;
